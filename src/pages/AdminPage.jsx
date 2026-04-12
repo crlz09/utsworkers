@@ -15,6 +15,13 @@ import {
   Wrench,
   Languages,
   X,
+  CalendarDays,
+  FileText,
+  Upload,
+  Paperclip,
+  Trash2,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 
 function PageStyles() {
@@ -29,11 +36,12 @@ function PageStyles() {
         color: #0f172a;
       }
 
-      input, select, button {
+      input, select, textarea, button {
         font: inherit;
       }
 
-      input::placeholder {
+      input::placeholder,
+      textarea::placeholder {
         color: #94a3b8;
       }
 
@@ -51,7 +59,11 @@ function PageStyles() {
         .stats-grid,
         .worker-top,
         .worker-meta,
-        .worker-notes {
+        .worker-notes,
+        .worker-dates,
+        .availability-grid,
+        .document-upload-grid,
+        .worker-actions {
           grid-template-columns: 1fr !important;
         }
 
@@ -76,6 +88,19 @@ const inputStyle = {
   background: "#ffffff",
   color: "#0f172a",
   outline: "none",
+};
+
+const textareaStyle = {
+  width: "100%",
+  minHeight: 120,
+  padding: "13px 14px",
+  borderRadius: 14,
+  border: "1px solid #cbd5e1",
+  background: "#ffffff",
+  color: "#0f172a",
+  outline: "none",
+  resize: "vertical",
+  lineHeight: 1.6,
 };
 
 function pillStyle(dark = false) {
@@ -120,17 +145,29 @@ function getStatusStyle(status) {
         color: "#0c4a6e",
         border: "1px solid #7dd3fc",
       };
-    case "completed":
-      return {
-        background: "#dcfce7",
-        color: "#166534",
-        border: "1px solid #86efac",
-      };
     case "hold":
+      return {
+        background: "#ffedd5",
+        color: "#9a3412",
+        border: "1px solid #fdba74",
+      };
+    case "rejected":
       return {
         background: "#fee2e2",
         color: "#991b1b",
         border: "1px solid #fca5a5",
+      };
+    case "completed":
+      return {
+        background: "#ede9fe",
+        color: "#5b21b6",
+        border: "1px solid #c4b5fd",
+      };
+    case "working":
+      return {
+        background: "#dcfce7",
+        color: "#166534",
+        border: "1px solid #86efac",
       };
     case "pending":
     default:
@@ -142,18 +179,92 @@ function getStatusStyle(status) {
   }
 }
 
+function getAvailabilityStyle(availability) {
+  switch (availability) {
+    case "available_soon":
+      return {
+        background: "#e0f2fe",
+        color: "#0c4a6e",
+        border: "1px solid #7dd3fc",
+      };
+    case "on_project":
+      return {
+        background: "#ede9fe",
+        color: "#5b21b6",
+        border: "1px solid #c4b5fd",
+      };
+    case "unavailable":
+      return {
+        background: "#f1f5f9",
+        color: "#334155",
+        border: "1px solid #cbd5e1",
+      };
+    case "available":
+    default:
+      return {
+        background: "#dcfce7",
+        color: "#166534",
+        border: "1px solid #86efac",
+      };
+  }
+}
+
 function formatStatus(status) {
   switch (status) {
     case "onboarding":
       return "OnBoarding";
-    case "completed":
-      return "Completed";
     case "hold":
       return "Hold";
+    case "rejected":
+      return "Rejected";
+    case "completed":
+      return "Completed";
+    case "working":
+      return "Working";
     case "pending":
     default:
       return "Pending";
   }
+}
+
+function formatAvailability(availability) {
+  switch (availability) {
+    case "available_soon":
+      return "Available Soon";
+    case "on_project":
+      return "On Project";
+    case "unavailable":
+      return "Unavailable";
+    case "available":
+    default:
+      return "Available";
+  }
+}
+
+function statusPriority(status) {
+  switch (status) {
+    case "pending":
+      return 1;
+    case "onboarding":
+      return 2;
+    case "working":
+      return 3;
+    case "hold":
+      return 4;
+    case "completed":
+      return 5;
+    case "rejected":
+      return 6;
+    default:
+      return 99;
+  }
+}
+
+function formatDate(dateString) {
+  if (!dateString) return "—";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString();
 }
 
 function StatCard({ icon, label, value }) {
@@ -282,11 +393,301 @@ function SkillMultiFilter({ skills, selectedSkillIds, setSelectedSkillIds }) {
   );
 }
 
-function WorkerCard({ worker, onStatusSaved }) {
+function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [documentType, setDocumentType] = useState("resume");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [downloadingId, setDownloadingId] = useState("");
+
+  const handleUpload = async () => {
+    if (!selectedFiles.length) return;
+
+    setUploading(true);
+    setError("");
+
+    try {
+      const uploadedRows = [];
+
+      for (const file of selectedFiles) {
+        const safeName = file.name.replace(/\s+/g, "_");
+        const path = `${workerId}/${Date.now()}_${safeName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("worker-documents")
+          .upload(path, file, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type || undefined,
+          });
+
+        if (uploadError) throw uploadError;
+
+        uploadedRows.push({
+          worker_id: workerId,
+          file_name: file.name,
+          file_path: path,
+          file_type: file.type || null,
+          file_size: file.size || null,
+          document_type: documentType,
+        });
+      }
+
+      const { error: insertError } = await supabase
+        .from("worker_documents")
+        .insert(uploadedRows);
+
+      if (insertError) throw insertError;
+
+      setSelectedFiles([]);
+      onDocumentsChanged();
+    } catch (err) {
+      setError(err.message || "Could not upload files.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownload = async (doc) => {
+    setDownloadingId(doc.id);
+    setError("");
+
+    try {
+      const { data, error } = await supabase.storage
+        .from("worker-documents")
+        .download(doc.file_path);
+
+      if (error) throw error;
+
+      const url = window.URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.file_name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || "Could not download file.");
+    } finally {
+      setDownloadingId("");
+    }
+  };
+
+  const handleDelete = async (doc) => {
+    const confirmed = window.confirm(`Delete "${doc.file_name}"?`);
+    if (!confirmed) return;
+
+    setError("");
+
+    try {
+      const { error: storageError } = await supabase.storage
+        .from("worker-documents")
+        .remove([doc.file_path]);
+
+      if (storageError) throw storageError;
+
+      const { error: dbError } = await supabase
+        .from("worker_documents")
+        .delete()
+        .eq("id", doc.id);
+
+      if (dbError) throw dbError;
+
+      onDocumentsChanged();
+    } catch (err) {
+      setError(err.message || "Could not delete file.");
+    }
+  };
+
+  return (
+    <div
+      style={{
+        padding: 16,
+        borderRadius: 18,
+        background: "#f8fafc",
+        border: "1px solid #e2e8f0",
+        display: "grid",
+        gap: 14,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "#0f172a" }}>
+        <Paperclip size={16} />
+        <span>Documents</span>
+      </div>
+
+      <div
+        className="document-upload-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 220px auto",
+          gap: 12,
+        }}
+      >
+        <input
+          type="file"
+          multiple
+          onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
+          style={inputStyle}
+        />
+
+        <select
+          value={documentType}
+          onChange={(e) => setDocumentType(e.target.value)}
+          style={inputStyle}
+        >
+          <option value="resume">Resume</option>
+          <option value="osha">OSHA Card</option>
+          <option value="certification">Certification</option>
+          <option value="license">License</option>
+          <option value="id">ID</option>
+          <option value="other">Other</option>
+        </select>
+
+        <button
+          type="button"
+          onClick={handleUpload}
+          disabled={uploading || selectedFiles.length === 0}
+          style={{
+            border: "none",
+            background: uploading || selectedFiles.length === 0 ? "#94a3b8" : "#0f172a",
+            color: "#ffffff",
+            borderRadius: 14,
+            padding: "12px 16px",
+            fontWeight: 800,
+            cursor: uploading || selectedFiles.length === 0 ? "not-allowed" : "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <Upload size={16} />
+          {uploading ? "Uploading..." : "Upload"}
+        </button>
+      </div>
+
+      {selectedFiles.length > 0 ? (
+        <div style={{ color: "#475569", fontSize: 14 }}>
+          {selectedFiles.length} file(s) selected
+        </div>
+      ) : null}
+
+      {error ? (
+        <div
+          style={{
+            padding: "12px 14px",
+            borderRadius: 14,
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#b91c1c",
+            fontWeight: 700,
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {documents.length === 0 ? (
+          <div style={{ color: "#64748b" }}>No documents uploaded yet.</div>
+        ) : (
+          documents.map((doc) => (
+            <div
+              key={doc.id}
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 16,
+                padding: 14,
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                gap: 12,
+                alignItems: "center",
+              }}
+            >
+              <div style={{ display: "grid", gap: 4 }}>
+                <div style={{ fontWeight: 800, color: "#0f172a" }}>{doc.file_name}</div>
+                <div style={{ color: "#64748b", fontSize: 13 }}>
+                  Type: {doc.document_type || "other"} • Uploaded: {formatDate(doc.uploaded_at)}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => handleDownload(doc)}
+                  disabled={downloadingId === doc.id}
+                  style={{
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#0f172a",
+                    borderRadius: 12,
+                    padding: "10px 12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Download size={14} />
+                  {downloadingId === doc.id ? "Downloading..." : "Download"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDelete(doc)}
+                  style={{
+                    border: "1px solid #fecaca",
+                    background: "#ffffff",
+                    color: "#b91c1c",
+                    borderRadius: 12,
+                    padding: "10px 12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorkerCard({
+  worker,
+  onStatusSaved,
+  onAvailabilitySaved,
+  onRecruiterNotesSaved,
+  onDocumentsChanged,
+}) {
   const [open, setOpen] = useState(false);
+
   const [status, setStatus] = useState(worker.status || "pending");
   const [savingStatus, setSavingStatus] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [statusUpdatedAt, setStatusUpdatedAt] = useState(worker.status_updated_at);
+
+  const [availability, setAvailability] = useState(worker.availability || "available");
+  const [availableFrom, setAvailableFrom] = useState(worker.available_from || "");
+  const [willingToTravel, setWillingToTravel] = useState(
+    worker.willing_to_travel ?? true
+  );
+  const [savingAvailability, setSavingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+
+  const [recruiterNotes, setRecruiterNotes] = useState(worker.recruiter_notes || "");
+  const [notesUpdatedAt, setNotesUpdatedAt] = useState(worker.recruiter_notes_updated_at);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesError, setNotesError] = useState("");
 
   const skills =
     worker.worker_skills?.map((s) => s.skills?.name).filter(Boolean) || [];
@@ -306,19 +707,76 @@ function WorkerCard({ worker, onStatusSaved }) {
     setStatusError("");
     setSavingStatus(true);
 
+    const nowIso = new Date().toISOString();
+
     const { error } = await supabase
       .from("workers")
-      .update({ status: newStatus })
+      .update({
+        status: newStatus,
+        status_updated_at: nowIso,
+      })
       .eq("id", worker.id);
 
     if (error) {
       setStatusError(error.message || "Could not update status.");
       setStatus(worker.status || "pending");
+      setStatusUpdatedAt(worker.status_updated_at);
     } else {
-      onStatusSaved(worker.id, newStatus);
+      setStatusUpdatedAt(nowIso);
+      onStatusSaved(worker.id, newStatus, nowIso);
     }
 
     setSavingStatus(false);
+  };
+
+  const saveAvailability = async () => {
+    setAvailabilityError("");
+    setSavingAvailability(true);
+
+    const { error } = await supabase
+      .from("workers")
+      .update({
+        availability,
+        available_from: availableFrom || null,
+        willing_to_travel: willingToTravel,
+      })
+      .eq("id", worker.id);
+
+    if (error) {
+      setAvailabilityError(error.message || "Could not update availability.");
+    } else {
+      onAvailabilitySaved(worker.id, {
+        availability,
+        available_from: availableFrom || null,
+        willing_to_travel: willingToTravel,
+      });
+    }
+
+    setSavingAvailability(false);
+  };
+
+  const saveRecruiterNotes = async () => {
+    setNotesError("");
+    setSavingNotes(true);
+
+    const nowIso = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("workers")
+      .update({
+        recruiter_notes: recruiterNotes.trim() || null,
+        recruiter_notes_updated_at: nowIso,
+      })
+      .eq("id", worker.id);
+
+    if (error) {
+      setNotesError(error.message || "Could not save recruiter notes.");
+    } else {
+      setNotesUpdatedAt(nowIso);
+      onRecruiterNotesSaved(worker.id, recruiterNotes.trim() || null, nowIso);
+    }
+
+    setSavingNotes(false);
   };
 
   return (
@@ -371,6 +829,20 @@ function WorkerCard({ worker, onStatusSaved }) {
             >
               {formatStatus(status)}
             </span>
+
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "7px 11px",
+                borderRadius: 999,
+                fontSize: 13,
+                fontWeight: 800,
+                ...getAvailabilityStyle(availability),
+              }}
+            >
+              {formatAvailability(availability)}
+            </span>
           </div>
         </div>
 
@@ -413,7 +885,9 @@ function WorkerCard({ worker, onStatusSaved }) {
               <option value="pending">Pending</option>
               <option value="onboarding">OnBoarding</option>
               <option value="hold">Hold</option>
+              <option value="rejected">Rejected</option>
               <option value="completed">Completed</option>
+              <option value="working">Working</option>
             </select>
 
             {savingStatus ? (
@@ -446,6 +920,228 @@ function WorkerCard({ worker, onStatusSaved }) {
           </div>
         </div>
       </div>
+
+      <div
+        className="worker-dates"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: 16,
+        }}
+      >
+        <div
+          style={{
+            padding: 14,
+            borderRadius: 16,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <CalendarDays size={16} color="#334155" />
+          <div>
+            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>Registered</div>
+            <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatDate(worker.created_at)}</div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: 14,
+            borderRadius: 16,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <CalendarDays size={16} color="#334155" />
+          <div>
+            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>Status Updated</div>
+            <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatDate(statusUpdatedAt)}</div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: 14,
+            borderRadius: 16,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <FileText size={16} color="#334155" />
+          <div>
+            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>Notes Updated</div>
+            <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatDate(notesUpdatedAt)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: 16,
+          borderRadius: 18,
+          background: "#f8fafc",
+          border: "1px solid #e2e8f0",
+          display: "grid",
+          gap: 12,
+        }}
+      >
+        <div style={{ fontWeight: 800, color: "#0f172a" }}>Availability</div>
+
+        <div
+          className="availability-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 12,
+          }}
+        >
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 700, fontSize: 14 }}>Availability</label>
+            <select
+              value={availability}
+              onChange={(e) => setAvailability(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="available">Available</option>
+              <option value="available_soon">Available Soon</option>
+              <option value="on_project">On Project</option>
+              <option value="unavailable">Unavailable</option>
+            </select>
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 700, fontSize: 14 }}>Available From</label>
+            <input
+              type="date"
+              value={availableFrom || ""}
+              onChange={(e) => setAvailableFrom(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 700, fontSize: 14 }}>Travel</label>
+            <button
+              type="button"
+              onClick={() => setWillingToTravel((prev) => !prev)}
+              style={{
+                ...inputStyle,
+                cursor: "pointer",
+                textAlign: "left",
+                background: willingToTravel ? "#dcfce7" : "#fee2e2",
+                color: willingToTravel ? "#166534" : "#991b1b",
+                border: willingToTravel
+                  ? "1px solid #86efac"
+                  : "1px solid #fca5a5",
+              }}
+            >
+              {willingToTravel ? "Willing to Travel" : "Not Willing to Travel"}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={saveAvailability}
+            disabled={savingAvailability}
+            style={{
+              border: "none",
+              background: savingAvailability ? "#94a3b8" : "#0f172a",
+              color: "#ffffff",
+              borderRadius: 14,
+              padding: "12px 16px",
+              fontWeight: 800,
+              cursor: savingAvailability ? "not-allowed" : "pointer",
+            }}
+          >
+            {savingAvailability ? "Saving..." : "Save Availability"}
+          </button>
+
+          {availabilityError ? (
+            <div
+              style={{
+                color: "#b91c1c",
+                fontSize: 13,
+                fontWeight: 700,
+                alignSelf: "center",
+              }}
+            >
+              {availabilityError}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: 16,
+          borderRadius: 18,
+          background: "#f8fafc",
+          border: "1px solid #e2e8f0",
+          display: "grid",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "#0f172a" }}>
+          <FileText size={16} />
+          <span>Recruiter / Admin Notes</span>
+        </div>
+
+        <textarea
+          value={recruiterNotes}
+          onChange={(e) => setRecruiterNotes(e.target.value)}
+          placeholder="Internal notes about communication, readiness, interview impression, pay expectations, travel flexibility, etc."
+          style={textareaStyle}
+        />
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={saveRecruiterNotes}
+            disabled={savingNotes}
+            style={{
+              border: "none",
+              background: savingNotes ? "#94a3b8" : "#0f172a",
+              color: "#ffffff",
+              borderRadius: 14,
+              padding: "12px 16px",
+              fontWeight: 800,
+              cursor: savingNotes ? "not-allowed" : "pointer",
+            }}
+          >
+            {savingNotes ? "Saving..." : "Save Notes"}
+          </button>
+
+          {notesError ? (
+            <div
+              style={{
+                color: "#b91c1c",
+                fontSize: 13,
+                fontWeight: 700,
+                alignSelf: "center",
+              }}
+            >
+              {notesError}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <WorkerDocumentsPanel
+        workerId={worker.id}
+        documents={worker.worker_documents || []}
+        onDocumentsChanged={onDocumentsChanged}
+      />
 
       <div
         className="worker-meta"
@@ -521,25 +1217,61 @@ function WorkerCard({ worker, onStatusSaved }) {
         </div>
       </div>
 
-      <button
-        onClick={() => setOpen(!open)}
+      <div
+        className="worker-actions"
         style={{
-          border: "1px solid #cbd5e1",
-          background: "#ffffff",
-          color: "#0f172a",
-          borderRadius: 14,
-          padding: "12px 16px",
-          fontWeight: 800,
-          cursor: "pointer",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          width: "fit-content",
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
         }}
       >
-        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        {open ? "Hide Projects" : `Projects (${projects.length})`}
-      </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!worker.public_profile_slug) {
+              alert("This worker does not have a public profile slug yet.");
+              return;
+            }
+            window.open(`/profile/${worker.public_profile_slug}`, "_blank");
+          }}
+          style={{
+            border: "1px solid #cbd5e1",
+            background: "#ffffff",
+            color: "#0f172a",
+            borderRadius: 14,
+            padding: "12px 16px",
+            fontWeight: 800,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            width: "fit-content",
+          }}
+        >
+          <ExternalLink size={16} />
+          Open Public Profile
+        </button>
+
+        <button
+          onClick={() => setOpen(!open)}
+          style={{
+            border: "1px solid #cbd5e1",
+            background: "#ffffff",
+            color: "#0f172a",
+            borderRadius: 14,
+            padding: "12px 16px",
+            fontWeight: 800,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            width: "fit-content",
+          }}
+        >
+          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          {open ? "Hide Projects" : `Projects (${projects.length})`}
+        </button>
+      </div>
 
       {open ? (
         <div style={{ display: "grid", gap: 12 }}>
@@ -602,7 +1334,9 @@ export default function AdminPage() {
   const [tradeFilter, setTradeFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [availabilityFilter, setAvailabilityFilter] = useState("");
   const [selectedSkillIds, setSelectedSkillIds] = useState([]);
+  const [sortBy, setSortBy] = useState("status_priority");
   const [trades, setTrades] = useState([]);
   const [locations, setLocations] = useState([]);
   const [skills, setSkills] = useState([]);
@@ -620,9 +1354,9 @@ export default function AdminPage() {
           worker_languages(language_name),
           worker_projects(*),
           worker_skills(skills(id, name)),
-          worker_certifications(certifications(name))
-        `)
-        .order("created_at", { ascending: false });
+          worker_certifications(certifications(name)),
+          worker_documents(*)
+        `);
 
       const tradesData = await supabase.from("trades").select("*").order("name");
       const locationsData = await supabase.from("locations").select("*").order("name");
@@ -638,27 +1372,78 @@ export default function AdminPage() {
     load();
   }, []);
 
-  const handleStatusSaved = (workerId, newStatus) => {
+  const reloadWorkerDocuments = async (workerId) => {
+    const { data, error } = await supabase
+      .from("worker_documents")
+      .select("*")
+      .eq("worker_id", workerId)
+      .order("uploaded_at", { ascending: false });
+
+    if (!error) {
+      setWorkers((prev) =>
+        prev.map((worker) =>
+          worker.id === workerId
+            ? { ...worker, worker_documents: data || [] }
+            : worker
+        )
+      );
+    }
+  };
+
+  const handleStatusSaved = (workerId, newStatus, statusUpdatedAt) => {
     setWorkers((prev) =>
       prev.map((worker) =>
-        worker.id === workerId ? { ...worker, status: newStatus } : worker
+        worker.id === workerId
+          ? { ...worker, status: newStatus, status_updated_at: statusUpdatedAt }
+          : worker
+      )
+    );
+  };
+
+  const handleAvailabilitySaved = (workerId, payload) => {
+    setWorkers((prev) =>
+      prev.map((worker) =>
+        worker.id === workerId
+          ? {
+              ...worker,
+              availability: payload.availability,
+              available_from: payload.available_from,
+              willing_to_travel: payload.willing_to_travel,
+            }
+          : worker
+      )
+    );
+  };
+
+  const handleRecruiterNotesSaved = (workerId, notes, notesUpdatedAt) => {
+    setWorkers((prev) =>
+      prev.map((worker) =>
+        worker.id === workerId
+          ? {
+              ...worker,
+              recruiter_notes: notes,
+              recruiter_notes_updated_at: notesUpdatedAt,
+            }
+          : worker
       )
     );
   };
 
   const filtered = useMemo(() => {
-    return workers.filter((w) => {
+    const base = workers.filter((w) => {
       const term = search.toLowerCase().trim();
 
       const matchSearch =
         !term ||
         w.name?.toLowerCase().includes(term) ||
         w.email?.toLowerCase().includes(term) ||
-        w.phone?.toLowerCase().includes(term);
+        w.phone?.toLowerCase().includes(term) ||
+        w.recruiter_notes?.toLowerCase().includes(term);
 
       const matchTrade = !tradeFilter || w.trade_id === tradeFilter;
       const matchLocation = !locationFilter || w.location_id === locationFilter;
       const matchStatus = !statusFilter || w.status === statusFilter;
+      const matchAvailability = !availabilityFilter || w.availability === availabilityFilter;
 
       const workerSkillIds =
         w.worker_skills?.map((s) => s.skills?.id).filter(Boolean) || [];
@@ -672,10 +1457,37 @@ export default function AdminPage() {
         matchTrade &&
         matchLocation &&
         matchStatus &&
+        matchAvailability &&
         matchSkills
       );
     });
-  }, [workers, search, tradeFilter, locationFilter, statusFilter, selectedSkillIds]);
+
+    const sorted = [...base].sort((a, b) => {
+      if (sortBy === "newest_registered") {
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      }
+
+      if (sortBy === "oldest_registered") {
+        return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      }
+
+      const statusDiff = statusPriority(a.status) - statusPriority(b.status);
+      if (statusDiff !== 0) return statusDiff;
+
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+
+    return sorted;
+  }, [
+    workers,
+    search,
+    tradeFilter,
+    locationFilter,
+    statusFilter,
+    availabilityFilter,
+    selectedSkillIds,
+    sortBy,
+  ]);
 
   const totalProjects = workers.reduce(
     (acc, worker) => acc + (worker.worker_projects?.length || 0),
@@ -685,7 +1497,14 @@ export default function AdminPage() {
   const pendingCount = workers.filter((w) => w.status === "pending").length;
   const onboardingCount = workers.filter((w) => w.status === "onboarding").length;
   const holdCount = workers.filter((w) => w.status === "hold").length;
+  const rejectedCount = workers.filter((w) => w.status === "rejected").length;
   const completedCount = workers.filter((w) => w.status === "completed").length;
+  const workingCount = workers.filter((w) => w.status === "working").length;
+
+  const availableCount = workers.filter((w) => w.availability === "available").length;
+  const availableSoonCount = workers.filter((w) => w.availability === "available_soon").length;
+  const onProjectCount = workers.filter((w) => w.availability === "on_project").length;
+  const unavailableCount = workers.filter((w) => w.availability === "unavailable").length;
 
   return (
     <>
@@ -751,7 +1570,7 @@ export default function AdminPage() {
                 </h1>
 
                 <p style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
-                  Review, search, filter, and update worker status from one place.
+                  Review, search, filter, sort, and manage both workflow status and real availability.
                 </p>
               </div>
 
@@ -800,30 +1619,51 @@ export default function AdminPage() {
               />
               <StatCard
                 icon={<ShieldCheck size={18} />}
-                label="Completed"
-                value={completedCount}
+                label="Available Now"
+                value={availableCount}
               />
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-              }}
-            >
-              <span style={{ ...pillStyle(), ...getStatusStyle("pending") }}>
-                Pending: {pendingCount}
-              </span>
-              <span style={{ ...pillStyle(), ...getStatusStyle("onboarding") }}>
-                OnBoarding: {onboardingCount}
-              </span>
-              <span style={{ ...pillStyle(), ...getStatusStyle("hold") }}>
-                Hold: {holdCount}
-              </span>
-              <span style={{ ...pillStyle(), ...getStatusStyle("completed") }}>
-                Completed: {completedCount}
-              </span>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ fontWeight: 800, color: "#0f172a" }}>Workflow Status</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ ...pillStyle(), ...getStatusStyle("pending") }}>
+                  Pending: {pendingCount}
+                </span>
+                <span style={{ ...pillStyle(), ...getStatusStyle("onboarding") }}>
+                  OnBoarding: {onboardingCount}
+                </span>
+                <span style={{ ...pillStyle(), ...getStatusStyle("hold") }}>
+                  Hold: {holdCount}
+                </span>
+                <span style={{ ...pillStyle(), ...getStatusStyle("rejected") }}>
+                  Rejected: {rejectedCount}
+                </span>
+                <span style={{ ...pillStyle(), ...getStatusStyle("completed") }}>
+                  Completed: {completedCount}
+                </span>
+                <span style={{ ...pillStyle(), ...getStatusStyle("working") }}>
+                  Working: {workingCount}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ fontWeight: 800, color: "#0f172a" }}>Availability</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ ...pillStyle(), ...getAvailabilityStyle("available") }}>
+                  Available: {availableCount}
+                </span>
+                <span style={{ ...pillStyle(), ...getAvailabilityStyle("available_soon") }}>
+                  Available Soon: {availableSoonCount}
+                </span>
+                <span style={{ ...pillStyle(), ...getAvailabilityStyle("on_project") }}>
+                  On Project: {onProjectCount}
+                </span>
+                <span style={{ ...pillStyle(), ...getAvailabilityStyle("unavailable") }}>
+                  Unavailable: {unavailableCount}
+                </span>
+              </div>
             </div>
 
             <div
@@ -836,18 +1676,18 @@ export default function AdminPage() {
                 gap: 18,
               }}
             >
-              <div style={{ fontWeight: 900, fontSize: 18 }}>Filters</div>
+              <div style={{ fontWeight: 900, fontSize: 18 }}>Filters & Sorting</div>
 
               <div
                 className="filters-grid"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.4fr 1fr 1fr 1fr",
+                  gridTemplateColumns: "1.4fr 1fr 1fr 1fr 1fr 1fr",
                   gap: 14,
                 }}
               >
                 <input
-                  placeholder="Search by name, email or phone"
+                  placeholder="Search by name, email, phone or notes"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   style={inputStyle}
@@ -888,7 +1728,31 @@ export default function AdminPage() {
                   <option value="pending">Pending</option>
                   <option value="onboarding">OnBoarding</option>
                   <option value="hold">Hold</option>
+                  <option value="rejected">Rejected</option>
                   <option value="completed">Completed</option>
+                  <option value="working">Working</option>
+                </select>
+
+                <select
+                  value={availabilityFilter}
+                  onChange={(e) => setAvailabilityFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">All Availability</option>
+                  <option value="available">Available</option>
+                  <option value="available_soon">Available Soon</option>
+                  <option value="on_project">On Project</option>
+                  <option value="unavailable">Unavailable</option>
+                </select>
+
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="status_priority">Sort: Status Priority</option>
+                  <option value="newest_registered">Sort: Newest Registered</option>
+                  <option value="oldest_registered">Sort: Oldest Registered</option>
                 </select>
               </div>
 
@@ -935,6 +1799,9 @@ export default function AdminPage() {
                     key={w.id}
                     worker={w}
                     onStatusSaved={handleStatusSaved}
+                    onAvailabilitySaved={handleAvailabilitySaved}
+                    onRecruiterNotesSaved={handleRecruiterNotesSaved}
+                    onDocumentsChanged={() => reloadWorkerDocuments(w.id)}
                   />
                 ))
               )}
