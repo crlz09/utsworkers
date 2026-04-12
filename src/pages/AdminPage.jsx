@@ -194,17 +194,11 @@ function getAvailabilityStyle(availability) {
         border: "1px solid #c4b5fd",
       };
     case "unavailable":
+    default:
       return {
         background: "#f1f5f9",
         color: "#334155",
         border: "1px solid #cbd5e1",
-      };
-    case "available":
-    default:
-      return {
-        background: "#dcfce7",
-        color: "#166534",
-        border: "1px solid #86efac",
       };
   }
 }
@@ -230,14 +224,12 @@ function formatStatus(status) {
 function formatAvailability(availability) {
   switch (availability) {
     case "available_soon":
-      return "Available Soon";
+      return "Available";
     case "on_project":
       return "On Project";
     case "unavailable":
-      return "Unavailable";
-    case "available":
     default:
-      return "Available";
+      return "Unavailable";
   }
 }
 
@@ -676,7 +668,9 @@ function WorkerCard({
   const [statusError, setStatusError] = useState("");
   const [statusUpdatedAt, setStatusUpdatedAt] = useState(worker.status_updated_at);
 
-  const [availability, setAvailability] = useState(worker.availability || "available");
+  const [availability, setAvailability] = useState(
+    worker.availability || "available_soon"
+  );
   const [availableFrom, setAvailableFrom] = useState(worker.available_from || "");
   const [willingToTravel, setWillingToTravel] = useState(
     worker.willing_to_travel ?? true
@@ -720,10 +714,26 @@ function WorkerCard({
     if (error) {
       setStatusError(error.message || "Could not update status.");
       setStatus(worker.status || "pending");
+      setAvailability(worker.availability || "available_soon");
       setStatusUpdatedAt(worker.status_updated_at);
     } else {
       setStatusUpdatedAt(nowIso);
       onStatusSaved(worker.id, newStatus, nowIso);
+
+      const updatedAvailability =
+        worker.status === "pending" && newStatus !== "pending"
+          ? "unavailable"
+          : newStatus === "pending"
+          ? "available_soon"
+          : availability;
+
+      setAvailability(updatedAvailability);
+
+      onAvailabilitySaved(worker.id, {
+        availability: updatedAvailability,
+        available_from: worker.available_from,
+        willing_to_travel: worker.willing_to_travel,
+      });
     }
 
     setSavingStatus(false);
@@ -779,6 +789,8 @@ function WorkerCard({
     setSavingNotes(false);
   };
 
+  const showAvailabilityTag = status === "pending";
+
   return (
     <div
       style={{
@@ -830,19 +842,21 @@ function WorkerCard({
               {formatStatus(status)}
             </span>
 
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "7px 11px",
-                borderRadius: 999,
-                fontSize: 13,
-                fontWeight: 800,
-                ...getAvailabilityStyle(availability),
-              }}
-            >
-              {formatAvailability(availability)}
-            </span>
+            {showAvailabilityTag ? (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "7px 11px",
+                  borderRadius: 999,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  ...getAvailabilityStyle(availability),
+                }}
+              >
+                {formatAvailability(availability)}
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -994,7 +1008,7 @@ function WorkerCard({
           gap: 12,
         }}
       >
-        <div style={{ fontWeight: 800, color: "#0f172a" }}>Availability</div>
+        <div style={{ fontWeight: 800, color: "#0f172a" }}>Pending Pool Availability</div>
 
         <div
           className="availability-grid"
@@ -1010,9 +1024,9 @@ function WorkerCard({
               value={availability}
               onChange={(e) => setAvailability(e.target.value)}
               style={inputStyle}
+              disabled={status !== "pending"}
             >
-              <option value="available">Available</option>
-              <option value="available_soon">Available Soon</option>
+              <option value="available_soon">Available</option>
               <option value="on_project">On Project</option>
               <option value="unavailable">Unavailable</option>
             </select>
@@ -1025,6 +1039,7 @@ function WorkerCard({
               value={availableFrom || ""}
               onChange={(e) => setAvailableFrom(e.target.value)}
               style={inputStyle}
+              disabled={status !== "pending"}
             />
           </div>
 
@@ -1032,19 +1047,40 @@ function WorkerCard({
             <label style={{ fontWeight: 700, fontSize: 14 }}>Travel</label>
             <button
               type="button"
-              onClick={() => setWillingToTravel((prev) => !prev)}
+              onClick={() => {
+                if (status !== "pending") return;
+                setWillingToTravel((prev) => !prev);
+              }}
+              disabled={status !== "pending"}
               style={{
                 ...inputStyle,
-                cursor: "pointer",
+                cursor: status !== "pending" ? "not-allowed" : "pointer",
                 textAlign: "left",
-                background: willingToTravel ? "#dcfce7" : "#fee2e2",
-                color: willingToTravel ? "#166534" : "#991b1b",
-                border: willingToTravel
-                  ? "1px solid #86efac"
-                  : "1px solid #fca5a5",
+                background:
+                  status !== "pending"
+                    ? "#f8fafc"
+                    : willingToTravel
+                    ? "#dcfce7"
+                    : "#fee2e2",
+                color:
+                  status !== "pending"
+                    ? "#94a3b8"
+                    : willingToTravel
+                    ? "#166534"
+                    : "#991b1b",
+                border:
+                  status !== "pending"
+                    ? "1px solid #e2e8f0"
+                    : willingToTravel
+                    ? "1px solid #86efac"
+                    : "1px solid #fca5a5",
               }}
             >
-              {willingToTravel ? "Willing to Travel" : "Not Willing to Travel"}
+              {status !== "pending"
+                ? "Availability controlled only for Pending"
+                : willingToTravel
+                ? "Willing to Travel"
+                : "Not Willing to Travel"}
             </button>
           </div>
         </div>
@@ -1053,19 +1089,34 @@ function WorkerCard({
           <button
             type="button"
             onClick={saveAvailability}
-            disabled={savingAvailability}
+            disabled={savingAvailability || status !== "pending"}
             style={{
               border: "none",
-              background: savingAvailability ? "#94a3b8" : "#0f172a",
+              background:
+                savingAvailability || status !== "pending" ? "#94a3b8" : "#0f172a",
               color: "#ffffff",
               borderRadius: 14,
               padding: "12px 16px",
               fontWeight: 800,
-              cursor: savingAvailability ? "not-allowed" : "pointer",
+              cursor:
+                savingAvailability || status !== "pending" ? "not-allowed" : "pointer",
             }}
           >
             {savingAvailability ? "Saving..." : "Save Availability"}
           </button>
+
+          {status !== "pending" ? (
+            <div
+              style={{
+                color: "#64748b",
+                fontSize: 13,
+                fontWeight: 700,
+                alignSelf: "center",
+              }}
+            >
+              Availability only applies to workers in Pending.
+            </div>
+          ) : null}
 
           {availabilityError ? (
             <div
@@ -1443,7 +1494,10 @@ export default function AdminPage() {
       const matchTrade = !tradeFilter || w.trade_id === tradeFilter;
       const matchLocation = !locationFilter || w.location_id === locationFilter;
       const matchStatus = !statusFilter || w.status === statusFilter;
-      const matchAvailability = !availabilityFilter || w.availability === availabilityFilter;
+
+      const matchAvailability =
+        !availabilityFilter ||
+        (w.status === "pending" && w.availability === availabilityFilter);
 
       const workerSkillIds =
         w.worker_skills?.map((s) => s.skills?.id).filter(Boolean) || [];
@@ -1501,10 +1555,16 @@ export default function AdminPage() {
   const completedCount = workers.filter((w) => w.status === "completed").length;
   const workingCount = workers.filter((w) => w.status === "working").length;
 
-  const availableCount = workers.filter((w) => w.availability === "available").length;
-  const availableSoonCount = workers.filter((w) => w.availability === "available_soon").length;
-  const onProjectCount = workers.filter((w) => w.availability === "on_project").length;
-  const unavailableCount = workers.filter((w) => w.availability === "unavailable").length;
+  const poolCount = pendingCount;
+  const availableCount = workers.filter(
+    (w) => w.status === "pending" && w.availability === "available_soon"
+  ).length;
+  const onProjectCount = workers.filter(
+    (w) => w.status === "pending" && w.availability === "on_project"
+  ).length;
+  const unavailableCount = workers.filter(
+    (w) => w.status === "pending" && w.availability === "unavailable"
+  ).length;
 
   return (
     <>
@@ -1570,7 +1630,7 @@ export default function AdminPage() {
                 </h1>
 
                 <p style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
-                  Review, search, filter, sort, and manage both workflow status and real availability.
+                  Review, search, filter, sort, and manage both workflow status and pending-pool availability.
                 </p>
               </div>
 
@@ -1619,8 +1679,8 @@ export default function AdminPage() {
               />
               <StatCard
                 icon={<ShieldCheck size={18} />}
-                label="Available Now"
-                value={availableCount}
+                label="Pool"
+                value={poolCount}
               />
             </div>
 
@@ -1649,13 +1709,20 @@ export default function AdminPage() {
             </div>
 
             <div style={{ display: "grid", gap: 12 }}>
-              <div style={{ fontWeight: 800, color: "#0f172a" }}>Availability</div>
+              <div style={{ fontWeight: 800, color: "#0f172a" }}>Pending Pool Availability</div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ ...pillStyle(), ...getAvailabilityStyle("available") }}>
-                  Available: {availableCount}
+                <span
+                  style={{
+                    ...pillStyle(),
+                    background: "#dcfce7",
+                    color: "#166534",
+                    border: "1px solid #86efac",
+                  }}
+                >
+                  Pool: {poolCount}
                 </span>
                 <span style={{ ...pillStyle(), ...getAvailabilityStyle("available_soon") }}>
-                  Available Soon: {availableSoonCount}
+                  Available: {availableCount}
                 </span>
                 <span style={{ ...pillStyle(), ...getAvailabilityStyle("on_project") }}>
                   On Project: {onProjectCount}
@@ -1738,9 +1805,8 @@ export default function AdminPage() {
                   onChange={(e) => setAvailabilityFilter(e.target.value)}
                   style={inputStyle}
                 >
-                  <option value="">All Availability</option>
-                  <option value="available">Available</option>
-                  <option value="available_soon">Available Soon</option>
+                  <option value="">All Pool Availability</option>
+                  <option value="available_soon">Available</option>
                   <option value="on_project">On Project</option>
                   <option value="unavailable">Unavailable</option>
                 </select>
