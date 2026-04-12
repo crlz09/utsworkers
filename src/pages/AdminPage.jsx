@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../lib/supabase";
 import {
   Users,
   Search,
@@ -16,11 +16,6 @@ import {
   Languages,
   X,
 } from "lucide-react";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 function PageStyles() {
   return (
@@ -717,38 +712,67 @@ export default function AdminPage() {
               gap: 24,
             }}
           >
-            <div style={{ display: "grid", gap: 8 }}>
-              <div
-                style={{
-                  display: "inline-flex",
-                  width: "fit-content",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 16px",
-                  borderRadius: 999,
-                  background: "#0f172a",
-                  color: "#ffffff",
-                  fontWeight: 800,
-                  fontSize: 15,
-                }}
-              >
-                Universal Talent Source
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "start",
+                gap: 16,
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ display: "grid", gap: 8 }}>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    width: "fit-content",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 16px",
+                    borderRadius: 999,
+                    background: "#0f172a",
+                    color: "#ffffff",
+                    fontWeight: 800,
+                    fontSize: 15,
+                  }}
+                >
+                  Universal Talent Source
+                </div>
+
+                <h1
+                  style={{
+                    margin: 0,
+                    fontSize: 42,
+                    lineHeight: 1.05,
+                    letterSpacing: "-0.03em",
+                  }}
+                >
+                  Admin Panel
+                </h1>
+
+                <p style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
+                  Review, search, filter, and update worker status from one place.
+                </p>
               </div>
 
-              <h1
+              <button
+                type="button"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.href = "/login";
+                }}
                 style={{
-                  margin: 0,
-                  fontSize: 42,
-                  lineHeight: 1.05,
-                  letterSpacing: "-0.03em",
+                  border: "1px solid #cbd5e1",
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  borderRadius: 14,
+                  padding: "12px 16px",
+                  fontWeight: 800,
+                  cursor: "pointer",
                 }}
               >
-                Admin Panel
-              </h1>
-
-              <p style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
-                Review, search, filter, and update worker status from one place.
-              </p>
+                Logout
+              </button>
             </div>
 
             <div
