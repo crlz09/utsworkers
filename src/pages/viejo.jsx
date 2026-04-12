@@ -510,7 +510,7 @@ function ProjectHistoryEditor({ projects, setProjects }) {
   );
 }
 
-export default function App() {
+export default function RegisterPage() {
   const [form, setForm] = useState(initialForm);
   const [projects, setProjects] = useState([emptyProject()]);
   const [languages, setLanguages] = useState([]);

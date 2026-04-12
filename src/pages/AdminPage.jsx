@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Wrench,
   Languages,
+  X,
 } from "lucide-react";
 
 const supabase = createClient(
@@ -54,7 +55,8 @@ function PageStyles() {
         .filters-grid,
         .stats-grid,
         .worker-top,
-        .worker-meta {
+        .worker-meta,
+        .worker-notes {
           grid-template-columns: 1fr !important;
         }
 
@@ -115,6 +117,50 @@ function fieldGroupTitleStyle() {
   };
 }
 
+function getStatusStyle(status) {
+  switch (status) {
+    case "onboarding":
+      return {
+        background: "#e0f2fe",
+        color: "#0c4a6e",
+        border: "1px solid #7dd3fc",
+      };
+    case "completed":
+      return {
+        background: "#dcfce7",
+        color: "#166534",
+        border: "1px solid #86efac",
+      };
+    case "hold":
+      return {
+        background: "#fee2e2",
+        color: "#991b1b",
+        border: "1px solid #fca5a5",
+      };
+    case "pending":
+    default:
+      return {
+        background: "#fef3c7",
+        color: "#92400e",
+        border: "1px solid #fcd34d",
+      };
+  }
+}
+
+function formatStatus(status) {
+  switch (status) {
+    case "onboarding":
+      return "OnBoarding";
+    case "completed":
+      return "Completed";
+    case "hold":
+      return "Hold";
+    case "pending":
+    default:
+      return "Pending";
+  }
+}
+
 function StatCard({ icon, label, value }) {
   return (
     <div style={metricCardStyle()}>
@@ -168,16 +214,90 @@ function TagRow({ title, values, icon, emptyLabel }) {
   );
 }
 
-function WorkerCard({ worker }) {
+function SkillMultiFilter({ skills, selectedSkillIds, setSelectedSkillIds }) {
+  const toggleSkill = (id) => {
+    setSelectedSkillIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const selectedNames = skills
+    .filter((skill) => selectedSkillIds.includes(skill.id))
+    .map((skill) => skill.name);
+
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ fontWeight: 800, color: "#0f172a" }}>Skills</div>
+
+        {selectedSkillIds.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setSelectedSkillIds([])}
+            style={{
+              border: "1px solid #cbd5e1",
+              background: "#ffffff",
+              color: "#0f172a",
+              borderRadius: 12,
+              padding: "8px 12px",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <X size={14} />
+            Clear skills
+          </button>
+        ) : null}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {skills.map((skill) => {
+          const active = selectedSkillIds.includes(skill.id);
+
+          return (
+            <button
+              key={skill.id}
+              type="button"
+              onClick={() => toggleSkill(skill.id)}
+              style={{
+                padding: "9px 13px",
+                borderRadius: 999,
+                border: active ? "1px solid #0f172a" : "1px solid #cbd5e1",
+                background: active ? "#0f172a" : "#ffffff",
+                color: active ? "#ffffff" : "#0f172a",
+                cursor: "pointer",
+                fontWeight: 700,
+              }}
+            >
+              {skill.name}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ color: "#64748b", fontSize: 14 }}>
+        {selectedNames.length === 0
+          ? "No skill filters selected."
+          : `Selected: ${selectedNames.join(", ")}`}
+      </div>
+    </div>
+  );
+}
+
+function WorkerCard({ worker, onStatusSaved }) {
   const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState(worker.status || "pending");
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [statusError, setStatusError] = useState("");
 
   const skills =
     worker.worker_skills?.map((s) => s.skills?.name).filter(Boolean) || [];
 
   const certifications =
-    worker.worker_certifications
-      ?.map((c) => c.certifications?.name)
-      .filter(Boolean) || [];
+    worker.worker_certifications?.map((c) => c.certifications?.name).filter(Boolean) || [];
 
   const languages =
     worker.worker_languages?.map((l) => l.language_name).filter(Boolean) || [];
@@ -185,6 +305,26 @@ function WorkerCard({ worker }) {
   const projects = [...(worker.worker_projects || [])].sort(
     (a, b) => (a.sort_order || 0) - (b.sort_order || 0)
   );
+
+  const saveStatus = async (newStatus) => {
+    setStatus(newStatus);
+    setStatusError("");
+    setSavingStatus(true);
+
+    const { error } = await supabase
+      .from("workers")
+      .update({ status: newStatus })
+      .eq("id", worker.id);
+
+    if (error) {
+      setStatusError(error.message || "Could not update status.");
+      setStatus(worker.status || "pending");
+    } else {
+      onStatusSaved(worker.id, newStatus);
+    }
+
+    setSavingStatus(false);
+  };
 
   return (
     <div
@@ -217,9 +357,24 @@ function WorkerCard({ worker }) {
               <Briefcase size={14} />
               {worker.trades?.name || "No trade"}
             </span>
+
             <span style={pillStyle()}>
               <MapPin size={14} />
               {worker.locations?.name || "No location"}
+            </span>
+
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "7px 11px",
+                borderRadius: 999,
+                fontSize: 13,
+                fontWeight: 800,
+                ...getStatusStyle(status),
+              }}
+            >
+              {formatStatus(status)}
             </span>
           </div>
         </div>
@@ -238,9 +393,61 @@ function WorkerCard({ worker }) {
             <Phone size={15} />
             <span>{worker.phone || "No phone"}</span>
           </div>
+
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
             <Mail size={15} />
             <span>{worker.email || "No email"}</span>
+          </div>
+
+          <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
+            <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 14 }}>
+              Status
+            </div>
+
+            <select
+              value={status}
+              onChange={(e) => saveStatus(e.target.value)}
+              disabled={savingStatus}
+              style={{
+                ...inputStyle,
+                padding: "10px 12px",
+                background: savingStatus ? "#f8fafc" : "#ffffff",
+                cursor: savingStatus ? "not-allowed" : "pointer",
+              }}
+            >
+              <option value="pending">Pending</option>
+              <option value="onboarding">OnBoarding</option>
+              <option value="hold">Hold</option>
+              <option value="completed">Completed</option>
+            </select>
+
+            {savingStatus ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: "#475569",
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                <Loader2 size={14} className="spin" />
+                Saving status...
+              </div>
+            ) : null}
+
+            {statusError ? (
+              <div
+                style={{
+                  color: "#b91c1c",
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                {statusError}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -283,6 +490,7 @@ function WorkerCard({ worker }) {
       </div>
 
       <div
+        className="worker-notes"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
@@ -398,8 +606,11 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [tradeFilter, setTradeFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [selectedSkillIds, setSelectedSkillIds] = useState([]);
   const [trades, setTrades] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [skills, setSkills] = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -413,22 +624,32 @@ export default function AdminPage() {
           locations(name),
           worker_languages(language_name),
           worker_projects(*),
-          worker_skills(skills(name)),
+          worker_skills(skills(id, name)),
           worker_certifications(certifications(name))
         `)
         .order("created_at", { ascending: false });
 
       const tradesData = await supabase.from("trades").select("*").order("name");
       const locationsData = await supabase.from("locations").select("*").order("name");
+      const skillsData = await supabase.from("skills").select("*").order("name");
 
       if (!error) setWorkers(data || []);
       setTrades(tradesData.data || []);
       setLocations(locationsData.data || []);
+      setSkills(skillsData.data || []);
       setLoading(false);
     };
 
     load();
   }, []);
+
+  const handleStatusSaved = (workerId, newStatus) => {
+    setWorkers((prev) =>
+      prev.map((worker) =>
+        worker.id === workerId ? { ...worker, status: newStatus } : worker
+      )
+    );
+  };
 
   const filtered = useMemo(() => {
     return workers.filter((w) => {
@@ -442,15 +663,34 @@ export default function AdminPage() {
 
       const matchTrade = !tradeFilter || w.trade_id === tradeFilter;
       const matchLocation = !locationFilter || w.location_id === locationFilter;
+      const matchStatus = !statusFilter || w.status === statusFilter;
 
-      return matchSearch && matchTrade && matchLocation;
+      const workerSkillIds =
+        w.worker_skills?.map((s) => s.skills?.id).filter(Boolean) || [];
+
+      const matchSkills =
+        selectedSkillIds.length === 0 ||
+        selectedSkillIds.some((skillId) => workerSkillIds.includes(skillId));
+
+      return (
+        matchSearch &&
+        matchTrade &&
+        matchLocation &&
+        matchStatus &&
+        matchSkills
+      );
     });
-  }, [workers, search, tradeFilter, locationFilter]);
+  }, [workers, search, tradeFilter, locationFilter, statusFilter, selectedSkillIds]);
 
   const totalProjects = workers.reduce(
     (acc, worker) => acc + (worker.worker_projects?.length || 0),
     0
   );
+
+  const pendingCount = workers.filter((w) => w.status === "pending").length;
+  const onboardingCount = workers.filter((w) => w.status === "onboarding").length;
+  const holdCount = workers.filter((w) => w.status === "hold").length;
+  const completedCount = workers.filter((w) => w.status === "completed").length;
 
   return (
     <>
@@ -507,7 +747,7 @@ export default function AdminPage() {
               </h1>
 
               <p style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
-                Review, search, and filter all worker profiles currently stored in your database.
+                Review, search, filter, and update worker status from one place.
               </p>
             </div>
 
@@ -515,7 +755,7 @@ export default function AdminPage() {
               className="stats-grid"
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
                 gap: 16,
               }}
             >
@@ -534,6 +774,32 @@ export default function AdminPage() {
                 label="Projects Logged"
                 value={totalProjects}
               />
+              <StatCard
+                icon={<ShieldCheck size={18} />}
+                label="Completed"
+                value={completedCount}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <span style={{ ...pillStyle(), ...getStatusStyle("pending") }}>
+                Pending: {pendingCount}
+              </span>
+              <span style={{ ...pillStyle(), ...getStatusStyle("onboarding") }}>
+                OnBoarding: {onboardingCount}
+              </span>
+              <span style={{ ...pillStyle(), ...getStatusStyle("hold") }}>
+                Hold: {holdCount}
+              </span>
+              <span style={{ ...pillStyle(), ...getStatusStyle("completed") }}>
+                Completed: {completedCount}
+              </span>
             </div>
 
             <div
@@ -543,7 +809,7 @@ export default function AdminPage() {
                 borderRadius: 24,
                 padding: 18,
                 display: "grid",
-                gap: 16,
+                gap: 18,
               }}
             >
               <div style={{ fontWeight: 900, fontSize: 18 }}>Filters</div>
@@ -552,7 +818,7 @@ export default function AdminPage() {
                 className="filters-grid"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.5fr 1fr 1fr",
+                  gridTemplateColumns: "1.4fr 1fr 1fr 1fr",
                   gap: 14,
                 }}
               >
@@ -588,7 +854,25 @@ export default function AdminPage() {
                     </option>
                   ))}
                 </select>
+
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="onboarding">OnBoarding</option>
+                  <option value="hold">Hold</option>
+                  <option value="completed">Completed</option>
+                </select>
               </div>
+
+              <SkillMultiFilter
+                skills={skills}
+                selectedSkillIds={selectedSkillIds}
+                setSelectedSkillIds={setSelectedSkillIds}
+              />
             </div>
 
             <div style={{ display: "grid", gap: 18 }}>
@@ -622,7 +906,13 @@ export default function AdminPage() {
                   No workers found for the selected filters.
                 </div>
               ) : (
-                filtered.map((w) => <WorkerCard key={w.id} worker={w} />)
+                filtered.map((w) => (
+                  <WorkerCard
+                    key={w.id}
+                    worker={w}
+                    onStatusSaved={handleStatusSaved}
+                  />
+                ))
               )}
             </div>
           </div>
