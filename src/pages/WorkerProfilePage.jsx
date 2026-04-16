@@ -14,6 +14,7 @@ import {
   FolderKanban,
   Download,
   ExternalLink,
+  FileSpreadsheet,
 } from "lucide-react";
 
 function PageStyles() {
@@ -43,6 +44,79 @@ function PageStyles() {
         .profile-panel {
           padding: 20px !important;
           border-radius: 24px !important;
+        }
+
+        .profile-actions {
+          width: 100%;
+        }
+      }
+
+      @media print {
+        @page {
+          size: A4;
+          margin: 12mm;
+        }
+
+        html, body {
+          background: #ffffff !important;
+          color: #000000 !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        .no-print {
+          display: none !important;
+        }
+
+        .profile-shell {
+          padding: 0 !important;
+          background: #ffffff !important;
+        }
+
+        .profile-panel {
+          box-shadow: none !important;
+          border: none !important;
+          border-radius: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+          max-width: 100% !important;
+        }
+
+        .print-card {
+          box-shadow: none !important;
+          background: #ffffff !important;
+          border: 1px solid #dbeafe !important;
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+
+        .profile-top,
+        .profile-summary,
+        .profile-notes,
+        .profile-meta {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+
+        .profile-top {
+          grid-template-columns: 1.3fr 0.9fr !important;
+        }
+
+        .profile-summary {
+          grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        }
+
+        .profile-notes {
+          grid-template-columns: 1fr 1fr 1fr !important;
+        }
+
+        button {
+          display: none !important;
+        }
+
+        a {
+          color: inherit !important;
+          text-decoration: none !important;
         }
       }
     `}</style>
@@ -138,17 +212,11 @@ function getAvailabilityStyle(availability) {
         border: "1px solid #c4b5fd",
       };
     case "unavailable":
+    default:
       return {
         background: "#f1f5f9",
         color: "#334155",
         border: "1px solid #cbd5e1",
-      };
-    case "available":
-    default:
-      return {
-        background: "#dcfce7",
-        color: "#166534",
-        border: "1px solid #86efac",
       };
   }
 }
@@ -174,14 +242,12 @@ function formatStatus(status) {
 function formatAvailability(availability) {
   switch (availability) {
     case "available_soon":
-      return "Available Soon";
+      return "Available";
     case "on_project":
       return "On Project";
     case "unavailable":
-      return "Unavailable";
-    case "available":
     default:
-      return "Available";
+      return "Unavailable";
   }
 }
 
@@ -195,6 +261,7 @@ function formatDate(dateString) {
 function MiniMetric({ label, value }) {
   return (
     <div
+      className="print-card"
       style={{
         padding: 14,
         borderRadius: 16,
@@ -230,6 +297,30 @@ function TagRow({ title, values, icon, emptyLabel }) {
         )}
       </div>
     </div>
+  );
+}
+
+function ActionButton({ children, onClick, dark = false, icon: Icon }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        border: dark ? "none" : "1px solid #cbd5e1",
+        background: dark ? "#0f172a" : "#ffffff",
+        color: dark ? "#ffffff" : "#0f172a",
+        borderRadius: 14,
+        padding: "12px 16px",
+        fontWeight: 800,
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      {Icon ? <Icon size={16} /> : null}
+      {children}
+    </button>
   );
 }
 
@@ -315,6 +406,10 @@ export default function WorkerProfilePage() {
     window.URL.revokeObjectURL(url);
   };
 
+  const downloadPdf = () => {
+    window.print();
+  };
+
   if (loading) {
     return (
       <>
@@ -350,7 +445,7 @@ export default function WorkerProfilePage() {
             padding: 24,
           }}
         >
-          <div style={{ ...cardStyle(), maxWidth: 700 }}>
+          <div className="print-card" style={{ ...cardStyle(), maxWidth: 700 }}>
             <div style={{ color: "#b91c1c", fontWeight: 800 }}>
               {error || "Worker not found."}
             </div>
@@ -428,46 +523,21 @@ export default function WorkerProfilePage() {
                 </p>
               </div>
 
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => navigate(-1)}
-                  style={{
-                    border: "1px solid #cbd5e1",
-                    background: "#ffffff",
-                    color: "#0f172a",
-                    borderRadius: 14,
-                    padding: "12px 16px",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <ArrowLeft size={16} />
+              <div
+                className="profile-actions no-print"
+                style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
+              >
+                <ActionButton onClick={() => navigate(-1)} icon={ArrowLeft}>
                   Back
-                </button>
+                </ActionButton>
 
-                <button
-                  type="button"
-                  onClick={exportCsv}
-                  style={{
-                    border: "none",
-                    background: "#0f172a",
-                    color: "#ffffff",
-                    borderRadius: 14,
-                    padding: "12px 16px",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <Download size={16} />
+                <ActionButton onClick={exportCsv} icon={FileSpreadsheet}>
                   Export CSV
-                </button>
+                </ActionButton>
+
+                <ActionButton onClick={downloadPdf} dark icon={Download}>
+                  Download PDF
+                </ActionButton>
               </div>
             </div>
 
@@ -480,7 +550,7 @@ export default function WorkerProfilePage() {
                 alignItems: "start",
               }}
             >
-              <div style={cardStyle()}>
+              <div className="print-card" style={cardStyle()}>
                 <div style={{ fontSize: 32, fontWeight: 900, color: "#0f172a", marginBottom: 12 }}>
                   {worker.name}
                 </div>
@@ -526,7 +596,7 @@ export default function WorkerProfilePage() {
                 </div>
               </div>
 
-              <div style={cardStyle()}>
+              <div className="print-card" style={cardStyle()}>
                 <div style={{ display: "grid", gap: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
                     <Phone size={15} />
@@ -560,7 +630,7 @@ export default function WorkerProfilePage() {
               <MiniMetric label="Residential" value={`${worker.residential_experience_years || 0} yrs`} />
             </div>
 
-            <div style={{ ...cardStyle(), display: "grid", gap: 16 }}>
+            <div className="print-card" style={{ ...cardStyle(), display: "grid", gap: 16 }}>
               <TagRow
                 title="Skills"
                 values={skills}
@@ -591,21 +661,21 @@ export default function WorkerProfilePage() {
                 gap: 16,
               }}
             >
-              <div style={cardStyle()}>
+              <div className="print-card" style={cardStyle()}>
                 <div style={sectionTitleStyle()}>Strengths</div>
                 <div style={{ color: "#475569", lineHeight: 1.7 }}>
                   {worker.strengths || "No strengths listed."}
                 </div>
               </div>
 
-              <div style={cardStyle()}>
+              <div className="print-card" style={cardStyle()}>
                 <div style={sectionTitleStyle()}>Needs Improvement</div>
                 <div style={{ color: "#475569", lineHeight: 1.7 }}>
                   {worker.needs_improvement || "No notes listed."}
                 </div>
               </div>
 
-              <div style={cardStyle()}>
+              <div className="print-card" style={cardStyle()}>
                 <div style={sectionTitleStyle()}>Availability Details</div>
                 <div style={{ color: "#475569", lineHeight: 1.7 }}>
                   Available From: {worker.available_from || "—"}
@@ -615,7 +685,7 @@ export default function WorkerProfilePage() {
               </div>
             </div>
 
-            <div style={cardStyle()}>
+            <div className="print-card" style={cardStyle()}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, ...sectionTitleStyle() }}>
                 <FolderKanban size={16} />
                 <span>Project History</span>
@@ -628,6 +698,7 @@ export default function WorkerProfilePage() {
                   projects.map((p, index) => (
                     <div
                       key={index}
+                      className="print-card"
                       style={{
                         background: "#f8fbff",
                         padding: 16,
@@ -661,7 +732,7 @@ export default function WorkerProfilePage() {
               </div>
             </div>
 
-            <div style={cardStyle()}>
+            <div className="print-card no-print" style={cardStyle()}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, ...sectionTitleStyle() }}>
                 <ExternalLink size={16} />
                 <span>Profile URL</span>

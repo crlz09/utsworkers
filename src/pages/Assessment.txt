@@ -1,0 +1,856 @@
+import React, { useMemo, useState } from "react";
+import { supabase } from "../lib/supabase";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { CheckCircle2, Loader2, ClipboardList, Trophy, UserRound, Mail, Briefcase } from "lucide-react";
+import { motion } from "framer-motion";
+
+const QUESTIONS = [
+  {
+    id: 1,
+    category: "Wire / Cable Pulling",
+    text: "Which cable is physically larger?",
+    type: "mcq",
+    correctAnswer: "AWG 4",
+    options: ["AWG 12", "AWG 4"],
+  },
+  {
+    id: 2,
+    category: "Wire / Cable Pulling",
+    text: "What equipment is used to pull large cables through conduit?",
+    type: "mcq",
+    correctAnswer: "Cable tugger / wire puller",
+    options: ["Fish tape", "Cable tugger / wire puller", "Multimeter"],
+  },
+  {
+    id: 3,
+    category: "Wire / Cable Pulling",
+    text: "What colors are commonly used in 120/240V systems?",
+    type: "mcq",
+    correctAnswer: "Black, Red, Blue, White (neutral), Green (ground)",
+    options: [
+      "Brown, Orange, Yellow, Gray, Green",
+      "Black, Red, Blue, White (neutral), Green (ground)",
+      "Yellow, Purple, Gray, Black",
+    ],
+  },
+  {
+    id: 4,
+    category: "Motors & Controllers",
+    text: "What does a VFD do?",
+    type: "mcq",
+    correctAnswer: "Controls motor speed by varying frequency and voltage",
+    options: [
+      "Converts AC to DC",
+      "Controls motor speed by varying frequency and voltage",
+      "Increases voltage",
+    ],
+  },
+  {
+    id: 5,
+    category: "Motors & Controllers",
+    text: "How do you reverse a 3-phase motor?",
+    type: "mcq",
+    correctAnswer: "Swap two phases",
+    options: ["Change breaker", "Swap two phases", "Add a resistor"],
+  },
+  {
+    id: 6,
+    category: "Motors & Controllers",
+    text: "What is a key advantage of a 3-phase motor?",
+    type: "mcq",
+    correctAnswer: "More efficient and self-starting",
+    options: ["Uses more energy", "More efficient and self-starting", "Needs batteries"],
+  },
+  {
+    id: 7,
+    category: "PLC / Controls",
+    text: "What is a PLC?",
+    type: "mcq",
+    correctAnswer: "Programmable controller used for automation",
+    options: ["A type of motor", "Programmable controller used for automation", "Voltage meter"],
+  },
+  {
+    id: 8,
+    category: "PLC / Controls",
+    text: "What does a ladder diagram represent?",
+    type: "mcq",
+    correctAnswer: "Control logic",
+    options: ["Physical layout", "Control logic", "Voltage drop"],
+  },
+  {
+    id: 9,
+    category: "PLC / Controls",
+    text: "What is the difference between a digital input and a digital output?",
+    type: "mcq",
+    correctAnswer: "Input receives signal / Output controls device",
+    options: [
+      "Input sends power / Output receives signal",
+      "Input receives signal / Output controls device",
+      "There is no difference",
+    ],
+  },
+  {
+    id: 10,
+    category: "Troubleshooting",
+    text: "First thing to check if a motor doesn’t start?",
+    type: "mcq",
+    correctAnswer: "Voltage supply / breaker",
+    options: ["Paint color", "Voltage supply / breaker", "Cable length"],
+  },
+  {
+    id: 11,
+    category: "Troubleshooting",
+    text: "What does an overload do?",
+    type: "mcq",
+    correctAnswer: "Protects from overcurrent",
+    options: ["Speeds motor", "Protects from overcurrent", "Grounds system"],
+  },
+  {
+    id: 12,
+    category: "Troubleshooting",
+    text: "If a contactor won’t close, what is a likely issue?",
+    type: "mcq",
+    correctAnswer: "No voltage at coil",
+    options: ["Too much oil", "No voltage at coil", "Wire too long"],
+  },
+  {
+    id: 13,
+    category: "Conduit (Rigid / EMT)",
+    text: "What tool is commonly used to bend 1/2” EMT?",
+    type: "mcq",
+    correctAnswer: "Hand bender",
+    options: ["Pipe wrench", "Hand bender", "Hammer"],
+  },
+  {
+    id: 14,
+    category: "Conduit (Rigid / EMT)",
+    text: "What is an offset?",
+    type: "mcq",
+    correctAnswer: "A bend used to bypass an obstacle",
+    options: [
+      "A straight run",
+      "A bend used to bypass an obstacle",
+      "A grounding method",
+    ],
+  },
+  {
+    id: 15,
+    category: "Conduit (Rigid / EMT)",
+    text: "What happens if EMT is bent incorrectly?",
+    type: "mcq",
+    correctAnswer: "It can collapse or deform",
+    options: ["It gets stronger", "It can collapse or deform", "It conducts better"],
+  },
+  {
+    id: 16,
+    category: "Conduit Types",
+    text: "Where is PVC commonly used?",
+    type: "mcq",
+    correctAnswer: "Underground / wet areas",
+    options: ["Dry office", "Underground / wet areas", "Inside panels"],
+  },
+  {
+    id: 17,
+    category: "Conduit Types",
+    text: "Why would stainless steel conduit be used?",
+    type: "mcq",
+    correctAnswer: "Corrosion resistance",
+    options: ["Cheaper", "Corrosion resistance", "Flexible"],
+  },
+  {
+    id: 18,
+    category: "Conduit Types",
+    text: "Does PVC require a separate grounding conductor?",
+    type: "mcq",
+    correctAnswer: "Yes, a separate grounding conductor is required",
+    options: [
+      "No grounding is needed",
+      "Yes, a separate grounding conductor is required",
+      "Only sometimes",
+    ],
+  },
+  {
+    id: 19,
+    category: "Blueprints",
+    text: "What do electrical drawings show?",
+    type: "mcq",
+    correctAnswer: "Equipment, circuits, and layout",
+    options: ["Only materials", "Equipment, circuits, and layout", "Only voltage"],
+  },
+  {
+    id: 20,
+    category: "Blueprints",
+    text: "What are specifications (specs)?",
+    type: "mcq",
+    correctAnswer: "Technical requirements",
+    options: ["Costs", "Technical requirements", "Schedule"],
+  },
+  {
+    id: 21,
+    category: "Blueprints",
+    text: "A breaker symbol usually represents what?",
+    type: "mcq",
+    correctAnswer: "Circuit protection",
+    options: ["Motor", "Circuit protection", "Ground"],
+  },
+  {
+    id: 22,
+    category: "Ladder / Schematics",
+    text: "In ladder logic, what do the vertical lines represent?",
+    type: "mcq",
+    correctAnswer: "Power rails",
+    options: ["Ground", "Power rails", "Load"],
+  },
+  {
+    id: 23,
+    category: "Ladder / Schematics",
+    text: "What is a Normally Open (NO) contact?",
+    type: "mcq",
+    correctAnswer: "It closes when activated",
+    options: ["Always closed", "It closes when activated", "Always open"],
+  },
+  {
+    id: 24,
+    category: "Ladder / Schematics",
+    text: "What does a coil represent in ladder logic?",
+    type: "mcq",
+    correctAnswer: "An output device",
+    options: ["Input", "An output device", "Ground"],
+  },
+  {
+    id: 25,
+    category: "Branch Circuits",
+    text: "What is a branch circuit?",
+    type: "mcq",
+    correctAnswer: "A circuit from breaker to load",
+    options: ["Main service", "A circuit from breaker to load", "Ground system"],
+  },
+  {
+    id: 26,
+    category: "Branch Circuits",
+    text: "Typical amperage for a lighting circuit?",
+    type: "mcq",
+    correctAnswer: "15–20A",
+    options: ["5A", "15–20A", "50A"],
+  },
+  {
+    id: 27,
+    category: "Branch Circuits",
+    text: "What commonly protects a branch circuit?",
+    type: "mcq",
+    correctAnswer: "Breaker / fuse",
+    options: ["Transformer", "Breaker / fuse", "Motor"],
+  },
+  {
+    id: 28,
+    category: "Switchgear",
+    text: "What is switchgear?",
+    type: "mcq",
+    correctAnswer: "Equipment for control and protection of power",
+    options: [
+      "Wiring method",
+      "Equipment for control and protection of power",
+      "Light fixture",
+    ],
+  },
+  {
+    id: 29,
+    category: "Switchgear",
+    text: "Where is switchgear typically used?",
+    type: "mcq",
+    correctAnswer: "Industrial / commercial installations",
+    options: ["Residential only", "Industrial / commercial installations", "Vehicles"],
+  },
+  {
+    id: 30,
+    category: "Switchgear",
+    text: "What does switchgear usually include?",
+    type: "mcq",
+    correctAnswer: "Breakers, disconnects, protection",
+    options: ["Pipes", "Breakers, disconnects, protection", "Only wires"],
+  },
+  {
+    id: 31,
+    category: "Cable Tray",
+    text: "What is the purpose of cable tray?",
+    type: "mcq",
+    correctAnswer: "To support cables",
+    options: ["Protect pipes", "To support cables", "Grounding"],
+  },
+  {
+    id: 32,
+    category: "Cable Tray",
+    text: "Can cable tray replace conduit in many industrial cases?",
+    type: "mcq",
+    correctAnswer: "Yes",
+    options: ["No", "Yes", "Only outside"],
+  },
+  {
+    id: 33,
+    category: "Cable Tray",
+    text: "A key installation factor for cable tray is:",
+    type: "mcq",
+    correctAnswer: "Support and spacing",
+    options: ["Paint", "Support and spacing", "Color"],
+  },
+  {
+    id: 34,
+    category: "Voltage Levels",
+    text: "Medium voltage generally starts at:",
+    type: "mcq",
+    correctAnswer: "1000V+",
+    options: ["120V", "1000V+", "12V"],
+  },
+  {
+    id: 35,
+    category: "Voltage Levels",
+    text: "What safety requirement is key for medium/high voltage work?",
+    type: "mcq",
+    correctAnswer: "Specialized PPE",
+    options: ["Gloves only", "Specialized PPE", "None"],
+  },
+  {
+    id: 36,
+    category: "Voltage Levels",
+    text: "Is medium voltage work the same as low voltage work?",
+    type: "mcq",
+    correctAnswer: "No, it requires different procedures",
+    options: ["Yes", "No, it requires different procedures", "Sometimes"],
+  },
+  {
+    id: 37,
+    category: "Instrumentation",
+    text: "What is 4–20 mA?",
+    type: "mcq",
+    correctAnswer: "A standard analog signal",
+    options: ["Voltage", "A standard analog signal", "Frequency"],
+  },
+  {
+    id: 38,
+    category: "Instrumentation",
+    text: "What does instrumentation do?",
+    type: "mcq",
+    correctAnswer: "Monitors and controls processes",
+    options: ["Powers motors", "Monitors and controls processes", "Grounds circuits"],
+  },
+  {
+    id: 39,
+    category: "Instrumentation",
+    text: "A pressure sensor measures:",
+    type: "mcq",
+    correctAnswer: "Pressure",
+    options: ["Voltage", "Pressure", "Speed"],
+  },
+  {
+    id: 40,
+    category: "NEC",
+    text: "What is the NEC?",
+    type: "mcq",
+    correctAnswer: "Electrical code",
+    options: ["Company", "Electrical code", "Tool"],
+  },
+  {
+    id: 41,
+    category: "NEC",
+    text: "Why is the NEC important?",
+    type: "mcq",
+    correctAnswer: "Safety and compliance",
+    options: ["Optional", "Safety and compliance", "Cost"],
+  },
+  {
+    id: 42,
+    category: "NEC",
+    text: "How often is the NEC updated?",
+    type: "mcq",
+    correctAnswer: "About every 3 years",
+    options: ["Every 10 years", "About every 3 years", "Never"],
+  },
+  {
+    id: 43,
+    category: "Electrical Math",
+    text: "What is the basic power formula?",
+    type: "mcq",
+    correctAnswer: "P = V × I",
+    options: ["P = I / V", "P = V × I", "P = R × I"],
+  },
+  {
+    id: 44,
+    category: "Electrical Math",
+    text: "120V × 10A = ?",
+    type: "mcq",
+    correctAnswer: "1200W",
+    options: ["120W", "1200W", "12W"],
+  },
+  {
+    id: 45,
+    category: "Electrical Math",
+    text: "What is Ohm’s Law?",
+    type: "mcq",
+    correctAnswer: "V = I × R",
+    options: ["V = I × R", "V = P × I", "R = V × I"],
+  },
+  {
+    id: 46,
+    category: "Supervision",
+    text: "How many people have you supervised?",
+    type: "number",
+    placeholder: "Example: 12",
+  },
+  {
+    id: 47,
+    category: "Supervision",
+    text: "How do you handle underperforming workers?",
+    type: "textarea",
+    placeholder: "Briefly explain your approach.",
+  },
+  {
+    id: 48,
+    category: "Supervision",
+    text: "What is your top priority as a leader?",
+    type: "mcq",
+    correctAnswer: "Safety + productivity",
+    options: ["Speed", "Safety + productivity", "Cost"],
+  },
+];
+
+const META_FIELDS = [
+  { key: "full_name", label: "Full name", icon: UserRound, type: "text", required: true },
+  { key: "email", label: "Email", icon: Mail, type: "email", required: true },
+  { key: "phone", label: "Phone", icon: Briefcase, type: "text", required: false },
+  { key: "years_experience", label: "Years of experience", icon: Briefcase, type: "number", required: true },
+  { key: "desired_role", label: "Desired role", icon: Briefcase, type: "text", required: false },
+];
+
+function classifyScore(score) {
+  if (score >= 40) {
+    return {
+      classification: "Foreman",
+      recommendation: "Hire – Leadership Role",
+      color: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    };
+  }
+
+  if (score >= 30) {
+    return {
+      classification: "Journeyman",
+      recommendation: "Hire – Skilled Electrician",
+      color: "bg-blue-100 text-blue-800 border-blue-200",
+    };
+  }
+
+  if (score >= 20) {
+    return {
+      classification: "Mid-Level",
+      recommendation: "Consider – Needs Supervision",
+      color: "bg-amber-100 text-amber-800 border-amber-200",
+    };
+  }
+
+  return {
+    classification: "Helper",
+    recommendation: "Do Not Hire",
+    color: "bg-rose-100 text-rose-800 border-rose-200",
+  };
+}
+
+function calculateScore(answers) {
+  return QUESTIONS.reduce((total, question) => {
+    if (question.type !== "mcq" || !question.correctAnswer) return total;
+    return answers[question.id] === question.correctAnswer ? total + 1 : total;
+  }, 0);
+}
+
+function groupQuestionsByCategory() {
+  return QUESTIONS.reduce((acc, question) => {
+    if (!acc[question.category]) acc[question.category] = [];
+    acc[question.category].push(question);
+    return acc;
+  }, {});
+}
+
+export default function Assessment() {
+  const groupedQuestions = useMemo(() => groupQuestionsByCategory(), []);
+  const categories = Object.keys(groupedQuestions);
+
+  const [candidate, setCandidate] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    years_experience: "",
+    desired_role: "",
+  });
+  const [answers, setAnswers] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const answeredCount = useMemo(() => Object.keys(answers).filter((key) => answers[key] !== "").length, [answers]);
+  const progress = Math.round((answeredCount / QUESTIONS.length) * 100);
+
+  const handleCandidateChange = (key, value) => {
+    setCandidate((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleAnswerChange = (questionId, value) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: value }));
+  };
+
+  const validateForm = () => {
+    for (const field of META_FIELDS) {
+      if (field.required && !String(candidate[field.key] || "").trim()) {
+        return `${field.label} is required.`;
+      }
+    }
+
+    for (const question of QUESTIONS) {
+      if (!String(answers[question.id] || "").trim()) {
+        return `Please answer question ${question.id}.`;
+      }
+    }
+
+    return "";
+  };
+
+  const buildAnswerRows = (candidateId) => {
+    return QUESTIONS.map((question) => ({
+      candidate_id: candidateId,
+      question_id: question.id,
+      category: question.category,
+      question_text: question.text,
+      answer: String(answers[question.id] || ""),
+      is_correct:
+        question.type === "mcq" && question.correctAnswer
+          ? answers[question.id] === question.correctAnswer
+          : null,
+      correct_answer: question.correctAnswer || null,
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const score = calculateScore(answers);
+      const totalTechnical = QUESTIONS.filter((q) => q.type === "mcq").length;
+      const percent = Math.round((score / totalTechnical) * 100);
+      const classificationResult = classifyScore(score);
+
+      const payload = {
+        full_name: candidate.full_name.trim(),
+        email: candidate.email.trim().toLowerCase(),
+        phone: candidate.phone?.trim() || null,
+        years_experience: candidate.years_experience ? Number(candidate.years_experience) : null,
+        desired_role: candidate.desired_role?.trim() || null,
+        score,
+        total_questions: totalTechnical,
+        score_percent: percent,
+        classification: classificationResult.classification,
+        recommendation: classificationResult.recommendation,
+        supervised_people_count: answers[46] ? Number(answers[46]) : null,
+        supervision_notes: answers[47] || null,
+      };
+
+      const { data: candidateInsert, error: candidateError } = await supabase
+        .from("candidates_assessment")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (candidateError) throw candidateError;
+
+      const answerRows = buildAnswerRows(candidateInsert.id);
+      const { error: answersError } = await supabase.from("candidate_answers").insert(answerRows);
+
+      if (answersError) throw answersError;
+
+      setResult({
+        ...payload,
+        ...classificationResult,
+      });
+      setSubmitted(true);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Something went wrong while submitting the assessment.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted && result) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-4 py-8 md:px-8">
+        <div className="mx-auto max-w-3xl">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+            <Card className="rounded-3xl border-0 shadow-lg">
+              <CardHeader className="space-y-4 pb-2 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+                  <CheckCircle2 className="h-8 w-8" />
+                </div>
+                <div>
+                  <CardTitle className="text-3xl font-bold">Assessment submitted</CardTitle>
+                  <CardDescription className="mt-2 text-base">
+                    The candidate has been scored and classified automatically.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card className="rounded-2xl shadow-sm">
+                    <CardContent className="p-5">
+                      <p className="text-sm text-slate-500">Candidate</p>
+                      <p className="mt-1 text-lg font-semibold">{result.full_name}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-2xl shadow-sm">
+                    <CardContent className="p-5">
+                      <p className="text-sm text-slate-500">Score</p>
+                      <p className="mt-1 text-lg font-semibold">
+                        {result.score} / {result.total_questions} ({result.score_percent}%)
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-2xl shadow-sm">
+                    <CardContent className="p-5">
+                      <p className="text-sm text-slate-500">Classification</p>
+                      <Badge className={`mt-2 border px-3 py-1 text-sm ${result.color}`}>
+                        {result.classification}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="rounded-2xl shadow-sm">
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-2">
+                      <Trophy className="h-5 w-5" />
+                      <p className="font-semibold">Recommendation</p>
+                    </div>
+                    <p className="mt-3 text-base text-slate-700">{result.recommendation}</p>
+                  </CardContent>
+                </Card>
+
+                <div className="flex justify-center">
+                  <Button
+                    className="rounded-2xl px-6"
+                    onClick={() => {
+                      setSubmitted(false);
+                      setResult(null);
+                      setCandidate({
+                        full_name: "",
+                        email: "",
+                        phone: "",
+                        years_experience: "",
+                        desired_role: "",
+                      });
+                      setAnswers({});
+                      setError("");
+                    }}
+                  >
+                    New assessment
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 px-4 py-8 md:px-8">
+      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}>
+          <Card className="sticky top-6 rounded-3xl border-0 shadow-lg">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl bg-slate-100 p-3">
+                  <ClipboardList className="h-6 w-6" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Electrical Skills Assessment</CardTitle>
+                  <CardDescription>UTS candidate screening with automatic scoring</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-sm text-slate-600">
+                  <span>Progress</span>
+                  <span>{progress}%</span>
+                </div>
+                <Progress value={progress} className="h-3" />
+                <p className="mt-2 text-xs text-slate-500">
+                  {answeredCount} of {QUESTIONS.length} answers completed.
+                </p>
+              </div>
+
+              <Separator />
+
+              <div>
+                <p className="mb-3 text-sm font-semibold text-slate-700">Automatic classification</p>
+                <div className="space-y-2 text-sm text-slate-600">
+                  <div className="flex items-center justify-between rounded-xl bg-slate-100 px-3 py-2">
+                    <span>40+</span>
+                    <span>Foreman</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-100 px-3 py-2">
+                    <span>30–39</span>
+                    <span>Journeyman</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-100 px-3 py-2">
+                    <span>20–29</span>
+                    <span>Mid-Level</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-100 px-3 py-2">
+                    <span>&lt;20</span>
+                    <span>Helper</span>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <p className="mb-3 text-sm font-semibold text-slate-700">Sections</p>
+                <div className="space-y-2">
+                  {categories.map((category) => (
+                    <div key={category} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                      {category}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <Card className="rounded-3xl border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle>Candidate information</CardTitle>
+                <CardDescription>Complete the basic information before starting the assessment.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-5 md:grid-cols-2">
+                {META_FIELDS.map((field) => {
+                  const Icon = field.icon;
+                  return (
+                    <div key={field.key} className="space-y-2">
+                      <Label htmlFor={field.key}>{field.label}</Label>
+                      <div className="relative">
+                        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id={field.key}
+                          type={field.type}
+                          className="rounded-2xl pl-10"
+                          value={candidate[field.key]}
+                          onChange={(e) => handleCandidateChange(field.key, e.target.value)}
+                          placeholder={field.label}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            {categories.map((category, categoryIndex) => (
+              <Card key={category} className="rounded-3xl border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle>
+                    Section {categoryIndex + 1}: {category}
+                  </CardTitle>
+                  <CardDescription>{groupedQuestions[category].length} question(s)</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {groupedQuestions[category].map((question) => (
+                    <div key={question.id} className="rounded-2xl border border-slate-200 p-5">
+                      <p className="mb-4 font-medium text-slate-900">
+                        {question.id}. {question.text}
+                      </p>
+
+                      {question.type === "mcq" && (
+                        <RadioGroup
+                          value={answers[question.id] || ""}
+                          onValueChange={(value) => handleAnswerChange(question.id, value)}
+                          className="space-y-3"
+                        >
+                          {question.options.map((option) => (
+                            <label
+                              key={option}
+                              className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 transition hover:bg-slate-50"
+                            >
+                              <RadioGroupItem value={option} id={`q-${question.id}-${option}`} />
+                              <span className="text-sm text-slate-700">{option}</span>
+                            </label>
+                          ))}
+                        </RadioGroup>
+                      )}
+
+                      {question.type === "number" && (
+                        <Input
+                          type="number"
+                          className="rounded-2xl"
+                          placeholder={question.placeholder || "Type your answer"}
+                          value={answers[question.id] || ""}
+                          onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                        />
+                      )}
+
+                      {question.type === "textarea" && (
+                        <Textarea
+                          className="min-h-[120px] rounded-2xl"
+                          placeholder={question.placeholder || "Type your answer"}
+                          value={answers[question.id] || ""}
+                          onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+
+            {error && (
+              <Card className="rounded-2xl border border-rose-200 bg-rose-50 shadow-sm">
+                <CardContent className="p-4 text-sm text-rose-700">{error}</CardContent>
+              </Card>
+            )}
+
+            <div className="flex items-center justify-end pb-10">
+              <Button type="submit" className="rounded-2xl px-6 py-6 text-base" disabled={submitting}>
+                {submitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Submitting...
+                  </span>
+                ) : (
+                  "Submit assessment"
+                )}
+              </Button>
+            </div>
+          </form>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
