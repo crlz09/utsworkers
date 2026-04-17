@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
+import UtsTopNavBar from "../components/UtsTopNavBar";
+import GoToTopButton from "../components/GoToTopButton";
 import {
   Users,
   Search,
@@ -24,6 +26,7 @@ import {
   Download,
   ExternalLink,
   ClipboardList,
+  UserPlus,
   History,
 } from "lucide-react";
 
@@ -55,6 +58,100 @@ function PageStyles() {
       @keyframes spin {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
+      }
+
+      .uts-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        background: linear-gradient(180deg, #1f2c40 0%, #1b2738 100%);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+      }
+
+      .uts-topbar-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        min-height: 78px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 0 24px;
+      }
+
+      .uts-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        flex-shrink: 0;
+      }
+
+      .uts-brand img {
+        height: 52px;
+        width: auto;
+        object-fit: contain;
+        display: block;
+      }
+
+      .uts-nav {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .uts-nav-btn {
+        border: none;
+        background: transparent;
+        color: rgba(255,255,255,0.82);
+        padding: 12px 14px;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 15px;
+        cursor: pointer;
+        transition: 0.18s ease;
+      }
+
+      .uts-nav-btn:hover {
+        background: rgba(255,255,255,0.08);
+        color: #ffffff;
+      }
+
+      .uts-nav-btn.active {
+        background: rgba(255,255,255,0.12);
+        color: #ffffff;
+      }
+
+      .uts-topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .uts-logout-btn {
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.04);
+        color: #ffffff;
+        border-radius: 14px;
+        padding: 11px 15px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      @media (max-width: 1100px) {
+        .uts-topbar-inner {
+          align-items: flex-start;
+          flex-direction: column;
+          padding-top: 14px;
+          padding-bottom: 14px;
+        }
+
+        .uts-topbar-right {
+          width: 100%;
+          justify-content: flex-start;
+        }
       }
 
       @media (max-width: 950px) {
@@ -1325,6 +1422,28 @@ function WorkerCard({
           Start Interview
         </button>
 
+       {/* BOTON DE REGISTRAR-NO LO NECESITO
+        <button
+          type="button"
+          onClick={() => navigate("/register")}
+          style={{
+            border: "1px solid #cbd5e1",
+            background: "#ffffff",
+            color: "#0f172a",
+            borderRadius: 14,
+            padding: "12px 16px",
+            fontWeight: 800,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            width: "fit-content",
+          }}
+        >
+          <UserPlus size={16} />
+          Register
+        </button>
+*/}
         <button
           type="button"
           onClick={() => {
@@ -1426,6 +1545,7 @@ function WorkerCard({
     </div>
   );
 }
+
 
 export default function AdminPage() {
   const navigate = useNavigate();
@@ -1620,7 +1740,7 @@ export default function AdminPage() {
   return (
     <>
       <PageStyles />
-
+<UtsTopNavBar />
       <div
         className="admin-shell"
         style={{
@@ -1683,47 +1803,6 @@ export default function AdminPage() {
                 <p style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
                   Review, search, filter, sort, and manage both workflow status and pending-pool availability.
                 </p>
-              </div>
-
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => navigate("/interviews")}
-                  style={{
-                    border: "1px solid #cbd5e1",
-                    background: "#ffffff",
-                    color: "#0f172a",
-                    borderRadius: 14,
-                    padding: "12px 16px",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <History size={16} />
-                  Open Interviews History
-                </button>
-
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await supabase.auth.signOut();
-                    window.location.href = "/login";
-                  }}
-                  style={{
-                    border: "1px solid #cbd5e1",
-                    background: "#ffffff",
-                    color: "#0f172a",
-                    borderRadius: 14,
-                    padding: "12px 16px",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                  }}
-                >
-                  Logout
-                </button>
               </div>
             </div>
 
@@ -1949,6 +2028,7 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+      <GoToTopButton showAfter={600} />
     </>
   );
 }

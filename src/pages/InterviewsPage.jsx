@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import UtsTopNavBar from "../components/UtsTopNavBar";
+import GoToTopButton from "../components/GoToTopButton";
 
 export default function InterviewsPage() {
   const [rows, setRows] = useState([]);
@@ -43,7 +45,28 @@ export default function InterviewsPage() {
     });
   }, [rows, query, classification]);
 
+  function PageStyles() {
   return (
+    <style>{`
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+    `}</style>
+  );
+}
+
+  return (
+
+    <> 
+    <PageStyles />
+    <UtsTopNavBar />
     <div style={{ padding: 24, fontFamily: "Inter, sans-serif", background: "#f8fafc", minHeight: "100vh" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gap: 20 }}>
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 20, padding: 24 }}>
@@ -210,5 +233,7 @@ export default function InterviewsPage() {
         </div>
       </div>
     </div>
+    <GoToTopButton showAfter={600} />
+    </>
   );
 }

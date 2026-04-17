@@ -2,6 +2,31 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { QUESTION_BANK, UI_TEXT } from "../data/interviewContent";
+import UtsTopNavBar from "../components/UtsTopNavBar";
+import GoToTopButton from "../components/GoToTopButton";
+
+function PageStyles() {
+  return (
+    <style>{`
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+
+      @media print {
+        .uts-topbar {
+          display: none !important;
+        }
+      }
+    `}</style>
+  );
+}
 
 function getInitialAnswers() {
   return QUESTION_BANK.map((section) =>
@@ -365,11 +390,12 @@ export default function InterviewMiniApp() {
 
   return (
     <>
+    <PageStyles />
       <style>{`
         * { box-sizing: border-box; }
 
         .interview-app {
-          min-height: 100vh;
+          min-height: calc(100vh - 78px);
           background:
             radial-gradient(circle at top left, rgba(59,130,246,0.12), transparent 24%),
             radial-gradient(circle at top right, rgba(16,185,129,0.10), transparent 22%),
@@ -964,7 +990,8 @@ export default function InterviewMiniApp() {
           }
         }
       `}</style>
-
+      <UtsTopNavBar />
+      
       <div className="interview-app">
         <div className="interview-shell">
           <div className="glass-card header-card">
@@ -1540,6 +1567,7 @@ export default function InterviewMiniApp() {
           </div>
         </div>
       </div>
+      <GoToTopButton showAfter={600} />
     </>
   );
 }

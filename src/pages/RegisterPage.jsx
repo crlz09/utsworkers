@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import UtsTopNavBar from "../components/UtsTopNavBar";
+import GoToTopButton from "../components/GoToTopButton";
+
 import {
   CheckCircle2,
   Loader2,
@@ -720,8 +723,9 @@ export default function RegisterPage() {
 
   return (
     <>
+      <UtsTopNavBar />
       <PageStyles />
-
+      
       <div
         className="container-shell"
         style={{
@@ -1144,6 +1148,7 @@ export default function RegisterPage() {
           </motion.div>
         </div>
       </div>
+      <GoToTopButton showAfter={600} />
     </>
   );
 }
