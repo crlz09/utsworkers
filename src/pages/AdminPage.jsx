@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { useNavigate } from "react-router-dom";
 import {
   Users,
   Search,
@@ -22,6 +23,8 @@ import {
   Trash2,
   Download,
   ExternalLink,
+  ClipboardList,
+  History,
 } from "lucide-react";
 
 function PageStyles() {
@@ -656,6 +659,7 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
 
 function WorkerCard({
   worker,
+  navigate,
   onStatusSaved,
   onAvailabilitySaved,
   onRecruiterNotesSaved,
@@ -787,6 +791,30 @@ function WorkerCard({
     }
 
     setSavingNotes(false);
+  };
+
+  const startInterview = () => {
+    const speaksSpanish =
+      languages.some((lang) =>
+        String(lang).toLowerCase().includes("spanish")
+      );
+
+    const speaksEnglish =
+      languages.some((lang) =>
+        String(lang).toLowerCase().includes("english")
+      );
+
+    const params = new URLSearchParams({
+      name: worker.name || "",
+      position: worker.trades?.name || "",
+      phone: worker.phone || "",
+      email: worker.email || "",
+      address: worker.locations?.name || "",
+      spanish: speaksSpanish ? "true" : "false",
+      english: speaksEnglish ? "true" : "false",
+    });
+
+    navigate(`/interviews/new?${params.toString()}`);
   };
 
   const showAvailabilityTag = status === "pending";
@@ -1278,6 +1306,27 @@ function WorkerCard({
       >
         <button
           type="button"
+          onClick={startInterview}
+          style={{
+            border: "none",
+            background: "#0f172a",
+            color: "#ffffff",
+            borderRadius: 14,
+            padding: "12px 16px",
+            fontWeight: 800,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            width: "fit-content",
+          }}
+        >
+          <ClipboardList size={16} />
+          Start Interview
+        </button>
+
+        <button
+          type="button"
           onClick={() => {
             if (!worker.public_profile_slug) {
               alert("This worker does not have a public profile slug yet.");
@@ -1379,6 +1428,8 @@ function WorkerCard({
 }
 
 export default function AdminPage() {
+  const navigate = useNavigate();
+
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -1634,24 +1685,46 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  window.location.href = "/login";
-                }}
-                style={{
-                  border: "1px solid #cbd5e1",
-                  background: "#ffffff",
-                  color: "#0f172a",
-                  borderRadius: 14,
-                  padding: "12px 16px",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                }}
-              >
-                Logout
-              </button>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => navigate("/interviews")}
+                  style={{
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#0f172a",
+                    borderRadius: 14,
+                    padding: "12px 16px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <History size={16} />
+                  Open Interviews History
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    window.location.href = "/login";
+                  }}
+                  style={{
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#0f172a",
+                    borderRadius: 14,
+                    padding: "12px 16px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  Logout
+                </button>
+              </div>
             </div>
 
             <div
@@ -1864,6 +1937,7 @@ export default function AdminPage() {
                   <WorkerCard
                     key={w.id}
                     worker={w}
+                    navigate={navigate}
                     onStatusSaved={handleStatusSaved}
                     onAvailabilitySaved={handleAvailabilitySaved}
                     onRecruiterNotesSaved={handleRecruiterNotesSaved}

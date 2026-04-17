@@ -1,12 +1,11 @@
-import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import RegisterPage from "./pages/RegisterPage";
 import AdminPage from "./pages/AdminPage";
 import LoginPage from "./pages/LoginPage";
 import InterviewMiniApp from "./pages/InterviewMiniApp";
+import InterviewsPage from "./pages/InterviewsPage";
 import WorkerProfilePage from "./pages/WorkerProfilePage";
 import ProtectedRoute from "./components/ProtectedRoute";
-import InterviewsPage from "./pages/InterviewsPage";
 
 
 export default function App() {

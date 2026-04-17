@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { QUESTION_BANK, UI_TEXT } from "../data/interviewContent";
 
@@ -40,6 +41,7 @@ function AutoResizeTextarea({
 }
 
 export default function InterviewMiniApp() {
+  const [searchParams] = useSearchParams();
   const [language, setLanguage] = useState("es");
   const current = UI_TEXT[language];
 
@@ -55,19 +57,23 @@ export default function InterviewMiniApp() {
     }));
   }, [language, current.otherOption]);
 
-  const [candidate, setCandidate] = useState({
-    name: "",
-    date: new Date().toISOString().split("T")[0],
-    position: "",
-    phone: "",
-    email: "",
-    address: "",
-    speaksSpanish: false,
-    speaksEnglish: false,
-    notes: "",
-    summary: "",
-  });
+  const prefillCandidate = useMemo(
+    () => ({
+      name: searchParams.get("name") || "",
+      position: searchParams.get("position") || "",
+      date: new Date().toISOString().split("T")[0],
+      phone: searchParams.get("phone") || "",
+      email: searchParams.get("email") || "",
+      address: searchParams.get("address") || "",
+      speaksSpanish: searchParams.get("spanish") === "true",
+      speaksEnglish: searchParams.get("english") === "true",
+      notes: "",
+      summary: "",
+    }),
+    [searchParams]
+  );
 
+  const [candidate, setCandidate] = useState(prefillCandidate);
   const [answers, setAnswers] = useState(getInitialAnswers);
   const [manualPoints, setManualPoints] = useState(0);
   const [openSections, setOpenSections] = useState(
@@ -212,14 +218,8 @@ export default function InterviewMiniApp() {
 
   const resetAll = () => {
     setCandidate({
-      name: "",
+      ...prefillCandidate,
       date: new Date().toISOString().split("T")[0],
-      position: "",
-      phone: "",
-      email: "",
-      address: "",
-      speaksSpanish: false,
-      speaksEnglish: false,
       notes: "",
       summary: "",
     });
@@ -270,9 +270,7 @@ export default function InterviewMiniApp() {
               const entry = answers[sectionIndex]?.[questionIndex];
               if (!entry || entry.selected === null) return null;
 
-              const selectedOption =
-                question.options[entry.selected] ?? null;
-
+              const selectedOption = question.options[entry.selected] ?? null;
               const isOther = entry.selected === question.otherIndex;
               const isCorrect = isOther ? null : entry.selected === question.correctIndex;
 
@@ -369,6 +367,7 @@ export default function InterviewMiniApp() {
     <>
       <style>{`
         * { box-sizing: border-box; }
+
         .interview-app {
           min-height: 100vh;
           background:
@@ -379,12 +378,14 @@ export default function InterviewMiniApp() {
           font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
           color: #0f172a;
         }
+
         .interview-shell {
           max-width: 1320px;
           margin: 0 auto;
           display: grid;
           gap: 20px;
         }
+
         .glass-card {
           background: rgba(255,255,255,0.86);
           backdrop-filter: blur(10px);
@@ -392,192 +393,575 @@ export default function InterviewMiniApp() {
           border-radius: 24px;
           box-shadow: 0 12px 32px rgba(15,23,42,0.08);
         }
-        .header-card, .info-card, .section-card, .notes-grid-card { padding: 24px; }
+
+        .header-card, .info-card, .section-card, .notes-grid-card {
+          padding: 24px;
+        }
+
         .header-top, .toolbar-row, .section-header {
-          display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center;
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+          align-items: center;
         }
-        .title { margin: 0; font-size: 38px; line-height: 1.05; font-weight: 900; letter-spacing: -0.04em; }
-        .subtitle { margin: 10px 0 0 0; color: #475569; font-size: 16px; }
-        .top-actions, .toolbar-actions, .manual-controls, .language-checks {
-          display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+
+        .title {
+          margin: 0;
+          font-size: 38px;
+          line-height: 1.05;
+          font-weight: 900;
+          letter-spacing: -0.04em;
         }
+
+        .subtitle {
+          margin: 10px 0 0 0;
+          color: #475569;
+          font-size: 16px;
+        }
+
+        .top-actions,
+        .toolbar-actions,
+        .manual-controls,
+        .language-checks {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
         .lang-toggle {
-          display: inline-flex; background: #e2e8f0; padding: 4px; border-radius: 14px; gap: 4px;
+          display: inline-flex;
+          background: #e2e8f0;
+          padding: 4px;
+          border-radius: 14px;
+          gap: 4px;
         }
+
         .lang-btn, .btn, .mini-btn, .toggle-btn, .option-btn {
-          transition: 0.18s ease; font-weight: 800; cursor: pointer;
+          transition: 0.18s ease;
+          font-weight: 800;
+          cursor: pointer;
         }
+
         .lang-btn {
-          border: none; padding: 10px 14px; border-radius: 10px; background: transparent; color: #334155;
+          border: none;
+          padding: 10px 14px;
+          border-radius: 10px;
+          background: transparent;
+          color: #334155;
         }
-        .lang-btn.active { background: #0f172a; color: white; }
+
+        .lang-btn.active {
+          background: #0f172a;
+          color: white;
+        }
+
         .btn {
-          border: none; border-radius: 14px; padding: 11px 15px; background: #0f172a; color: white; font-size: 14px;
+          border: none;
+          border-radius: 14px;
+          padding: 11px 15px;
+          background: #0f172a;
+          color: white;
+          font-size: 14px;
         }
+
         .btn.secondary {
-          background: white; color: #0f172a; border: 1px solid #cbd5e1;
+          background: white;
+          color: #0f172a;
+          border: 1px solid #cbd5e1;
         }
+
         .btn.success {
           background: #16a34a;
         }
+
         .hero-grid {
-          display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 20px;
+          display: grid;
+          grid-template-columns: 1.1fr 0.9fr;
+          gap: 20px;
         }
+
         .score-card {
           background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-          color: white; border-radius: 24px; padding: 24px;
+          color: white;
+          border-radius: 24px;
+          padding: 24px;
         }
+
         .kicker {
-          font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.72;
+          font-size: 12px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          opacity: 0.72;
         }
+
         .score-big {
-          margin-top: 10px; font-size: 60px; line-height: 1; font-weight: 900; letter-spacing: -0.05em;
+          margin-top: 10px;
+          font-size: 60px;
+          line-height: 1;
+          font-weight: 900;
+          letter-spacing: -0.05em;
         }
+
         .score-sub {
-          margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; color: rgba(255,255,255,0.76); font-size: 14px;
+          margin-top: 12px;
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+          color: rgba(255,255,255,0.76);
+          font-size: 14px;
         }
+
         .progress-track {
-          margin-top: 18px; width: 100%; height: 14px; background: rgba(255,255,255,0.12); border-radius: 999px; overflow: hidden;
+          margin-top: 18px;
+          width: 100%;
+          height: 14px;
+          background: rgba(255,255,255,0.12);
+          border-radius: 999px;
+          overflow: hidden;
         }
+
         .progress-fill {
-          height: 100%; border-radius: 999px; background: linear-gradient(90deg, #22c55e, #60a5fa);
+          height: 100%;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #22c55e, #60a5fa);
         }
+
         .manual-box {
-          margin-top: 20px; padding: 16px; border-radius: 18px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.10);
+          margin-top: 20px;
+          padding: 16px;
+          border-radius: 18px;
+          background: rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.10);
         }
+
         .manual-row {
-          display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap;
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: center;
+          flex-wrap: wrap;
         }
-        .mini-btn { border: none; padding: 10px 12px; border-radius: 12px; font-size: 14px; }
-        .mini-btn.plus { background: #dcfce7; color: #166534; }
-        .mini-btn.minus { background: #fee2e2; color: #991b1b; }
+
+        .mini-btn {
+          border: none;
+          padding: 10px 12px;
+          border-radius: 12px;
+          font-size: 14px;
+        }
+
+        .mini-btn.plus {
+          background: #dcfce7;
+          color: #166534;
+        }
+
+        .mini-btn.minus {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+
         .classification-card {
-          padding: 24px; border-radius: 24px; border: 1px solid;
+          padding: 24px;
+          border-radius: 24px;
+          border: 1px solid;
         }
+
         .classification-main {
-          margin-top: 12px; display: flex; align-items: center; gap: 10px; font-size: 30px; font-weight: 900; line-height: 1.1;
+          margin-top: 12px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 30px;
+          font-weight: 900;
+          line-height: 1.1;
         }
-        .thresholds { margin-top: 18px; display: grid; gap: 10px; }
+
+        .thresholds {
+          margin-top: 18px;
+          display: grid;
+          gap: 10px;
+        }
+
         .threshold-row {
-          display: flex; justify-content: space-between; gap: 10px; background: rgba(255,255,255,0.48); border: 1px solid rgba(255,255,255,0.5); padding: 10px 12px; border-radius: 14px; font-size: 14px; font-weight: 800;
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          background: rgba(255,255,255,0.48);
+          border: 1px solid rgba(255,255,255,0.5);
+          padding: 10px 12px;
+          border-radius: 14px;
+          font-size: 14px;
+          font-weight: 800;
         }
-        .section-title { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.03em; }
+
+        .section-title {
+          margin: 0;
+          font-size: 24px;
+          font-weight: 900;
+          letter-spacing: -0.03em;
+        }
+
         .info-grid {
-          display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
         }
-        .field { display: grid; gap: 8px; }
-        .field.span-3 { grid-column: span 3; }
-        .label { font-size: 14px; font-weight: 800; color: #334155; }
+
+        .field {
+          display: grid;
+          gap: 8px;
+        }
+
+        .field.span-3 {
+          grid-column: span 3;
+        }
+
+        .label {
+          font-size: 14px;
+          font-weight: 800;
+          color: #334155;
+        }
+
         .input, .textarea, .other-input {
-          width: 100%; border: 1px solid #cbd5e1; border-radius: 16px; background: white; padding: 12px 14px; font-size: 15px; outline: none; color: #0f172a;
+          width: 100%;
+          border: 1px solid #cbd5e1;
+          border-radius: 16px;
+          background: white;
+          padding: 12px 14px;
+          font-size: 15px;
+          outline: none;
+          color: #0f172a;
         }
+
         .textarea {
-          resize: none; line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+          resize: none;
+          line-height: 1.55;
+          white-space: pre-wrap;
+          word-break: break-word;
         }
+
         .check-pill {
-          display: inline-flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid #cbd5e1; background: #fff; font-weight: 800; color: #0f172a; user-select: none;
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 14px;
+          border-radius: 14px;
+          border: 1px solid #cbd5e1;
+          background: #fff;
+          font-weight: 800;
+          color: #0f172a;
+          user-select: none;
         }
+
         .check-pill.active {
-          border-color: #2563eb; background: #eff6ff; color: #1d4ed8;
+          border-color: #2563eb;
+          background: #eff6ff;
+          color: #1d4ed8;
         }
+
         .section-stack, .questions-wrap, .thresholds, .options-grid, .notes-grid {
           display: grid;
         }
-        .section-stack, .questions-wrap, .thresholds { gap: 16px; }
-        .notes-grid { grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        .section-stack, .questions-wrap, .thresholds {
+          gap: 16px;
+        }
+
+        .notes-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+
         .section-header-left {
-          display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
         }
+
         .pill {
-          display: inline-flex; align-items: center; border-radius: 999px; padding: 8px 12px; font-size: 12px; font-weight: 900;
+          display: inline-flex;
+          align-items: center;
+          border-radius: 999px;
+          padding: 8px 12px;
+          font-size: 12px;
+          font-weight: 900;
         }
-        .pill.blue { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-        .pill.gray { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+        .pill.blue {
+          background: #eff6ff;
+          color: #1d4ed8;
+          border: 1px solid #bfdbfe;
+        }
+
+        .pill.gray {
+          background: #f1f5f9;
+          color: #475569;
+          border: 1px solid #cbd5e1;
+        }
+
         .toggle-btn {
-          border: 1px solid #cbd5e1; background: white; color: #0f172a; border-radius: 12px; padding: 9px 12px; font-size: 13px;
+          border: 1px solid #cbd5e1;
+          background: white;
+          color: #0f172a;
+          border-radius: 12px;
+          padding: 9px 12px;
+          font-size: 13px;
         }
+
         .question-card {
-          border: 1px solid #e2e8f0; background: white; border-radius: 18px; padding: 16px;
+          border: 1px solid #e2e8f0;
+          background: white;
+          border-radius: 18px;
+          padding: 16px;
         }
+
         .question-head {
-          display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 12px;
+          flex-wrap: wrap;
         }
+
         .question-text {
-          font-size: 15px; font-weight: 800; color: #0f172a; line-height: 1.45;
+          font-size: 15px;
+          font-weight: 800;
+          color: #0f172a;
+          line-height: 1.45;
         }
+
         .status {
-          display: inline-flex; align-items: center; padding: 7px 10px; border-radius: 999px; font-size: 12px; font-weight: 900; white-space: nowrap;
+          display: inline-flex;
+          align-items: center;
+          padding: 7px 10px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 900;
+          white-space: nowrap;
         }
-        .status.pending { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-        .status.correct { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-        .status.incorrect { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
-        .status.neutral { background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd; }
-        .options-grid { gap: 10px; margin-top: 14px; }
+
+        .status.pending {
+          background: #f1f5f9;
+          color: #475569;
+          border: 1px solid #cbd5e1;
+        }
+
+        .status.correct {
+          background: #dcfce7;
+          color: #166534;
+          border: 1px solid #86efac;
+        }
+
+        .status.incorrect {
+          background: #fee2e2;
+          color: #991b1b;
+          border: 1px solid #fca5a5;
+        }
+
+        .status.neutral {
+          background: #ede9fe;
+          color: #6d28d9;
+          border: 1px solid #c4b5fd;
+        }
+
+        .options-grid {
+          gap: 10px;
+          margin-top: 14px;
+        }
+
         .option-btn {
-          width: 100%; text-align: left; border: 1px solid #dbe4ee; background: #f8fafc; color: #0f172a; border-radius: 14px; padding: 12px 14px; font-size: 14px;
+          width: 100%;
+          text-align: left;
+          border: 1px solid #dbe4ee;
+          background: #f8fafc;
+          color: #0f172a;
+          border-radius: 14px;
+          padding: 12px 14px;
+          font-size: 14px;
         }
+
         .option-btn.selected {
-          border-color: #2563eb; background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+          border-color: #2563eb;
+          background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
         }
+
         .option-btn.right {
-          border-color: #22c55e; background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%); color: #166534;
+          border-color: #22c55e;
+          background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+          color: #166534;
         }
+
         .option-btn.wrong {
-          border-color: #ef4444; background: linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%); color: #991b1b;
+          border-color: #ef4444;
+          background: linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%);
+          color: #991b1b;
         }
+
         .option-btn.neutral {
-          border-color: #8b5cf6; background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%); color: #6d28d9;
+          border-color: #8b5cf6;
+          background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%);
+          color: #6d28d9;
         }
+
         .other-box {
-          margin-top: 12px; border: 1px solid #ddd6fe; background: #faf5ff; border-radius: 14px; padding: 12px;
+          margin-top: 12px;
+          border: 1px solid #ddd6fe;
+          background: #faf5ff;
+          border-radius: 14px;
+          padding: 12px;
         }
+
         .other-label {
-          font-size: 12px; font-weight: 900; color: #6d28d9; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.08em;
+          font-size: 12px;
+          font-weight: 900;
+          color: #6d28d9;
+          margin-bottom: 8px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
         }
+
         .save-banner {
-          padding: 12px 14px; border-radius: 14px; font-weight: 800; font-size: 14px;
+          padding: 12px 14px;
+          border-radius: 14px;
+          font-weight: 800;
+          font-size: 14px;
         }
+
         .save-banner.success {
-          background: #dcfce7; color: #166534; border: 1px solid #86efac;
+          background: #dcfce7;
+          color: #166534;
+          border: 1px solid #86efac;
         }
+
         .save-banner.error {
-          background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;
+          background: #fee2e2;
+          color: #991b1b;
+          border: 1px solid #fca5a5;
         }
+
         .footer-result {
-          padding: 24px; display: flex; justify-content: space-between; gap: 18px; align-items: center; flex-wrap: wrap;
+          padding: 24px;
+          display: flex;
+          justify-content: space-between;
+          gap: 18px;
+          align-items: center;
+          flex-wrap: wrap;
         }
-        .footer-score { font-size: 44px; line-height: 1; font-weight: 900; letter-spacing: -0.04em; }
-        .print-report { display: none; }
+
+        .footer-score {
+          font-size: 44px;
+          line-height: 1;
+          font-weight: 900;
+          letter-spacing: -0.04em;
+        }
+
+        .print-report {
+          display: none;
+        }
+
         .print-section {
-          margin-top: 18px; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px;
+          margin-top: 18px;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          padding: 14px;
         }
+
         .print-question {
-          margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;
+          margin-top: 12px;
+          padding-top: 12px;
+          border-top: 1px solid #e2e8f0;
         }
-        .print-question:first-child { border-top: none; padding-top: 0; }
+
+        .print-question:first-child {
+          border-top: none;
+          padding-top: 0;
+        }
+
         .print-meta {
-          margin-top: 6px; color: #334155; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+          margin-top: 6px;
+          color: #334155;
+          font-size: 14px;
+          line-height: 1.5;
+          white-space: pre-wrap;
+          word-break: break-word;
         }
+
         @media (max-width: 1100px) {
-          .hero-grid, .notes-grid, .info-grid { grid-template-columns: 1fr 1fr; }
-          .field.span-3 { grid-column: span 2; }
-        }
-        @media (max-width: 780px) {
-          .interview-app { padding: 14px; }
-          .title { font-size: 30px; }
-          .hero-grid, .notes-grid, .info-grid { grid-template-columns: 1fr; }
-          .field.span-3 { grid-column: span 1; }
-          .score-big { font-size: 48px; }
-        }
-        @media print {
-          .interview-app { background: white !important; padding: 0 !important; }
-          .top-actions, .toolbar-actions, .toggle-btn, .mini-btn, .lang-toggle, .btn, .question-card, .toolbar-row, .section-stack, .notes-grid, .footer-result, .hero-grid, .screen-only { display: none !important; }
-          .glass-card, .score-card, .classification-card {
-            box-shadow: none !important; background: white !important; backdrop-filter: none !important; border: 1px solid #e2e8f0 !important;
+          .hero-grid, .notes-grid, .info-grid {
+            grid-template-columns: 1fr 1fr;
           }
-          .print-report { display: block !important; }
-          .info-grid { grid-template-columns: 1fr 1fr !important; }
-          .field.span-3 { grid-column: span 2 !important; }
+          .field.span-3 {
+            grid-column: span 2;
+          }
+        }
+
+        @media (max-width: 780px) {
+          .interview-app {
+            padding: 14px;
+          }
+
+          .title {
+            font-size: 30px;
+          }
+
+          .hero-grid, .notes-grid, .info-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .field.span-3 {
+            grid-column: span 1;
+          }
+
+          .score-big {
+            font-size: 48px;
+          }
+        }
+
+        @media print {
+          .interview-app {
+            background: white !important;
+            padding: 0 !important;
+          }
+
+          .top-actions,
+          .toolbar-actions,
+          .toggle-btn,
+          .mini-btn,
+          .lang-toggle,
+          .btn,
+          .question-card,
+          .toolbar-row,
+          .section-stack,
+          .notes-grid,
+          .footer-result,
+          .hero-grid,
+          .screen-only {
+            display: none !important;
+          }
+
+          .glass-card,
+          .score-card,
+          .classification-card {
+            box-shadow: none !important;
+            background: white !important;
+            backdrop-filter: none !important;
+            border: 1px solid #e2e8f0 !important;
+          }
+
+          .print-report {
+            display: block !important;
+          }
+
+          .info-grid {
+            grid-template-columns: 1fr 1fr !important;
+          }
+
+          .field.span-3 {
+            grid-column: span 2 !important;
+          }
         }
       `}</style>
 
@@ -609,7 +993,11 @@ export default function InterviewMiniApp() {
                 <button className="btn secondary" onClick={resetAll}>
                   {current.reset}
                 </button>
-                <button className="btn success" onClick={saveInterview} disabled={saveState.loading}>
+                <button
+                  className="btn success"
+                  onClick={saveInterview}
+                  disabled={saveState.loading}
+                >
                   {saveState.loading ? current.saving : current.save}
                 </button>
                 <button className="btn" onClick={printToPdf}>
@@ -652,7 +1040,10 @@ export default function InterviewMiniApp() {
                 <div
                   className="progress-fill"
                   style={{
-                    width: `${Math.max(0, Math.min((Math.max(totalScore, 0) / totalQuestions) * 100, 100))}%`,
+                    width: `${Math.max(
+                      0,
+                      Math.min((Math.max(totalScore, 0) / totalQuestions) * 100, 100)
+                    )}%`,
                   }}
                 />
               </div>
@@ -695,7 +1086,10 @@ export default function InterviewMiniApp() {
                 {current.classification}
               </div>
 
-              <div className="classification-main" style={{ color: classification.color }}>
+              <div
+                className="classification-main"
+                style={{ color: classification.color }}
+              >
                 <span>{classification.icon}</span>
                 <span>{classification.label}</span>
               </div>
@@ -793,7 +1187,9 @@ export default function InterviewMiniApp() {
               <div className="field span-3">
                 <label className="label">{current.candidateLanguage}</label>
                 <div className="language-checks">
-                  <label className={`check-pill ${candidate.speaksSpanish ? "active" : ""}`}>
+                  <label
+                    className={`check-pill ${candidate.speaksSpanish ? "active" : ""}`}
+                  >
                     <input
                       type="checkbox"
                       checked={candidate.speaksSpanish}
@@ -807,7 +1203,9 @@ export default function InterviewMiniApp() {
                     <span>{current.spanishCheck}</span>
                   </label>
 
-                  <label className={`check-pill ${candidate.speaksEnglish ? "active" : ""}`}>
+                  <label
+                    className={`check-pill ${candidate.speaksEnglish ? "active" : ""}`}
+                  >
                     <input
                       type="checkbox"
                       checked={candidate.speaksEnglish}
@@ -841,7 +1239,8 @@ export default function InterviewMiniApp() {
             <div className="section-stack" style={{ marginTop: 18 }}>
               {localizedSections.map((section, sectionIndex) => {
                 const sectionAnswered =
-                  answers[sectionIndex]?.filter((entry) => entry.selected !== null).length || 0;
+                  answers[sectionIndex]?.filter((entry) => entry.selected !== null)
+                    .length || 0;
 
                 const sectionCorrect = section.questions.reduce((sum, q, qIndex) => {
                   const selected = answers[sectionIndex]?.[qIndex]?.selected;
@@ -950,7 +1349,11 @@ export default function InterviewMiniApp() {
                                     value={entry.otherText}
                                     placeholder={current.otherPlaceholder}
                                     onChange={(e) =>
-                                      handleOtherText(sectionIndex, questionIndex, e.target.value)
+                                      handleOtherText(
+                                        sectionIndex,
+                                        questionIndex,
+                                        e.target.value
+                                      )
                                     }
                                   />
                                 </div>
@@ -1053,7 +1456,9 @@ export default function InterviewMiniApp() {
                     {[
                       candidate.speaksSpanish ? current.spanishCheck : null,
                       candidate.speaksEnglish ? current.englishCheck : null,
-                    ].filter(Boolean).join(", ") || "—"}
+                    ]
+                      .filter(Boolean)
+                      .join(", ") || "—"}
                   </div>
                 </div>
               </div>
@@ -1073,7 +1478,8 @@ export default function InterviewMiniApp() {
                 <strong>{current.manualAdjust}:</strong> {manualPoints}
               </div>
               <div className="print-meta">
-                <strong>{current.classification}:</strong> {classification.icon} {classification.label}
+                <strong>{current.classification}:</strong> {classification.icon}{" "}
+                {classification.label}
               </div>
             </div>
 
@@ -1087,16 +1493,20 @@ export default function InterviewMiniApp() {
 
                     {section.questions.map((question, idx) => (
                       <div key={`${section.title}-${idx}`} className="print-question">
-                        <div style={{ fontWeight: 800 }}>{idx + 1}. {question.prompt}</div>
+                        <div style={{ fontWeight: 800 }}>
+                          {idx + 1}. {question.prompt}
+                        </div>
                         <div className="print-meta">
-                          <strong>{current.selectedAnswer}:</strong> {question.selectedOption}
+                          <strong>{current.selectedAnswer}:</strong>{" "}
+                          {question.selectedOption}
                         </div>
                         <div className="print-meta">
                           <strong>Status:</strong> {question.statusText}
                         </div>
                         {question.isOther && question.otherText && (
                           <div className="print-meta">
-                            <strong>{current.otherResponse}:</strong> {question.otherText}
+                            <strong>{current.otherResponse}:</strong>{" "}
+                            {question.otherText}
                           </div>
                         )}
                       </div>
