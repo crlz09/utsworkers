@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { Shuffle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { QUESTION_BANK, UI_TEXT } from "../data/interviewContent";
 import UtsTopNavBar from "../components/UtsTopNavBar";
@@ -25,15 +26,6 @@ function PageStyles() {
         }
       }
     `}</style>
-  );
-}
-
-function getInitialAnswers() {
-  return QUESTION_BANK.map((section) =>
-    section.questions.map(() => ({
-      selected: null,
-      otherText: "",
-    }))
   );
 }
 
@@ -65,22 +57,62 @@ function AutoResizeTextarea({
   );
 }
 
+function shuffleArray(array) {
+  const copy = [...array];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function pickOneRandom(array) {
+  if (!array.length) return null;
+  const shuffled = shuffleArray(array);
+  return shuffled[0];
+}
+
+function buildBalancedInterviewSet(questionBank) {
+  return questionBank.map((section) => {
+    const basic = section.questions.filter((q) => q.difficulty === "basic");
+    const intermediate = section.questions.filter(
+      (q) => q.difficulty === "intermediate"
+    );
+    const advanced = section.questions.filter((q) => q.difficulty === "advanced");
+
+    const selected = [
+      pickOneRandom(basic),
+      pickOneRandom(intermediate),
+      pickOneRandom(advanced),
+    ].filter(Boolean);
+
+    if (selected.length < 3) {
+      const selectedIds = new Set(selected.map((q) => q.id));
+      const remaining = section.questions.filter((q) => !selectedIds.has(q.id));
+      const filler = shuffleArray(remaining).slice(0, 3 - selected.length);
+      selected.push(...filler);
+    }
+
+    return {
+      ...section,
+      activeQuestions: shuffleArray(selected),
+    };
+  });
+}
+
+function getInitialAnswersFromSections(activeSections) {
+  return activeSections.map((section) =>
+    section.activeQuestions.map(() => ({
+      selected: null,
+      otherText: "",
+    }))
+  );
+}
+
 export default function InterviewMiniApp() {
   const [searchParams] = useSearchParams();
   const [language, setLanguage] = useState("es");
   const current = UI_TEXT[language];
-
-  const localizedSections = useMemo(() => {
-    return QUESTION_BANK.map((section) => ({
-      title: section.title[language],
-      questions: section.questions.map((q) => ({
-        prompt: q.prompt[language],
-        options: [...q.options[language], current.otherOption],
-        correctIndex: q.correctIndex,
-        otherIndex: q.options[language].length,
-      })),
-    }));
-  }, [language, current.otherOption]);
 
   const prefillCandidate = useMemo(
     () => ({
@@ -99,7 +131,12 @@ export default function InterviewMiniApp() {
   );
 
   const [candidate, setCandidate] = useState(prefillCandidate);
-  const [answers, setAnswers] = useState(getInitialAnswers);
+  const [activeSections, setActiveSections] = useState(() =>
+    buildBalancedInterviewSet(QUESTION_BANK)
+  );
+  const [answers, setAnswers] = useState(() =>
+    getInitialAnswersFromSections(buildBalancedInterviewSet(QUESTION_BANK))
+  );
   const [manualPoints, setManualPoints] = useState(0);
   const [openSections, setOpenSections] = useState(
     Array(QUESTION_BANK.length).fill(true)
@@ -111,8 +148,29 @@ export default function InterviewMiniApp() {
     savedId: null,
   });
 
+  useEffect(() => {
+    const initialSet = buildBalancedInterviewSet(QUESTION_BANK);
+    setActiveSections(initialSet);
+    setAnswers(getInitialAnswersFromSections(initialSet));
+  }, []);
+
+  const localizedSections = useMemo(() => {
+    return activeSections.map((section) => ({
+      id: section.id,
+      title: section.title[language],
+      activeQuestions: section.activeQuestions.map((q) => ({
+        id: q.id,
+        difficulty: q.difficulty,
+        prompt: q.prompt[language],
+        options: [...q.options[language], current.otherOption],
+        correctIndex: q.correctIndex,
+        otherIndex: q.options[language].length,
+      })),
+    }));
+  }, [activeSections, language, current.otherOption]);
+
   const totalQuestions = localizedSections.reduce(
-    (sum, section) => sum + section.questions.length,
+    (sum, section) => sum + section.activeQuestions.length,
     0
   );
 
@@ -124,7 +182,7 @@ export default function InterviewMiniApp() {
     return localizedSections.reduce((sum, section, sectionIndex) => {
       return (
         sum +
-        section.questions.reduce((inner, question, questionIndex) => {
+        section.activeQuestions.reduce((inner, question, questionIndex) => {
           const selected = answers[sectionIndex]?.[questionIndex]?.selected;
           if (selected === null) return inner;
           if (selected === question.otherIndex) return inner;
@@ -170,7 +228,7 @@ export default function InterviewMiniApp() {
   const answeredSectionsForPrint = useMemo(() => {
     return localizedSections
       .map((section, sectionIndex) => {
-        const answeredQuestions = section.questions
+        const answeredQuestions = section.activeQuestions
           .map((question, questionIndex) => {
             const entry = answers[sectionIndex]?.[questionIndex];
             if (!entry || entry.selected === null) return null;
@@ -241,14 +299,33 @@ export default function InterviewMiniApp() {
     );
   };
 
+  const regenerateQuestions = () => {
+    const confirmed = window.confirm(current.changingQuestionsWarning);
+    if (!confirmed) return;
+
+    const nextSet = buildBalancedInterviewSet(QUESTION_BANK);
+    setActiveSections(nextSet);
+    setAnswers(getInitialAnswersFromSections(nextSet));
+    setManualPoints(0);
+    setOpenSections(Array(QUESTION_BANK.length).fill(true));
+    setSaveState({
+      loading: false,
+      success: "",
+      error: "",
+      savedId: null,
+    });
+  };
+
   const resetAll = () => {
+    const nextSet = buildBalancedInterviewSet(QUESTION_BANK);
     setCandidate({
       ...prefillCandidate,
       date: new Date().toISOString().split("T")[0],
       notes: "",
       summary: "",
     });
-    setAnswers(getInitialAnswers());
+    setActiveSections(nextSet);
+    setAnswers(getInitialAnswersFromSections(nextSet));
     setManualPoints(0);
     setOpenSections(Array(QUESTION_BANK.length).fill(true));
     setSaveState({
@@ -288,9 +365,9 @@ export default function InterviewMiniApp() {
 
       const snapshot = localizedSections
         .map((section, sectionIndex) => ({
+          sectionId: section.id,
           sectionTitle: section.title,
-          sectionOrder: sectionIndex + 1,
-          questions: section.questions
+          questions: section.activeQuestions
             .map((question, questionIndex) => {
               const entry = answers[sectionIndex]?.[questionIndex];
               if (!entry || entry.selected === null) return null;
@@ -300,7 +377,8 @@ export default function InterviewMiniApp() {
               const isCorrect = isOther ? null : entry.selected === question.correctIndex;
 
               return {
-                questionOrder: questionIndex + 1,
+                questionId: question.id,
+                difficulty: question.difficulty,
                 questionPrompt: question.prompt,
                 selectedOption,
                 isCorrect,
@@ -342,7 +420,7 @@ export default function InterviewMiniApp() {
       const answerRows = [];
 
       localizedSections.forEach((section, sectionIndex) => {
-        section.questions.forEach((question, questionIndex) => {
+        section.activeQuestions.forEach((question, questionIndex) => {
           const entry = answers[sectionIndex]?.[questionIndex];
           if (!entry || entry.selected === null) return;
 
@@ -351,6 +429,9 @@ export default function InterviewMiniApp() {
 
           answerRows.push({
             interview_id: interviewRow.id,
+            section_id: section.id,
+            question_id: question.id,
+            difficulty: question.difficulty,
             section_order: sectionIndex + 1,
             question_order: questionIndex + 1,
             section_title: section.title,
@@ -388,9 +469,37 @@ export default function InterviewMiniApp() {
     }
   };
 
+  const difficultyLabel = (difficulty) => {
+    if (difficulty === "basic") return current.difficultyBasic;
+    if (difficulty === "intermediate") return current.difficultyIntermediate;
+    return current.difficultyAdvanced;
+  };
+
+  const difficultyBadgeStyle = (difficulty) => {
+    if (difficulty === "basic") {
+      return {
+        background: "#dcfce7",
+        color: "#166534",
+        border: "1px solid #86efac",
+      };
+    }
+    if (difficulty === "intermediate") {
+      return {
+        background: "#fef3c7",
+        color: "#92400e",
+        border: "1px solid #fcd34d",
+      };
+    }
+    return {
+      background: "#fee2e2",
+      color: "#991b1b",
+      border: "1px solid #fca5a5",
+    };
+  };
+
   return (
     <>
-    <PageStyles />
+      <PageStyles />
       <style>{`
         * { box-sizing: border-box; }
 
@@ -400,14 +509,14 @@ export default function InterviewMiniApp() {
             radial-gradient(circle at top left, rgba(59,130,246,0.12), transparent 24%),
             radial-gradient(circle at top right, rgba(16,185,129,0.10), transparent 22%),
             linear-gradient(180deg, #f8fafc 0%, #eef2ff 45%, #f8fafc 100%);
-          padding: 24px;
-          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
           color: #0f172a;
         }
 
         .interview-shell {
-          max-width: 1320px;
+          width: 100%;
+          max-width: 1700px;
           margin: 0 auto;
+          padding: 24px;
           display: grid;
           gap: 20px;
         }
@@ -449,7 +558,8 @@ export default function InterviewMiniApp() {
         .top-actions,
         .toolbar-actions,
         .manual-controls,
-        .language-checks {
+        .language-checks,
+        .change-row {
           display: flex;
           gap: 10px;
           flex-wrap: wrap;
@@ -500,6 +610,10 @@ export default function InterviewMiniApp() {
 
         .btn.success {
           background: #16a34a;
+        }
+
+        .btn.shuffle {
+          background: #7c3aed;
         }
 
         .hero-grid {
@@ -629,6 +743,17 @@ export default function InterviewMiniApp() {
           letter-spacing: -0.03em;
         }
 
+        .mix-banner {
+          margin-top: 14px;
+          padding: 14px 16px;
+          border-radius: 16px;
+          background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%);
+          border: 1px solid #c4b5fd;
+          color: #5b21b6;
+          display: grid;
+          gap: 6px;
+        }
+
         .info-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -678,7 +803,6 @@ export default function InterviewMiniApp() {
           background: #fff;
           font-weight: 800;
           color: #0f172a;
-          user-select: none;
         }
 
         .check-pill.active {
@@ -752,11 +876,26 @@ export default function InterviewMiniApp() {
           flex-wrap: wrap;
         }
 
+        .question-top-left {
+          display: grid;
+          gap: 10px;
+        }
+
         .question-text {
           font-size: 15px;
           font-weight: 800;
           color: #0f172a;
           line-height: 1.45;
+        }
+
+        .difficulty-badge {
+          display: inline-flex;
+          align-items: center;
+          width: fit-content;
+          padding: 6px 10px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 900;
         }
 
         .status {
@@ -925,7 +1064,7 @@ export default function InterviewMiniApp() {
         }
 
         @media (max-width: 780px) {
-          .interview-app {
+          .interview-shell {
             padding: 14px;
           }
 
@@ -949,7 +1088,6 @@ export default function InterviewMiniApp() {
         @media print {
           .interview-app {
             background: white !important;
-            padding: 0 !important;
           }
 
           .top-actions,
@@ -964,7 +1102,8 @@ export default function InterviewMiniApp() {
           .notes-grid,
           .footer-result,
           .hero-grid,
-          .screen-only {
+          .screen-only,
+          .mix-banner {
             display: none !important;
           }
 
@@ -990,8 +1129,9 @@ export default function InterviewMiniApp() {
           }
         }
       `}</style>
+
       <UtsTopNavBar />
-      
+
       <div className="interview-app">
         <div className="interview-shell">
           <div className="glass-card header-card">
@@ -1020,6 +1160,10 @@ export default function InterviewMiniApp() {
                 <button className="btn secondary" onClick={resetAll}>
                   {current.reset}
                 </button>
+                <button className="btn shuffle" onClick={regenerateQuestions}>
+                  <Shuffle size={16} style={{ marginRight: 6, verticalAlign: "middle" }} />
+                  {current.changeQuestions}
+                </button>
                 <button
                   className="btn success"
                   onClick={saveInterview}
@@ -1031,6 +1175,11 @@ export default function InterviewMiniApp() {
                   {current.print}
                 </button>
               </div>
+            </div>
+
+            <div className="mix-banner">
+              <div style={{ fontWeight: 900 }}>{current.balancedMix}</div>
+              <div style={{ fontSize: 14 }}>{current.balancedMixHelp}</div>
             </div>
 
             {(saveState.success || saveState.error) && (
@@ -1269,7 +1418,7 @@ export default function InterviewMiniApp() {
                   answers[sectionIndex]?.filter((entry) => entry.selected !== null)
                     .length || 0;
 
-                const sectionCorrect = section.questions.reduce((sum, q, qIndex) => {
+                const sectionCorrect = section.activeQuestions.reduce((sum, q, qIndex) => {
                   const selected = answers[sectionIndex]?.[qIndex]?.selected;
                   if (selected === null) return sum;
                   if (selected === q.otherIndex) return sum;
@@ -1278,7 +1427,7 @@ export default function InterviewMiniApp() {
 
                 return (
                   <div
-                    key={section.title}
+                    key={section.id}
                     className="glass-card"
                     style={{ padding: 20, borderRadius: 22 }}
                   >
@@ -1289,11 +1438,11 @@ export default function InterviewMiniApp() {
                         </h3>
 
                         <span className="pill blue">
-                          {sectionCorrect} / {section.questions.length} pts
+                          {sectionCorrect} / {section.activeQuestions.length} pts
                         </span>
 
                         <span className="pill gray">
-                          {sectionAnswered} / {section.questions.length} {current.questions}
+                          {sectionAnswered} / {section.activeQuestions.length} {current.questions}
                         </span>
                       </div>
 
@@ -1307,7 +1456,7 @@ export default function InterviewMiniApp() {
 
                     {openSections[sectionIndex] && (
                       <div className="questions-wrap" style={{ marginTop: 18 }}>
-                        {section.questions.map((question, questionIndex) => {
+                        {section.activeQuestions.map((question, questionIndex) => {
                           const entry = answers[sectionIndex]?.[questionIndex];
                           const selected = entry?.selected;
                           const isOtherSelected = selected === question.otherIndex;
@@ -1329,11 +1478,20 @@ export default function InterviewMiniApp() {
                           }
 
                           return (
-                            <div key={question.prompt} className="question-card">
+                            <div key={question.id} className="question-card">
                               <div className="question-head">
-                                <div className="question-text">
-                                  {questionIndex + 1}. {question.prompt}
+                                <div className="question-top-left">
+                                  <div
+                                    className="difficulty-badge"
+                                    style={difficultyBadgeStyle(question.difficulty)}
+                                  >
+                                    {difficultyLabel(question.difficulty)}
+                                  </div>
+                                  <div className="question-text">
+                                    {questionIndex + 1}. {question.prompt}
+                                  </div>
                                 </div>
+
                                 <div className={`status ${statusClass}`}>{statusText}</div>
                               </div>
 
@@ -1356,7 +1514,7 @@ export default function InterviewMiniApp() {
 
                                   return (
                                     <button
-                                      key={`${question.prompt}-${option}`}
+                                      key={`${question.id}-${option}`}
                                       className={`option-btn ${extraClass}`}
                                       onClick={() =>
                                         handleAnswer(sectionIndex, questionIndex, optionIndex)
@@ -1567,6 +1725,7 @@ export default function InterviewMiniApp() {
           </div>
         </div>
       </div>
+
       <GoToTopButton showAfter={600} />
     </>
   );
