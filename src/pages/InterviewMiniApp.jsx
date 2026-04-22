@@ -1,6 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Shuffle } from "lucide-react";
+import {
+  Shuffle,
+  BarChart3,
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
+  EyeOff,
+  RotateCcw,
+  Eye,
+} from "lucide-react";
+import {
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  ResponsiveContainer,
+} from "recharts";
 import { supabase } from "../lib/supabase";
 import { QUESTION_BANK, UI_TEXT } from "../data/interviewContent";
 import UtsTopNavBar from "../components/UtsTopNavBar";
@@ -68,8 +85,7 @@ function shuffleArray(array) {
 
 function pickOneRandom(array) {
   if (!array.length) return null;
-  const shuffled = shuffleArray(array);
-  return shuffled[0];
+  return shuffleArray(array)[0];
 }
 
 function buildBalancedInterviewSet(questionBank) {
@@ -100,19 +116,126 @@ function buildBalancedInterviewSet(questionBank) {
   });
 }
 
-function getInitialAnswersFromSections(activeSections) {
-  return activeSections.map((section) =>
-    section.activeQuestions.map(() => ({
-      selected: null,
-      otherText: "",
-    }))
-  );
+function buildInitialAnswersMap(activeSections) {
+  const map = {};
+  activeSections.forEach((section) => {
+    map[section.id] = {};
+    section.activeQuestions.forEach((question) => {
+      map[section.id][question.id] = {
+        selected: null,
+        otherText: "",
+      };
+    });
+  });
+  return map;
+}
+
+function buildDefaultLayout(sectionIds) {
+  return sectionIds.map((sectionId) => ({
+    sectionId,
+    hidden: false,
+  }));
+}
+
+function applyPresetToLayout(currentLayout, presetOrder, hiddenIds = []) {
+  const currentMap = new Map(currentLayout.map((item) => [item.sectionId, item]));
+  const hiddenSet = new Set(hiddenIds);
+
+  const orderedExisting = presetOrder
+    .filter((id) => currentMap.has(id))
+    .map((id) => ({
+      sectionId: id,
+      hidden: hiddenSet.has(id),
+    }));
+
+  const remaining = currentLayout
+    .filter((item) => !presetOrder.includes(item.sectionId))
+    .map((item) => ({
+      sectionId: item.sectionId,
+      hidden: hiddenSet.has(item.sectionId),
+    }));
+
+  return [...orderedExisting, ...remaining];
+}
+
+function moveItem(array, fromIndex, toIndex) {
+  const copy = [...array];
+  const [moved] = copy.splice(fromIndex, 1);
+  copy.splice(toIndex, 0, moved);
+  return copy;
 }
 
 export default function InterviewMiniApp() {
   const [searchParams] = useSearchParams();
   const [language, setLanguage] = useState("es");
+  const [radarOpen, setRadarOpen] = useState(false);
+  const [draggedSectionId, setDraggedSectionId] = useState(null);
+  const [layoutPresetUsed, setLayoutPresetUsed] = useState("default");
   const current = UI_TEXT[language];
+
+  const text = useMemo(() => {
+    if (language === "es") {
+      return {
+        presetsLabel: "Presets",
+        presetDefault: "Default",
+        presetHelper: "Helper / Apprentice",
+        presetIndustrial: "Industrial / Field",
+        presetControls: "Controls / Automation",
+        presetJourneyman: "Journeyman / General",
+        organizerTitle: "Organizador de entrevista",
+        organizerHelp:
+          "Reordena categorías con drag & drop, oculta las que no usarás y aplica presets para acelerar la llamada.",
+        resetOrder: "Reset order",
+        restoreAll: "Restore all",
+        hiddenSections: "Secciones omitidas en esta entrevista",
+        hiddenSectionsEmpty: "No hay secciones ocultas.",
+        hideSection: "Ocultar",
+        restoreSection: "Restaurar",
+        dragHint: "Arrastra para reordenar",
+        showChart: "Mostrar gráfico",
+        hideChart: "Ocultar gráfico",
+        strengthMap: "Mapa de fortalezas",
+        strongestArea: "Punto más fuerte",
+        weakestArea: "Área a reforzar",
+        quickRead: "Lectura rápida",
+        summary: "Resumen",
+        openChartHint:
+          "Abre el gráfico para ver el desempeño del candidato por categoría.",
+        chartHelp:
+          "Este gráfico muestra en qué secciones respondió mejor el candidato. Mientras más lejos del centro, mejor fue su desempeño.",
+      };
+    }
+
+    return {
+      presetsLabel: "Presets",
+      presetDefault: "Default",
+      presetHelper: "Helper / Apprentice",
+      presetIndustrial: "Industrial / Field",
+      presetControls: "Controls / Automation",
+      presetJourneyman: "Journeyman / General",
+      organizerTitle: "Interview organizer",
+      organizerHelp:
+        "Reorder categories with drag & drop, hide the ones you will not use, and apply presets to move faster during the call.",
+      resetOrder: "Reset order",
+      restoreAll: "Restore all",
+      hiddenSections: "Skipped sections for this interview",
+      hiddenSectionsEmpty: "There are no hidden sections.",
+      hideSection: "Hide",
+      restoreSection: "Restore",
+      dragHint: "Drag to reorder",
+      showChart: "Show chart",
+      hideChart: "Hide chart",
+      strengthMap: "Strength map",
+      strongestArea: "Strongest area",
+      weakestArea: "Needs reinforcement",
+      quickRead: "Quick read",
+      summary: "Summary",
+      openChartHint:
+        "Open the chart to view the candidate's performance by category.",
+      chartHelp:
+        "This chart shows where the candidate performed better. The farther from the center, the stronger the performance.",
+    };
+  }, [language]);
 
   const prefillCandidate = useMemo(
     () => ({
@@ -130,16 +253,20 @@ export default function InterviewMiniApp() {
     [searchParams]
   );
 
+  const allSectionIds = useMemo(() => QUESTION_BANK.map((s) => s.id), []);
+  const initialSetRef = useRef(buildBalancedInterviewSet(QUESTION_BANK));
+
   const [candidate, setCandidate] = useState(prefillCandidate);
-  const [activeSections, setActiveSections] = useState(() =>
-    buildBalancedInterviewSet(QUESTION_BANK)
+  const [activeSections, setActiveSections] = useState(initialSetRef.current);
+  const [answersMap, setAnswersMap] = useState(() =>
+    buildInitialAnswersMap(initialSetRef.current)
   );
-  const [answers, setAnswers] = useState(() =>
-    getInitialAnswersFromSections(buildBalancedInterviewSet(QUESTION_BANK))
+  const [sectionLayout, setSectionLayout] = useState(() =>
+    buildDefaultLayout(allSectionIds)
   );
   const [manualPoints, setManualPoints] = useState(0);
-  const [openSections, setOpenSections] = useState(
-    Array(QUESTION_BANK.length).fill(true)
+  const [openSections, setOpenSections] = useState(() =>
+    Object.fromEntries(allSectionIds.map((id) => [id, true]))
   );
   const [saveState, setSaveState] = useState({
     loading: false,
@@ -148,14 +275,35 @@ export default function InterviewMiniApp() {
     savedId: null,
   });
 
-  useEffect(() => {
-    const initialSet = buildBalancedInterviewSet(QUESTION_BANK);
-    setActiveSections(initialSet);
-    setAnswers(getInitialAnswersFromSections(initialSet));
-  }, []);
+  const sectionById = useMemo(() => {
+    const map = {};
+    activeSections.forEach((section) => {
+      map[section.id] = section;
+    });
+    return map;
+  }, [activeSections]);
+
+  const orderedSections = useMemo(() => {
+    return sectionLayout
+      .map((item) => ({
+        ...item,
+        section: sectionById[item.sectionId],
+      }))
+      .filter((item) => item.section);
+  }, [sectionLayout, sectionById]);
+
+  const visibleOrderedSections = useMemo(
+    () => orderedSections.filter((item) => !item.hidden),
+    [orderedSections]
+  );
+
+  const hiddenOrderedSections = useMemo(
+    () => orderedSections.filter((item) => item.hidden),
+    [orderedSections]
+  );
 
   const localizedSections = useMemo(() => {
-    return activeSections.map((section) => ({
+    return visibleOrderedSections.map(({ section }) => ({
       id: section.id,
       title: section.title[language],
       activeQuestions: section.activeQuestions.map((q) => ({
@@ -167,7 +315,7 @@ export default function InterviewMiniApp() {
         otherIndex: q.options[language].length,
       })),
     }));
-  }, [activeSections, language, current.otherOption]);
+  }, [visibleOrderedSections, language, current.otherOption]);
 
   const totalQuestions = localizedSections.reduce(
     (sum, section) => sum + section.activeQuestions.length,
@@ -175,22 +323,30 @@ export default function InterviewMiniApp() {
   );
 
   const answeredCount = useMemo(() => {
-    return answers.flat().filter((entry) => entry.selected !== null).length;
-  }, [answers]);
+    let count = 0;
+    localizedSections.forEach((section) => {
+      section.activeQuestions.forEach((question) => {
+        const entry = answersMap?.[section.id]?.[question.id];
+        if (entry?.selected !== null && entry?.selected !== undefined) {
+          count += 1;
+        }
+      });
+    });
+    return count;
+  }, [localizedSections, answersMap]);
 
   const autoScore = useMemo(() => {
-    return localizedSections.reduce((sum, section, sectionIndex) => {
-      return (
-        sum +
-        section.activeQuestions.reduce((inner, question, questionIndex) => {
-          const selected = answers[sectionIndex]?.[questionIndex]?.selected;
-          if (selected === null) return inner;
-          if (selected === question.otherIndex) return inner;
-          return inner + (selected === question.correctIndex ? 1 : 0);
-        }, 0)
-      );
-    }, 0);
-  }, [answers, localizedSections]);
+    let sum = 0;
+    localizedSections.forEach((section) => {
+      section.activeQuestions.forEach((question) => {
+        const selected = answersMap?.[section.id]?.[question.id]?.selected;
+        if (selected === null || selected === undefined) return;
+        if (selected === question.otherIndex) return;
+        if (selected === question.correctIndex) sum += 1;
+      });
+    });
+    return sum;
+  }, [localizedSections, answersMap]);
 
   const totalScore = autoScore + manualPoints;
 
@@ -225,13 +381,55 @@ export default function InterviewMiniApp() {
     };
   }, [totalScore, current]);
 
+  const radarData = useMemo(() => {
+    return localizedSections.map((section) => {
+      const correct = section.activeQuestions.reduce((sum, question) => {
+        const selected = answersMap?.[section.id]?.[question.id]?.selected;
+        if (selected === null || selected === undefined) return sum;
+        if (selected === question.otherIndex) return sum;
+        return sum + (selected === question.correctIndex ? 1 : 0);
+      }, 0);
+
+      const total = section.activeQuestions.length || 1;
+      const percent = Math.round((correct / total) * 100);
+
+      let shortLabel = section.title;
+      if (shortLabel.includes(".")) {
+        shortLabel = shortLabel.split(".").slice(1).join(".").trim();
+      }
+      if (shortLabel.length > 18) {
+        shortLabel = shortLabel.slice(0, 18) + "…";
+      }
+
+      return {
+        section: shortLabel,
+        fullSection: section.title,
+        score: correct,
+        total,
+        percent,
+      };
+    });
+  }, [localizedSections, answersMap]);
+
+  const strongestSection = useMemo(() => {
+    if (!radarData.length) return null;
+    return [...radarData].sort((a, b) => b.percent - a.percent)[0];
+  }, [radarData]);
+
+  const weakestSection = useMemo(() => {
+    if (!radarData.length) return null;
+    return [...radarData].sort((a, b) => a.percent - b.percent)[0];
+  }, [radarData]);
+
   const answeredSectionsForPrint = useMemo(() => {
     return localizedSections
-      .map((section, sectionIndex) => {
+      .map((section) => {
         const answeredQuestions = section.activeQuestions
-          .map((question, questionIndex) => {
-            const entry = answers[sectionIndex]?.[questionIndex];
-            if (!entry || entry.selected === null) return null;
+          .map((question) => {
+            const entry = answersMap?.[section.id]?.[question.id];
+            if (!entry || entry.selected === null || entry.selected === undefined) {
+              return null;
+            }
 
             const selectedOption =
               question.options[entry.selected] || current.noSelection;
@@ -261,42 +459,195 @@ export default function InterviewMiniApp() {
         };
       })
       .filter((section) => section.questions.length > 0);
-  }, [answers, current, localizedSections]);
+  }, [answersMap, current, localizedSections]);
 
-  const handleAnswer = (sectionIndex, questionIndex, optionIndex) => {
+  const presetOrders = useMemo(
+    () => ({
+      default: [
+        "wire-cable-pulling",
+        "motors-controllers",
+        "plc-controls",
+        "troubleshooting",
+        "conduit-rigid-emt",
+        "conduit-types",
+        "blueprints",
+        "ladder-schematics",
+        "branch-circuits",
+        "switchgear",
+        "cable-tray",
+        "voltage-levels",
+        "instrumentation",
+        "nec",
+        "electrical-math",
+      ],
+      helper: [
+        "wire-cable-pulling",
+        "conduit-rigid-emt",
+        "conduit-types",
+        "cable-tray",
+        "branch-circuits",
+        "blueprints",
+        "troubleshooting",
+        "motors-controllers",
+        "switchgear",
+        "nec",
+        "electrical-math",
+        "plc-controls",
+        "ladder-schematics",
+        "instrumentation",
+        "voltage-levels",
+      ],
+      industrial: [
+        "troubleshooting",
+        "motors-controllers",
+        "conduit-rigid-emt",
+        "wire-cable-pulling",
+        "switchgear",
+        "cable-tray",
+        "branch-circuits",
+        "blueprints",
+        "nec",
+        "conduit-types",
+        "plc-controls",
+        "ladder-schematics",
+        "instrumentation",
+        "voltage-levels",
+        "electrical-math",
+      ],
+      controls: [
+        "plc-controls",
+        "ladder-schematics",
+        "troubleshooting",
+        "motors-controllers",
+        "instrumentation",
+        "blueprints",
+        "nec",
+        "electrical-math",
+        "switchgear",
+        "branch-circuits",
+        "wire-cable-pulling",
+        "conduit-rigid-emt",
+        "conduit-types",
+        "cable-tray",
+        "voltage-levels",
+      ],
+      journeyman: [
+        "troubleshooting",
+        "motors-controllers",
+        "plc-controls",
+        "blueprints",
+        "nec",
+        "conduit-rigid-emt",
+        "wire-cable-pulling",
+        "switchgear",
+        "branch-circuits",
+        "cable-tray",
+        "conduit-types",
+        "ladder-schematics",
+        "instrumentation",
+        "voltage-levels",
+        "electrical-math",
+      ],
+    }),
+    []
+  );
+
+  const applyPreset = (presetKey) => {
+    const nextLayout = applyPresetToLayout(
+      sectionLayout,
+      presetOrders[presetKey] || presetOrders.default
+    );
+    setSectionLayout(nextLayout);
+    setLayoutPresetUsed(presetKey);
+    setSaveState((prev) => ({ ...prev, success: "", error: "" }));
+  };
+
+  const handleAnswer = (sectionId, questionId, optionIndex) => {
     setSaveState((prev) => ({ ...prev, success: "", error: "" }));
 
-    setAnswers((prev) =>
-      prev.map((section, sIdx) =>
-        sIdx === sectionIndex
-          ? section.map((entry, qIdx) =>
-              qIdx === questionIndex
-                ? {
-                    ...entry,
-                    selected: optionIndex,
-                  }
-                : entry
-            )
-          : section
+    setAnswersMap((prev) => ({
+      ...prev,
+      [sectionId]: {
+        ...prev[sectionId],
+        [questionId]: {
+          ...prev[sectionId]?.[questionId],
+          selected: optionIndex,
+        },
+      },
+    }));
+  };
+
+  const handleOtherText = (sectionId, questionId, value) => {
+    setAnswersMap((prev) => ({
+      ...prev,
+      [sectionId]: {
+        ...prev[sectionId],
+        [questionId]: {
+          ...prev[sectionId]?.[questionId],
+          otherText: value,
+        },
+      },
+    }));
+  };
+
+  const hideSection = (sectionId) => {
+    setSectionLayout((prev) =>
+      prev.map((item) =>
+        item.sectionId === sectionId ? { ...item, hidden: true } : item
       )
     );
   };
 
-  const handleOtherText = (sectionIndex, questionIndex, value) => {
-    setAnswers((prev) =>
-      prev.map((section, sIdx) =>
-        sIdx === sectionIndex
-          ? section.map((entry, qIdx) =>
-              qIdx === questionIndex
-                ? {
-                    ...entry,
-                    otherText: value,
-                  }
-                : entry
-            )
-          : section
+  const restoreSection = (sectionId) => {
+    setSectionLayout((prev) =>
+      prev.map((item) =>
+        item.sectionId === sectionId ? { ...item, hidden: false } : item
       )
     );
+  };
+
+  const restoreAllSections = () => {
+    setSectionLayout((prev) => prev.map((item) => ({ ...item, hidden: false })));
+  };
+
+  const resetOrder = () => {
+    setSectionLayout(buildDefaultLayout(allSectionIds));
+    setLayoutPresetUsed("default");
+  };
+
+  const handleDragStart = (sectionId) => {
+    setDraggedSectionId(sectionId);
+    setLayoutPresetUsed("custom");
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+  };
+
+  const handleDrop = (targetSectionId) => {
+    if (!draggedSectionId || draggedSectionId === targetSectionId) {
+      setDraggedSectionId(null);
+      return;
+    }
+
+    const fromIndex = sectionLayout.findIndex(
+      (item) => item.sectionId === draggedSectionId
+    );
+    const toIndex = sectionLayout.findIndex(
+      (item) => item.sectionId === targetSectionId
+    );
+
+    if (fromIndex === -1 || toIndex === -1) {
+      setDraggedSectionId(null);
+      return;
+    }
+
+    setSectionLayout((prev) => moveItem(prev, fromIndex, toIndex));
+    setDraggedSectionId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedSectionId(null);
   };
 
   const regenerateQuestions = () => {
@@ -305,9 +656,9 @@ export default function InterviewMiniApp() {
 
     const nextSet = buildBalancedInterviewSet(QUESTION_BANK);
     setActiveSections(nextSet);
-    setAnswers(getInitialAnswersFromSections(nextSet));
+    setAnswersMap(buildInitialAnswersMap(nextSet));
     setManualPoints(0);
-    setOpenSections(Array(QUESTION_BANK.length).fill(true));
+    setOpenSections(Object.fromEntries(allSectionIds.map((id) => [id, true])));
     setSaveState({
       loading: false,
       success: "",
@@ -325,29 +676,41 @@ export default function InterviewMiniApp() {
       summary: "",
     });
     setActiveSections(nextSet);
-    setAnswers(getInitialAnswersFromSections(nextSet));
+    setAnswersMap(buildInitialAnswersMap(nextSet));
+    setSectionLayout(buildDefaultLayout(allSectionIds));
     setManualPoints(0);
-    setOpenSections(Array(QUESTION_BANK.length).fill(true));
+    setOpenSections(Object.fromEntries(allSectionIds.map((id) => [id, true])));
     setSaveState({
       loading: false,
       success: "",
       error: "",
       savedId: null,
     });
+    setRadarOpen(false);
+    setLayoutPresetUsed("default");
   };
 
-  const toggleSection = (index) => {
-    setOpenSections((prev) =>
-      prev.map((item, i) => (i === index ? !item : item))
-    );
+  const toggleSection = (sectionId) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [sectionId]: !prev[sectionId],
+    }));
   };
 
   const expandAll = () => {
-    setOpenSections(Array(QUESTION_BANK.length).fill(true));
+    const next = {};
+    visibleOrderedSections.forEach(({ sectionId }) => {
+      next[sectionId] = true;
+    });
+    setOpenSections((prev) => ({ ...prev, ...next }));
   };
 
   const collapseAll = () => {
-    setOpenSections(Array(QUESTION_BANK.length).fill(false));
+    const next = {};
+    visibleOrderedSections.forEach(({ sectionId }) => {
+      next[sectionId] = false;
+    });
+    setOpenSections((prev) => ({ ...prev, ...next }));
   };
 
   const printToPdf = () => {
@@ -367,10 +730,13 @@ export default function InterviewMiniApp() {
         .map((section, sectionIndex) => ({
           sectionId: section.id,
           sectionTitle: section.title,
+          sectionOrder: sectionIndex + 1,
           questions: section.activeQuestions
             .map((question, questionIndex) => {
-              const entry = answers[sectionIndex]?.[questionIndex];
-              if (!entry || entry.selected === null) return null;
+              const entry = answersMap?.[section.id]?.[question.id];
+              if (!entry || entry.selected === null || entry.selected === undefined) {
+                return null;
+              }
 
               const selectedOption = question.options[entry.selected] ?? null;
               const isOther = entry.selected === question.otherIndex;
@@ -389,6 +755,18 @@ export default function InterviewMiniApp() {
             .filter(Boolean),
         }))
         .filter((section) => section.questions.length > 0);
+
+      const sectionOrderSnapshot = orderedSections.map((item, index) => ({
+        sectionId: item.sectionId,
+        sectionTitle: item.section.title[language],
+        hidden: item.hidden,
+        finalOrder: index + 1,
+      }));
+
+      const hiddenSectionsSnapshot = hiddenOrderedSections.map((item) => ({
+        sectionId: item.sectionId,
+        sectionTitle: item.section.title[language],
+      }));
 
       const { data: interviewRow, error: interviewError } = await supabase
         .from("candidate_interviews")
@@ -410,6 +788,9 @@ export default function InterviewMiniApp() {
             quick_notes: candidate.notes || null,
             final_summary: candidate.summary || null,
             answers_snapshot: snapshot,
+            section_order_snapshot: sectionOrderSnapshot,
+            hidden_sections_snapshot: hiddenSectionsSnapshot,
+            layout_preset_used: layoutPresetUsed,
           },
         ])
         .select()
@@ -421,8 +802,8 @@ export default function InterviewMiniApp() {
 
       localizedSections.forEach((section, sectionIndex) => {
         section.activeQuestions.forEach((question, questionIndex) => {
-          const entry = answers[sectionIndex]?.[questionIndex];
-          if (!entry || entry.selected === null) return;
+          const entry = answersMap?.[section.id]?.[question.id];
+          if (!entry || entry.selected === null || entry.selected === undefined) return;
 
           const isOther = entry.selected === question.otherIndex;
           const isCorrect = isOther ? null : entry.selected === question.correctIndex;
@@ -529,7 +910,7 @@ export default function InterviewMiniApp() {
           box-shadow: 0 12px 32px rgba(15,23,42,0.08);
         }
 
-        .header-card, .info-card, .section-card, .notes-grid-card {
+        .header-card, .info-card, .section-card, .notes-grid-card, .radar-card, .organizer-card {
           padding: 24px;
         }
 
@@ -559,7 +940,9 @@ export default function InterviewMiniApp() {
         .toolbar-actions,
         .manual-controls,
         .language-checks,
-        .change-row {
+        .organizer-actions,
+        .preset-row,
+        .hidden-chip-row {
           display: flex;
           gap: 10px;
           flex-wrap: wrap;
@@ -574,7 +957,7 @@ export default function InterviewMiniApp() {
           gap: 4px;
         }
 
-        .lang-btn, .btn, .mini-btn, .toggle-btn, .option-btn {
+        .lang-btn, .btn, .mini-btn, .toggle-btn, .option-btn, .radar-toggle-btn, .preset-btn, .section-action-btn, .hidden-chip-btn {
           transition: 0.18s ease;
           font-weight: 800;
           cursor: pointer;
@@ -614,6 +997,25 @@ export default function InterviewMiniApp() {
 
         .btn.shuffle {
           background: #7c3aed;
+        }
+
+        .preset-btn, .section-action-btn, .hidden-chip-btn {
+          border: 1px solid #cbd5e1;
+          background: white;
+          color: #0f172a;
+          border-radius: 12px;
+          padding: 9px 12px;
+          font-size: 13px;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .preset-btn:hover,
+        .section-action-btn:hover,
+        .hidden-chip-btn:hover,
+        .radar-toggle-btn:hover {
+          background: #f8fafc;
         }
 
         .hero-grid {
@@ -754,6 +1156,178 @@ export default function InterviewMiniApp() {
           gap: 6px;
         }
 
+        .organizer-grid {
+          display: grid;
+          gap: 16px;
+          margin-top: 16px;
+        }
+
+        .organizer-panel {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 18px;
+          padding: 16px;
+          display: grid;
+          gap: 14px;
+        }
+
+        .section-draggable {
+          border: 1px solid #e2e8f0;
+          background: white;
+          border-radius: 18px;
+          padding: 16px;
+          display: grid;
+          gap: 16px;
+        }
+
+        .section-draggable.dragging {
+          opacity: 0.55;
+        }
+
+        .section-header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+          min-width: 0;
+        }
+
+        .drag-handle {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          border-radius: 12px;
+          border: 1px solid #dbe4ee;
+          background: #f8fafc;
+          color: #475569;
+          cursor: grab;
+          flex-shrink: 0;
+        }
+
+        .section-card-title {
+          font-size: 20px;
+          font-weight: 900;
+          line-height: 1.25;
+        }
+
+        .section-meta {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .pill {
+          display: inline-flex;
+          align-items: center;
+          border-radius: 999px;
+          padding: 8px 12px;
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .pill.blue {
+          background: #eff6ff;
+          color: #1d4ed8;
+          border: 1px solid #bfdbfe;
+        }
+
+        .pill.gray {
+          background: #f1f5f9;
+          color: #475569;
+          border: 1px solid #cbd5e1;
+        }
+
+        .radar-toggle-btn {
+          border: 1px solid #cbd5e1;
+          background: white;
+          color: #0f172a;
+          border-radius: 14px;
+          padding: 11px 15px;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 14px;
+        }
+
+        .radar-grid {
+          display: grid;
+          grid-template-columns: 1.15fr 0.85fr;
+          gap: 20px;
+          align-items: stretch;
+          margin-top: 18px;
+        }
+
+        .radar-chart-shell {
+          height: 420px;
+          width: 100%;
+        }
+
+        .radar-side {
+          display: grid;
+          gap: 14px;
+          align-content: start;
+        }
+
+        .radar-mini {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 18px;
+          padding: 16px;
+          display: grid;
+          gap: 8px;
+        }
+
+        .radar-legend-row {
+          display: grid;
+          gap: 10px;
+        }
+
+        .radar-row {
+          display: grid;
+          grid-template-columns: 1fr auto auto;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 12px;
+          border-radius: 14px;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+        }
+
+        .radar-label {
+          font-weight: 800;
+          color: #0f172a;
+        }
+
+        .radar-meta {
+          color: #475569;
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        .radar-percent {
+          font-weight: 900;
+          color: #0f172a;
+          font-size: 14px;
+        }
+
+        .radar-preview {
+          margin-top: 16px;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .radar-preview-card {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          padding: 14px;
+          display: grid;
+          gap: 6px;
+        }
+
         .info-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -809,47 +1383,6 @@ export default function InterviewMiniApp() {
           border-color: #2563eb;
           background: #eff6ff;
           color: #1d4ed8;
-        }
-
-        .section-stack, .questions-wrap, .thresholds, .options-grid, .notes-grid {
-          display: grid;
-        }
-
-        .section-stack, .questions-wrap, .thresholds {
-          gap: 16px;
-        }
-
-        .notes-grid {
-          grid-template-columns: 1fr 1fr;
-          gap: 20px;
-        }
-
-        .section-header-left {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-
-        .pill {
-          display: inline-flex;
-          align-items: center;
-          border-radius: 999px;
-          padding: 8px 12px;
-          font-size: 12px;
-          font-weight: 900;
-        }
-
-        .pill.blue {
-          background: #eff6ff;
-          color: #1d4ed8;
-          border: 1px solid #bfdbfe;
-        }
-
-        .pill.gray {
-          background: #f1f5f9;
-          color: #475569;
-          border: 1px solid #cbd5e1;
         }
 
         .toggle-btn {
@@ -933,6 +1466,7 @@ export default function InterviewMiniApp() {
         }
 
         .options-grid {
+          display: grid;
           gap: 10px;
           margin-top: 14px;
         }
@@ -1007,6 +1541,12 @@ export default function InterviewMiniApp() {
           border: 1px solid #fca5a5;
         }
 
+        .notes-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+
         .footer-result {
           padding: 24px;
           display: flex;
@@ -1054,12 +1594,21 @@ export default function InterviewMiniApp() {
           word-break: break-word;
         }
 
-        @media (max-width: 1100px) {
-          .hero-grid, .notes-grid, .info-grid {
+        @media (max-width: 1200px) {
+          .hero-grid,
+          .radar-grid,
+          .notes-grid,
+          .info-grid,
+          .radar-preview {
             grid-template-columns: 1fr 1fr;
           }
+
           .field.span-3 {
             grid-column: span 2;
+          }
+
+          .radar-chart-shell {
+            height: 380px;
           }
         }
 
@@ -1072,7 +1621,11 @@ export default function InterviewMiniApp() {
             font-size: 30px;
           }
 
-          .hero-grid, .notes-grid, .info-grid {
+          .hero-grid,
+          .radar-grid,
+          .notes-grid,
+          .info-grid,
+          .radar-preview {
             grid-template-columns: 1fr;
           }
 
@@ -1083,6 +1636,14 @@ export default function InterviewMiniApp() {
           .score-big {
             font-size: 48px;
           }
+
+          .radar-chart-shell {
+            height: 320px;
+          }
+
+          .section-header {
+            align-items: stretch;
+          }
         }
 
         @media print {
@@ -1092,16 +1653,15 @@ export default function InterviewMiniApp() {
 
           .top-actions,
           .toolbar-actions,
+          .organizer-card,
           .toggle-btn,
           .mini-btn,
           .lang-toggle,
           .btn,
           .question-card,
-          .toolbar-row,
-          .section-stack,
-          .notes-grid,
           .footer-result,
           .hero-grid,
+          .radar-card,
           .screen-only,
           .mix-banner {
             display: none !important;
@@ -1218,7 +1778,7 @@ export default function InterviewMiniApp() {
                   style={{
                     width: `${Math.max(
                       0,
-                      Math.min((Math.max(totalScore, 0) / totalQuestions) * 100, 100)
+                      Math.min((Math.max(totalScore, 0) / Math.max(totalQuestions, 1)) * 100, 100)
                     )}%`,
                   }}
                 />
@@ -1285,6 +1845,216 @@ export default function InterviewMiniApp() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="glass-card organizer-card screen-only">
+            <div className="header-top">
+              <div>
+                <h2 className="section-title">{text.organizerTitle}</h2>
+                <p className="subtitle" style={{ marginTop: 8 }}>
+                  {text.organizerHelp}
+                </p>
+              </div>
+
+              <div className="organizer-actions">
+                <button className="preset-btn" onClick={() => applyPreset("default")}>
+                  {text.presetDefault}
+                </button>
+                <button className="preset-btn" onClick={() => applyPreset("helper")}>
+                  {text.presetHelper}
+                </button>
+                <button className="preset-btn" onClick={() => applyPreset("industrial")}>
+                  {text.presetIndustrial}
+                </button>
+                <button className="preset-btn" onClick={() => applyPreset("controls")}>
+                  {text.presetControls}
+                </button>
+                <button className="preset-btn" onClick={() => applyPreset("journeyman")}>
+                  {text.presetJourneyman}
+                </button>
+                <button className="preset-btn" onClick={resetOrder}>
+                  <RotateCcw size={14} />
+                  {text.resetOrder}
+                </button>
+                <button className="preset-btn" onClick={restoreAllSections}>
+                  <Eye size={14} />
+                  {text.restoreAll}
+                </button>
+              </div>
+            </div>
+
+            <div className="organizer-grid">
+              {hiddenOrderedSections.length > 0 ? (
+                <div className="organizer-panel">
+                  <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                    {text.hiddenSections}
+                  </div>
+                  <div className="hidden-chip-row">
+                    {hiddenOrderedSections.map(({ section }) => (
+                      <button
+                        key={section.id}
+                        type="button"
+                        className="hidden-chip-btn"
+                        onClick={() => restoreSection(section.id)}
+                      >
+                        <Eye size={14} />
+                        {section.title[language]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="organizer-panel">
+                  <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                    {text.hiddenSections}
+                  </div>
+                  <div style={{ color: "#64748b" }}>{text.hiddenSectionsEmpty}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="glass-card radar-card screen-only">
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <BarChart3 size={20} />
+                <h2 className="section-title">{text.strengthMap}</h2>
+              </div>
+
+              <button
+                type="button"
+                className="radar-toggle-btn"
+                onClick={() => setRadarOpen((prev) => !prev)}
+              >
+                {radarOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                {radarOpen ? text.hideChart : text.showChart}
+              </button>
+            </div>
+
+            {!radarOpen ? (
+              <div className="radar-preview">
+                <div className="radar-preview-card">
+                  <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    {text.strongestArea}
+                  </div>
+                  <div style={{ fontWeight: 900, fontSize: 18 }}>
+                    {strongestSection ? strongestSection.fullSection : "—"}
+                  </div>
+                  <div style={{ color: "#475569", fontWeight: 700 }}>
+                    {strongestSection
+                      ? `${strongestSection.score}/${strongestSection.total} • ${strongestSection.percent}%`
+                      : "—"}
+                  </div>
+                </div>
+
+                <div className="radar-preview-card">
+                  <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    {text.weakestArea}
+                  </div>
+                  <div style={{ fontWeight: 900, fontSize: 18 }}>
+                    {weakestSection ? weakestSection.fullSection : "—"}
+                  </div>
+                  <div style={{ color: "#475569", fontWeight: 700 }}>
+                    {weakestSection
+                      ? `${weakestSection.score}/${weakestSection.total} • ${weakestSection.percent}%`
+                      : "—"}
+                  </div>
+                </div>
+
+                <div className="radar-preview-card">
+                  <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    {text.summary}
+                  </div>
+                  <div style={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.6 }}>
+                    {text.openChartHint}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="radar-grid">
+                <div className="radar-chart-shell">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={radarData}>
+                      <PolarGrid />
+                      <PolarAngleAxis dataKey="section" tick={{ fontSize: 12 }} />
+                      <PolarRadiusAxis domain={[0, 100]} tickCount={6} />
+                      <Radar
+                        name="Performance"
+                        dataKey="percent"
+                        stroke="#2563eb"
+                        fill="#60a5fa"
+                        fillOpacity={0.45}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="radar-side">
+                  <div className="radar-mini">
+                    <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {text.quickRead}
+                    </div>
+                    <div style={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.6 }}>
+                      {text.chartHelp}
+                    </div>
+                  </div>
+
+                  <div className="radar-mini">
+                    <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {text.strongestArea}
+                    </div>
+                    <div style={{ fontWeight: 900, fontSize: 18 }}>
+                      {strongestSection ? strongestSection.fullSection : "—"}
+                    </div>
+                    <div style={{ color: "#475569", fontWeight: 700 }}>
+                      {strongestSection
+                        ? `${strongestSection.score}/${strongestSection.total} • ${strongestSection.percent}%`
+                        : "—"}
+                    </div>
+                  </div>
+
+                  <div className="radar-mini">
+                    <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {text.weakestArea}
+                    </div>
+                    <div style={{ fontWeight: 900, fontSize: 18 }}>
+                      {weakestSection ? weakestSection.fullSection : "—"}
+                    </div>
+                    <div style={{ color: "#475569", fontWeight: 700 }}>
+                      {weakestSection
+                        ? `${weakestSection.score}/${weakestSection.total} • ${weakestSection.percent}%`
+                        : "—"}
+                    </div>
+                  </div>
+
+                  <div className="radar-legend-row">
+                    {radarData.map((item) => (
+                      <div key={item.fullSection} className="radar-row">
+                        <div className="radar-label">{item.fullSection}</div>
+                        <div className="radar-meta">
+                          {item.score}/{item.total}
+                        </div>
+                        <div className="radar-percent">{item.percent}%</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="glass-card info-card">
@@ -1399,7 +2169,7 @@ export default function InterviewMiniApp() {
             </div>
           </div>
 
-          <div className="glass-card section-card screen-only">
+          <div className="screen-only" style={{ display: "grid", gap: 16 }}>
             <div className="toolbar-row">
               <h2 className="section-title">{current.questionBank}</h2>
               <div className="toolbar-actions">
@@ -1412,146 +2182,176 @@ export default function InterviewMiniApp() {
               </div>
             </div>
 
-            <div className="section-stack" style={{ marginTop: 18 }}>
-              {localizedSections.map((section, sectionIndex) => {
-                const sectionAnswered =
-                  answers[sectionIndex]?.filter((entry) => entry.selected !== null)
-                    .length || 0;
+            {visibleOrderedSections.map(({ section, sectionId }) => {
+              const localizedSection = {
+                id: section.id,
+                title: section.title[language],
+                activeQuestions: section.activeQuestions.map((q) => ({
+                  id: q.id,
+                  difficulty: q.difficulty,
+                  prompt: q.prompt[language],
+                  options: [...q.options[language], current.otherOption],
+                  correctIndex: q.correctIndex,
+                  otherIndex: q.options[language].length,
+                })),
+              };
 
-                const sectionCorrect = section.activeQuestions.reduce((sum, q, qIndex) => {
-                  const selected = answers[sectionIndex]?.[qIndex]?.selected;
-                  if (selected === null) return sum;
-                  if (selected === q.otherIndex) return sum;
-                  return sum + (selected === q.correctIndex ? 1 : 0);
-                }, 0);
+              const sectionAnswered = localizedSection.activeQuestions.filter((q) => {
+                const entry = answersMap?.[sectionId]?.[q.id];
+                return entry?.selected !== null && entry?.selected !== undefined;
+              }).length;
 
-                return (
-                  <div
-                    key={section.id}
-                    className="glass-card"
-                    style={{ padding: 20, borderRadius: 22 }}
-                  >
-                    <div className="section-header">
-                      <div className="section-header-left">
-                        <h3 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>
-                          {section.title}
-                        </h3>
+              const sectionCorrect = localizedSection.activeQuestions.reduce((sum, q) => {
+                const selected = answersMap?.[sectionId]?.[q.id]?.selected;
+                if (selected === null || selected === undefined) return sum;
+                if (selected === q.otherIndex) return sum;
+                return sum + (selected === q.correctIndex ? 1 : 0);
+              }, 0);
 
-                        <span className="pill blue">
-                          {sectionCorrect} / {section.activeQuestions.length} pts
-                        </span>
-
-                        <span className="pill gray">
-                          {sectionAnswered} / {section.activeQuestions.length} {current.questions}
-                        </span>
+              return (
+                <div
+                  key={sectionId}
+                  className={`section-draggable ${draggedSectionId === sectionId ? "dragging" : ""}`}
+                  draggable
+                  onDragStart={() => handleDragStart(sectionId)}
+                  onDragOver={handleDragOver}
+                  onDrop={() => handleDrop(sectionId)}
+                  onDragEnd={handleDragEnd}
+                >
+                  <div className="section-header">
+                    <div className="section-header-left">
+                      <div className="drag-handle" title={text.dragHint}>
+                        <GripVertical size={18} />
                       </div>
+
+                      <div style={{ display: "grid", gap: 8 }}>
+                        <div className="section-card-title">{localizedSection.title}</div>
+                        <div className="section-meta">
+                          <span className="pill blue">
+                            {sectionCorrect} / {localizedSection.activeQuestions.length} pts
+                          </span>
+                          <span className="pill gray">
+                            {sectionAnswered} / {localizedSection.activeQuestions.length} {current.questions}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="organizer-actions">
+                      <button
+                        type="button"
+                        className="section-action-btn"
+                        onClick={() => hideSection(sectionId)}
+                      >
+                        <EyeOff size={14} />
+                        {text.hideSection}
+                      </button>
 
                       <button
                         className="toggle-btn"
-                        onClick={() => toggleSection(sectionIndex)}
+                        onClick={() => toggleSection(sectionId)}
                       >
-                        {openSections[sectionIndex] ? "−" : "+"}
+                        {openSections[sectionId] ? "−" : "+"}
                       </button>
                     </div>
-
-                    {openSections[sectionIndex] && (
-                      <div className="questions-wrap" style={{ marginTop: 18 }}>
-                        {section.activeQuestions.map((question, questionIndex) => {
-                          const entry = answers[sectionIndex]?.[questionIndex];
-                          const selected = entry?.selected;
-                          const isOtherSelected = selected === question.otherIndex;
-
-                          let statusClass = "pending";
-                          let statusText = current.pending;
-
-                          if (selected !== null) {
-                            if (isOtherSelected) {
-                              statusClass = "neutral";
-                              statusText = current.neutral;
-                            } else if (selected === question.correctIndex) {
-                              statusClass = "correct";
-                              statusText = current.correct;
-                            } else {
-                              statusClass = "incorrect";
-                              statusText = current.incorrect;
-                            }
-                          }
-
-                          return (
-                            <div key={question.id} className="question-card">
-                              <div className="question-head">
-                                <div className="question-top-left">
-                                  <div
-                                    className="difficulty-badge"
-                                    style={difficultyBadgeStyle(question.difficulty)}
-                                  >
-                                    {difficultyLabel(question.difficulty)}
-                                  </div>
-                                  <div className="question-text">
-                                    {questionIndex + 1}. {question.prompt}
-                                  </div>
-                                </div>
-
-                                <div className={`status ${statusClass}`}>{statusText}</div>
-                              </div>
-
-                              <div className="options-grid">
-                                {question.options.map((option, optionIndex) => {
-                                  const selectedThis = selected === optionIndex;
-                                  let extraClass = "";
-
-                                  if (selected !== null && selectedThis) {
-                                    if (optionIndex === question.otherIndex) {
-                                      extraClass = "neutral";
-                                    } else if (optionIndex === question.correctIndex) {
-                                      extraClass = "right";
-                                    } else {
-                                      extraClass = "wrong";
-                                    }
-                                  } else if (selectedThis) {
-                                    extraClass = "selected";
-                                  }
-
-                                  return (
-                                    <button
-                                      key={`${question.id}-${option}`}
-                                      className={`option-btn ${extraClass}`}
-                                      onClick={() =>
-                                        handleAnswer(sectionIndex, questionIndex, optionIndex)
-                                      }
-                                    >
-                                      {option}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-
-                              {isOtherSelected && (
-                                <div className="other-box">
-                                  <div className="other-label">{current.otherOption}</div>
-                                  <input
-                                    className="other-input"
-                                    value={entry.otherText}
-                                    placeholder={current.otherPlaceholder}
-                                    onChange={(e) =>
-                                      handleOtherText(
-                                        sectionIndex,
-                                        questionIndex,
-                                        e.target.value
-                                      )
-                                    }
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
-                );
-              })}
-            </div>
+
+                  {openSections[sectionId] && (
+                    <div style={{ display: "grid", gap: 16 }}>
+                      {localizedSection.activeQuestions.map((question, questionIndex) => {
+                        const entry = answersMap?.[sectionId]?.[question.id] || {
+                          selected: null,
+                          otherText: "",
+                        };
+                        const selected = entry.selected;
+                        const isOtherSelected = selected === question.otherIndex;
+
+                        let statusClass = "pending";
+                        let statusText = current.pending;
+
+                        if (selected !== null && selected !== undefined) {
+                          if (isOtherSelected) {
+                            statusClass = "neutral";
+                            statusText = current.neutral;
+                          } else if (selected === question.correctIndex) {
+                            statusClass = "correct";
+                            statusText = current.correct;
+                          } else {
+                            statusClass = "incorrect";
+                            statusText = current.incorrect;
+                          }
+                        }
+
+                        return (
+                          <div key={question.id} className="question-card">
+                            <div className="question-head">
+                              <div className="question-top-left">
+                                <div
+                                  className="difficulty-badge"
+                                  style={difficultyBadgeStyle(question.difficulty)}
+                                >
+                                  {difficultyLabel(question.difficulty)}
+                                </div>
+                                <div className="question-text">
+                                  {questionIndex + 1}. {question.prompt}
+                                </div>
+                              </div>
+
+                              <div className={`status ${statusClass}`}>{statusText}</div>
+                            </div>
+
+                            <div className="options-grid">
+                              {question.options.map((option, optionIndex) => {
+                                const selectedThis = selected === optionIndex;
+                                let extraClass = "";
+
+                                if (selected !== null && selected !== undefined && selectedThis) {
+                                  if (optionIndex === question.otherIndex) {
+                                    extraClass = "neutral";
+                                  } else if (optionIndex === question.correctIndex) {
+                                    extraClass = "right";
+                                  } else {
+                                    extraClass = "wrong";
+                                  }
+                                } else if (selectedThis) {
+                                  extraClass = "selected";
+                                }
+
+                                return (
+                                  <button
+                                    key={`${question.id}-${option}`}
+                                    className={`option-btn ${extraClass}`}
+                                    onClick={() =>
+                                      handleAnswer(sectionId, question.id, optionIndex)
+                                    }
+                                  >
+                                    {option}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {isOtherSelected && (
+                              <div className="other-box">
+                                <div className="other-label">{current.otherOption}</div>
+                                <input
+                                  className="other-input"
+                                  value={entry.otherText}
+                                  placeholder={current.otherPlaceholder}
+                                  onChange={(e) =>
+                                    handleOtherText(sectionId, question.id, e.target.value)
+                                  }
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="notes-grid screen-only">
@@ -1665,6 +2465,9 @@ export default function InterviewMiniApp() {
               <div className="print-meta">
                 <strong>{current.classification}:</strong> {classification.icon}{" "}
                 {classification.label}
+              </div>
+              <div className="print-meta">
+                <strong>Preset:</strong> {layoutPresetUsed || "default"}
               </div>
             </div>
 
