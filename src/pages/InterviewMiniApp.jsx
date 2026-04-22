@@ -169,6 +169,7 @@ export default function InterviewMiniApp() {
   const [searchParams] = useSearchParams();
   const [language, setLanguage] = useState("es");
   const [radarOpen, setRadarOpen] = useState(false);
+  const [organizerOpen, setOrganizerOpen] = useState(false);
   const [draggedSectionId, setDraggedSectionId] = useState(null);
   const [layoutPresetUsed, setLayoutPresetUsed] = useState("default");
   const current = UI_TEXT[language];
@@ -203,6 +204,9 @@ export default function InterviewMiniApp() {
           "Abre el gráfico para ver el desempeño del candidato por categoría.",
         chartHelp:
           "Este gráfico muestra en qué secciones respondió mejor el candidato. Mientras más lejos del centro, mejor fue su desempeño.",
+        showOrganizer: "Mostrar organizador",
+        hideOrganizer: "Ocultar organizador",
+        compactToolsTitle: "Herramientas rápidas",
       };
     }
 
@@ -234,6 +238,9 @@ export default function InterviewMiniApp() {
         "Open the chart to view the candidate's performance by category.",
       chartHelp:
         "This chart shows where the candidate performed better. The farther from the center, the stronger the performance.",
+      showOrganizer: "Show organizer",
+      hideOrganizer: "Hide organizer",
+      compactToolsTitle: "Quick tools",
     };
   }, [language]);
 
@@ -349,6 +356,7 @@ export default function InterviewMiniApp() {
   }, [localizedSections, answersMap]);
 
   const totalScore = autoScore + manualPoints;
+  const shouldShowFinalResult = answeredCount > 0;
 
   const classification = useMemo(() => {
     if (totalScore >= 35) {
@@ -687,6 +695,7 @@ export default function InterviewMiniApp() {
       savedId: null,
     });
     setRadarOpen(false);
+    setOrganizerOpen(false);
     setLayoutPresetUsed("default");
   };
 
@@ -732,7 +741,7 @@ export default function InterviewMiniApp() {
           sectionTitle: section.title,
           sectionOrder: sectionIndex + 1,
           questions: section.activeQuestions
-            .map((question, questionIndex) => {
+            .map((question) => {
               const entry = answersMap?.[section.id]?.[question.id];
               if (!entry || entry.selected === null || entry.selected === undefined) {
                 return null;
@@ -910,7 +919,7 @@ export default function InterviewMiniApp() {
           box-shadow: 0 12px 32px rgba(15,23,42,0.08);
         }
 
-        .header-card, .info-card, .section-card, .notes-grid-card, .radar-card, .organizer-card {
+        .header-card, .info-card, .section-card, .notes-grid-card, .radar-card, .organizer-card, .compact-tool-card {
           padding: 24px;
         }
 
@@ -957,7 +966,7 @@ export default function InterviewMiniApp() {
           gap: 4px;
         }
 
-        .lang-btn, .btn, .mini-btn, .toggle-btn, .option-btn, .radar-toggle-btn, .preset-btn, .section-action-btn, .hidden-chip-btn {
+        .lang-btn, .btn, .mini-btn, .toggle-btn, .option-btn, .radar-toggle-btn, .preset-btn, .section-action-btn, .hidden-chip-btn, .compact-toggle-btn {
           transition: 0.18s ease;
           font-weight: 800;
           cursor: pointer;
@@ -999,7 +1008,7 @@ export default function InterviewMiniApp() {
           background: #7c3aed;
         }
 
-        .preset-btn, .section-action-btn, .hidden-chip-btn {
+        .preset-btn, .section-action-btn, .hidden-chip-btn, .compact-toggle-btn {
           border: 1px solid #cbd5e1;
           background: white;
           color: #0f172a;
@@ -1014,7 +1023,8 @@ export default function InterviewMiniApp() {
         .preset-btn:hover,
         .section-action-btn:hover,
         .hidden-chip-btn:hover,
-        .radar-toggle-btn:hover {
+        .radar-toggle-btn:hover,
+        .compact-toggle-btn:hover {
           background: #f8fafc;
         }
 
@@ -1022,6 +1032,24 @@ export default function InterviewMiniApp() {
           display: grid;
           grid-template-columns: 1.1fr 0.9fr;
           gap: 20px;
+        }
+
+        .compact-tools-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+
+        .compact-tool-card {
+          display: grid;
+          gap: 16px;
+          align-content: start;
+        }
+
+        .compact-tool-body {
+          display: grid;
+          gap: 16px;
+          margin-top: 4px;
         }
 
         .score-card {
@@ -1145,6 +1173,14 @@ export default function InterviewMiniApp() {
           letter-spacing: -0.03em;
         }
 
+        .compact-title-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
         .mix-banner {
           margin-top: 14px;
           padding: 14px 16px;
@@ -1159,7 +1195,7 @@ export default function InterviewMiniApp() {
         .organizer-grid {
           display: grid;
           gap: 16px;
-          margin-top: 16px;
+          margin-top: 4px;
         }
 
         .organizer-panel {
@@ -1256,7 +1292,7 @@ export default function InterviewMiniApp() {
           grid-template-columns: 1.15fr 0.85fr;
           gap: 20px;
           align-items: stretch;
-          margin-top: 18px;
+          margin-top: 4px;
         }
 
         .radar-chart-shell {
@@ -1313,7 +1349,7 @@ export default function InterviewMiniApp() {
         }
 
         .radar-preview {
-          margin-top: 16px;
+          margin-top: 4px;
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 12px;
@@ -1599,7 +1635,8 @@ export default function InterviewMiniApp() {
           .radar-grid,
           .notes-grid,
           .info-grid,
-          .radar-preview {
+          .radar-preview,
+          .compact-tools-grid {
             grid-template-columns: 1fr 1fr;
           }
 
@@ -1625,7 +1662,8 @@ export default function InterviewMiniApp() {
           .radar-grid,
           .notes-grid,
           .info-grid,
-          .radar-preview {
+          .radar-preview,
+          .compact-tools-grid {
             grid-template-columns: 1fr;
           }
 
@@ -1653,15 +1691,12 @@ export default function InterviewMiniApp() {
 
           .top-actions,
           .toolbar-actions,
-          .organizer-card,
+          .compact-tools-grid,
           .toggle-btn,
           .mini-btn,
           .lang-toggle,
           .btn,
           .question-card,
-          .footer-result,
-          .hero-grid,
-          .radar-card,
           .screen-only,
           .mix-banner {
             display: none !important;
@@ -1706,21 +1741,23 @@ export default function InterviewMiniApp() {
                   <button
                     className={`lang-btn ${language === "es" ? "active" : ""}`}
                     onClick={() => setLanguage("es")}
+                    type="button"
                   >
                     {current.langEs}
                   </button>
                   <button
                     className={`lang-btn ${language === "en" ? "active" : ""}`}
                     onClick={() => setLanguage("en")}
+                    type="button"
                   >
                     {current.langEn}
                   </button>
                 </div>
 
-                <button className="btn secondary" onClick={resetAll}>
+                <button className="btn secondary" onClick={resetAll} type="button">
                   {current.reset}
                 </button>
-                <button className="btn shuffle" onClick={regenerateQuestions}>
+                <button className="btn shuffle" onClick={regenerateQuestions} type="button">
                   <Shuffle size={16} style={{ marginRight: 6, verticalAlign: "middle" }} />
                   {current.changeQuestions}
                 </button>
@@ -1728,10 +1765,11 @@ export default function InterviewMiniApp() {
                   className="btn success"
                   onClick={saveInterview}
                   disabled={saveState.loading}
+                  type="button"
                 >
                   {saveState.loading ? current.saving : current.save}
                 </button>
-                <button className="btn" onClick={printToPdf}>
+                <button className="btn" onClick={printToPdf} type="button">
                   {current.print}
                 </button>
               </div>
@@ -1778,7 +1816,10 @@ export default function InterviewMiniApp() {
                   style={{
                     width: `${Math.max(
                       0,
-                      Math.min((Math.max(totalScore, 0) / Math.max(totalQuestions, 1)) * 100, 100)
+                      Math.min(
+                        (Math.max(totalScore, 0) / Math.max(totalQuestions, 1)) * 100,
+                        100
+                      )
                     )}%`,
                   }}
                 />
@@ -1797,12 +1838,14 @@ export default function InterviewMiniApp() {
                     <button
                       className="mini-btn minus"
                       onClick={() => setManualPoints((p) => p - 1)}
+                      type="button"
                     >
                       − {current.removePoint}
                     </button>
                     <button
                       className="mini-btn plus"
                       onClick={() => setManualPoints((p) => p + 1)}
+                      type="button"
                     >
                       + {current.addPoint}
                     </button>
@@ -1847,214 +1890,273 @@ export default function InterviewMiniApp() {
             </div>
           </div>
 
-          <div className="glass-card organizer-card screen-only">
-            <div className="header-top">
-              <div>
-                <h2 className="section-title">{text.organizerTitle}</h2>
-                <p className="subtitle" style={{ marginTop: 8 }}>
-                  {text.organizerHelp}
-                </p>
-              </div>
-
-              <div className="organizer-actions">
-                <button className="preset-btn" onClick={() => applyPreset("default")}>
-                  {text.presetDefault}
-                </button>
-                <button className="preset-btn" onClick={() => applyPreset("helper")}>
-                  {text.presetHelper}
-                </button>
-                <button className="preset-btn" onClick={() => applyPreset("industrial")}>
-                  {text.presetIndustrial}
-                </button>
-                <button className="preset-btn" onClick={() => applyPreset("controls")}>
-                  {text.presetControls}
-                </button>
-                <button className="preset-btn" onClick={() => applyPreset("journeyman")}>
-                  {text.presetJourneyman}
-                </button>
-                <button className="preset-btn" onClick={resetOrder}>
-                  <RotateCcw size={14} />
-                  {text.resetOrder}
-                </button>
-                <button className="preset-btn" onClick={restoreAllSections}>
-                  <Eye size={14} />
-                  {text.restoreAll}
-                </button>
-              </div>
-            </div>
-
-            <div className="organizer-grid">
-              {hiddenOrderedSections.length > 0 ? (
-                <div className="organizer-panel">
-                  <div style={{ fontWeight: 900, color: "#0f172a" }}>
-                    {text.hiddenSections}
-                  </div>
-                  <div className="hidden-chip-row">
-                    {hiddenOrderedSections.map(({ section }) => (
-                      <button
-                        key={section.id}
-                        type="button"
-                        className="hidden-chip-btn"
-                        onClick={() => restoreSection(section.id)}
-                      >
-                        <Eye size={14} />
-                        {section.title[language]}
-                      </button>
-                    ))}
-                  </div>
+          <div className="compact-tools-grid screen-only">
+            <div className="glass-card compact-tool-card">
+              <div className="compact-title-row">
+                <div>
+                  <h2 className="section-title">{text.organizerTitle}</h2>
+                  <p className="subtitle" style={{ marginTop: 8 }}>
+                    {text.organizerHelp}
+                  </p>
                 </div>
-              ) : (
-                <div className="organizer-panel">
-                  <div style={{ fontWeight: 900, color: "#0f172a" }}>
-                    {text.hiddenSections}
+
+                <button
+                  type="button"
+                  className="compact-toggle-btn"
+                  onClick={() => setOrganizerOpen((prev) => !prev)}
+                >
+                  {organizerOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  {organizerOpen ? text.hideOrganizer : text.showOrganizer}
+                </button>
+              </div>
+
+              {organizerOpen && (
+                <div className="compact-tool-body">
+                  <div className="organizer-actions">
+                    <button className="preset-btn" onClick={() => applyPreset("default")} type="button">
+                      {text.presetDefault}
+                    </button>
+                    <button className="preset-btn" onClick={() => applyPreset("helper")} type="button">
+                      {text.presetHelper}
+                    </button>
+                    <button className="preset-btn" onClick={() => applyPreset("industrial")} type="button">
+                      {text.presetIndustrial}
+                    </button>
+                    <button className="preset-btn" onClick={() => applyPreset("controls")} type="button">
+                      {text.presetControls}
+                    </button>
+                    <button className="preset-btn" onClick={() => applyPreset("journeyman")} type="button">
+                      {text.presetJourneyman}
+                    </button>
+                    <button className="preset-btn" onClick={resetOrder} type="button">
+                      <RotateCcw size={14} />
+                      {text.resetOrder}
+                    </button>
+                    <button className="preset-btn" onClick={restoreAllSections} type="button">
+                      <Eye size={14} />
+                      {text.restoreAll}
+                    </button>
                   </div>
-                  <div style={{ color: "#64748b" }}>{text.hiddenSectionsEmpty}</div>
+
+                  <div className="organizer-grid">
+                    {hiddenOrderedSections.length > 0 ? (
+                      <div className="organizer-panel">
+                        <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                          {text.hiddenSections}
+                        </div>
+                        <div className="hidden-chip-row">
+                          {hiddenOrderedSections.map(({ section }) => (
+                            <button
+                              key={section.id}
+                              type="button"
+                              className="hidden-chip-btn"
+                              onClick={() => restoreSection(section.id)}
+                            >
+                              <Eye size={14} />
+                              {section.title[language]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="organizer-panel">
+                        <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                          {text.hiddenSections}
+                        </div>
+                        <div style={{ color: "#64748b" }}>{text.hiddenSectionsEmpty}</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
-          </div>
 
-          <div className="glass-card radar-card screen-only">
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                }}
-              >
-                <BarChart3 size={20} />
-                <h2 className="section-title">{text.strengthMap}</h2>
+            <div className="glass-card compact-tool-card">
+              <div className="compact-title-row">
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <BarChart3 size={20} />
+                  <h2 className="section-title">{text.strengthMap}</h2>
+                </div>
+
+                <button
+                  type="button"
+                  className="compact-toggle-btn"
+                  onClick={() => setRadarOpen((prev) => !prev)}
+                >
+                  {radarOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  {radarOpen ? text.hideChart : text.showChart}
+                </button>
               </div>
 
-              <button
-                type="button"
-                className="radar-toggle-btn"
-                onClick={() => setRadarOpen((prev) => !prev)}
-              >
-                {radarOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                {radarOpen ? text.hideChart : text.showChart}
-              </button>
-            </div>
-
-            {!radarOpen ? (
-              <div className="radar-preview">
-                <div className="radar-preview-card">
-                  <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    {text.strongestArea}
-                  </div>
-                  <div style={{ fontWeight: 900, fontSize: 18 }}>
-                    {strongestSection ? strongestSection.fullSection : "—"}
-                  </div>
-                  <div style={{ color: "#475569", fontWeight: 700 }}>
-                    {strongestSection
-                      ? `${strongestSection.score}/${strongestSection.total} • ${strongestSection.percent}%`
-                      : "—"}
-                  </div>
-                </div>
-
-                <div className="radar-preview-card">
-                  <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    {text.weakestArea}
-                  </div>
-                  <div style={{ fontWeight: 900, fontSize: 18 }}>
-                    {weakestSection ? weakestSection.fullSection : "—"}
-                  </div>
-                  <div style={{ color: "#475569", fontWeight: 700 }}>
-                    {weakestSection
-                      ? `${weakestSection.score}/${weakestSection.total} • ${weakestSection.percent}%`
-                      : "—"}
-                  </div>
-                </div>
-
-                <div className="radar-preview-card">
-                  <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    {text.summary}
-                  </div>
-                  <div style={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.6 }}>
-                    {text.openChartHint}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="radar-grid">
-                <div className="radar-chart-shell">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart data={radarData}>
-                      <PolarGrid />
-                      <PolarAngleAxis dataKey="section" tick={{ fontSize: 12 }} />
-                      <PolarRadiusAxis domain={[0, 100]} tickCount={6} />
-                      <Radar
-                        name="Performance"
-                        dataKey="percent"
-                        stroke="#2563eb"
-                        fill="#60a5fa"
-                        fillOpacity={0.45}
-                      />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="radar-side">
-                  <div className="radar-mini">
-                    <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {text.quickRead}
-                    </div>
-                    <div style={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.6 }}>
-                      {text.chartHelp}
-                    </div>
-                  </div>
-
-                  <div className="radar-mini">
-                    <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {text.strongestArea}
-                    </div>
-                    <div style={{ fontWeight: 900, fontSize: 18 }}>
-                      {strongestSection ? strongestSection.fullSection : "—"}
-                    </div>
-                    <div style={{ color: "#475569", fontWeight: 700 }}>
-                      {strongestSection
-                        ? `${strongestSection.score}/${strongestSection.total} • ${strongestSection.percent}%`
-                        : "—"}
-                    </div>
-                  </div>
-
-                  <div className="radar-mini">
-                    <div style={{ fontSize: 12, fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {text.weakestArea}
-                    </div>
-                    <div style={{ fontWeight: 900, fontSize: 18 }}>
-                      {weakestSection ? weakestSection.fullSection : "—"}
-                    </div>
-                    <div style={{ color: "#475569", fontWeight: 700 }}>
-                      {weakestSection
-                        ? `${weakestSection.score}/${weakestSection.total} • ${weakestSection.percent}%`
-                        : "—"}
-                    </div>
-                  </div>
-
-                  <div className="radar-legend-row">
-                    {radarData.map((item) => (
-                      <div key={item.fullSection} className="radar-row">
-                        <div className="radar-label">{item.fullSection}</div>
-                        <div className="radar-meta">
-                          {item.score}/{item.total}
-                        </div>
-                        <div className="radar-percent">{item.percent}%</div>
+              {!radarOpen ? (
+                <div className="compact-tool-body">
+                  <div className="radar-preview">
+                    <div className="radar-preview-card">
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 900,
+                          color: "#64748b",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                        }}
+                      >
+                        {text.strongestArea}
                       </div>
-                    ))}
+                      <div style={{ fontWeight: 900, fontSize: 18 }}>
+                        {strongestSection ? strongestSection.fullSection : "—"}
+                      </div>
+                      <div style={{ color: "#475569", fontWeight: 700 }}>
+                        {strongestSection
+                          ? `${strongestSection.score}/${strongestSection.total} • ${strongestSection.percent}%`
+                          : "—"}
+                      </div>
+                    </div>
+
+                    <div className="radar-preview-card">
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 900,
+                          color: "#64748b",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                        }}
+                      >
+                        {text.weakestArea}
+                      </div>
+                      <div style={{ fontWeight: 900, fontSize: 18 }}>
+                        {weakestSection ? weakestSection.fullSection : "—"}
+                      </div>
+                      <div style={{ color: "#475569", fontWeight: 700 }}>
+                        {weakestSection
+                          ? `${weakestSection.score}/${weakestSection.total} • ${weakestSection.percent}%`
+                          : "—"}
+                      </div>
+                    </div>
+
+                    <div className="radar-preview-card">
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 900,
+                          color: "#64748b",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                        }}
+                      >
+                        {text.summary}
+                      </div>
+                      <div style={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.6 }}>
+                        {text.openChartHint}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="compact-tool-body">
+                  <div className="radar-grid">
+                    <div className="radar-chart-shell">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart data={radarData}>
+                          <PolarGrid />
+                          <PolarAngleAxis dataKey="section" tick={{ fontSize: 12 }} />
+                          <PolarRadiusAxis domain={[0, 100]} tickCount={6} />
+                          <Radar
+                            name="Performance"
+                            dataKey="percent"
+                            stroke="#2563eb"
+                            fill="#60a5fa"
+                            fillOpacity={0.45}
+                          />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="radar-side">
+                      <div className="radar-mini">
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 900,
+                            color: "#64748b",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                          }}
+                        >
+                          {text.quickRead}
+                        </div>
+                        <div style={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.6 }}>
+                          {text.chartHelp}
+                        </div>
+                      </div>
+
+                      <div className="radar-mini">
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 900,
+                            color: "#64748b",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                          }}
+                        >
+                          {text.strongestArea}
+                        </div>
+                        <div style={{ fontWeight: 900, fontSize: 18 }}>
+                          {strongestSection ? strongestSection.fullSection : "—"}
+                        </div>
+                        <div style={{ color: "#475569", fontWeight: 700 }}>
+                          {strongestSection
+                            ? `${strongestSection.score}/${strongestSection.total} • ${strongestSection.percent}%`
+                            : "—"}
+                        </div>
+                      </div>
+
+                      <div className="radar-mini">
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 900,
+                            color: "#64748b",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                          }}
+                        >
+                          {text.weakestArea}
+                        </div>
+                        <div style={{ fontWeight: 900, fontSize: 18 }}>
+                          {weakestSection ? weakestSection.fullSection : "—"}
+                        </div>
+                        <div style={{ color: "#475569", fontWeight: 700 }}>
+                          {weakestSection
+                            ? `${weakestSection.score}/${weakestSection.total} • ${weakestSection.percent}%`
+                            : "—"}
+                        </div>
+                      </div>
+
+                      <div className="radar-legend-row">
+                        {radarData.map((item) => (
+                          <div key={item.fullSection} className="radar-row">
+                            <div className="radar-label">{item.fullSection}</div>
+                            <div className="radar-meta">
+                              {item.score}/{item.total}
+                            </div>
+                            <div className="radar-percent">{item.percent}%</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="glass-card info-card">
@@ -2173,10 +2275,10 @@ export default function InterviewMiniApp() {
             <div className="toolbar-row">
               <h2 className="section-title">{current.questionBank}</h2>
               <div className="toolbar-actions">
-                <button className="btn secondary" onClick={expandAll}>
+                <button className="btn secondary" onClick={expandAll} type="button">
                   {current.expandAll}
                 </button>
-                <button className="btn secondary" onClick={collapseAll}>
+                <button className="btn secondary" onClick={collapseAll} type="button">
                   {current.collapseAll}
                 </button>
               </div>
@@ -2250,6 +2352,7 @@ export default function InterviewMiniApp() {
                       <button
                         className="toggle-btn"
                         onClick={() => toggleSection(sectionId)}
+                        type="button"
                       >
                         {openSections[sectionId] ? "−" : "+"}
                       </button>
@@ -2324,6 +2427,7 @@ export default function InterviewMiniApp() {
                                     onClick={() =>
                                       handleAnswer(sectionId, question.id, optionIndex)
                                     }
+                                    type="button"
                                   >
                                     {option}
                                   </button>
@@ -2384,25 +2488,27 @@ export default function InterviewMiniApp() {
             </div>
           </div>
 
-          <div className="glass-card footer-result screen-only">
-            <div>
-              <div className="kicker">{current.finalResult}</div>
-              <div
-                style={{
-                  marginTop: 8,
-                  fontSize: 26,
-                  fontWeight: 900,
-                  color: classification.color,
-                }}
-              >
-                {classification.icon} {classification.label}
+          {shouldShowFinalResult && (
+            <div className="glass-card footer-result screen-only">
+              <div>
+                <div className="kicker">{current.finalResult}</div>
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 26,
+                    fontWeight: 900,
+                    color: classification.color,
+                  }}
+                >
+                  {classification.icon} {classification.label}
+                </div>
+              </div>
+
+              <div className="footer-score">
+                {totalScore} / {totalQuestions}
               </div>
             </div>
-
-            <div className="footer-score">
-              {totalScore} / {totalQuestions}
-            </div>
-          </div>
+          )}
 
           <div className="print-report">
             <div className="glass-card info-card">
@@ -2438,91 +2544,68 @@ export default function InterviewMiniApp() {
                 <div className="field span-3">
                   <div className="label">{current.candidateLanguage}</div>
                   <div className="print-meta">
-                    {[
-                      candidate.speaksSpanish ? current.spanishCheck : null,
-                      candidate.speaksEnglish ? current.englishCheck : null,
-                    ]
-                      .filter(Boolean)
-                      .join(", ") || "—"}
+                    {candidate.speaksSpanish ? current.spanishCheck : ""}
+                    {candidate.speaksSpanish && candidate.speaksEnglish ? " • " : ""}
+                    {candidate.speaksEnglish ? current.englishCheck : ""}
+                    {!candidate.speaksSpanish && !candidate.speaksEnglish ? "—" : ""}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="glass-card info-card" style={{ marginTop: 20 }}>
-              <h2 className="section-title" style={{ marginBottom: 18 }}>
-                {current.finalResult}
-              </h2>
-              <div className="print-meta">
-                <strong>{current.totalScore}:</strong> {totalScore} / {totalQuestions}
-              </div>
-              <div className="print-meta">
-                <strong>{current.autoScore}:</strong> {autoScore}
-              </div>
-              <div className="print-meta">
-                <strong>{current.manualAdjust}:</strong> {manualPoints}
-              </div>
-              <div className="print-meta">
-                <strong>{current.classification}:</strong> {classification.icon}{" "}
-                {classification.label}
-              </div>
-              <div className="print-meta">
-                <strong>Preset:</strong> {layoutPresetUsed || "default"}
-              </div>
-            </div>
+            {answeredSectionsForPrint.map((section) => (
+              <div key={section.title} className="glass-card info-card print-section">
+                <h2 className="section-title">{section.title}</h2>
 
-            {answeredSectionsForPrint.length > 0 && (
-              <div className="glass-card info-card" style={{ marginTop: 20 }}>
-                <h2 className="section-title">{current.questionBank}</h2>
-
-                {answeredSectionsForPrint.map((section) => (
-                  <div key={section.title} className="print-section">
-                    <div style={{ fontWeight: 900, fontSize: 18 }}>{section.title}</div>
-
-                    {section.questions.map((question, idx) => (
-                      <div key={`${section.title}-${idx}`} className="print-question">
-                        <div style={{ fontWeight: 800 }}>
-                          {idx + 1}. {question.prompt}
-                        </div>
-                        <div className="print-meta">
-                          <strong>{current.selectedAnswer}:</strong>{" "}
-                          {question.selectedOption}
-                        </div>
-                        <div className="print-meta">
-                          <strong>Status:</strong> {question.statusText}
-                        </div>
-                        {question.isOther && question.otherText && (
-                          <div className="print-meta">
-                            <strong>{current.otherResponse}:</strong>{" "}
-                            {question.otherText}
-                          </div>
-                        )}
+                {section.questions.map((question, idx) => (
+                  <div key={`${section.title}-${idx}`} className="print-question">
+                    <div className="label">{question.prompt}</div>
+                    <div className="print-meta">
+                      <strong>{current.selectedOption || "Selected"}:</strong>{" "}
+                      {question.selectedOption}
+                    </div>
+                    <div className="print-meta">
+                      <strong>{current.statusLabel || "Status"}:</strong>{" "}
+                      {question.statusText}
+                    </div>
+                    {question.isOther && question.otherText ? (
+                      <div className="print-meta">
+                        <strong>{current.otherOption}:</strong> {question.otherText}
                       </div>
-                    ))}
+                    ) : null}
                   </div>
                 ))}
               </div>
-            )}
+            ))}
 
-            {(candidate.notes || candidate.summary) && (
-              <div className="glass-card info-card" style={{ marginTop: 20 }}>
+            <div className="glass-card info-card">
+              <h2 className="section-title" style={{ marginBottom: 18 }}>
+                {current.notes}
+              </h2>
+              <div className="print-meta">{candidate.notes || "—"}</div>
+            </div>
+
+            <div className="glass-card info-card">
+              <h2 className="section-title" style={{ marginBottom: 18 }}>
+                {current.summary}
+              </h2>
+              <div className="print-meta">{candidate.summary || "—"}</div>
+            </div>
+
+            {shouldShowFinalResult && (
+              <div className="glass-card info-card">
                 <h2 className="section-title" style={{ marginBottom: 18 }}>
-                  Notes
+                  {current.finalResult}
                 </h2>
-
-                {candidate.notes && (
-                  <div style={{ marginBottom: 18 }}>
-                    <div className="label">{current.notes}</div>
-                    <div className="print-meta">{candidate.notes}</div>
-                  </div>
-                )}
-
-                {candidate.summary && (
-                  <div>
-                    <div className="label">{current.summary}</div>
-                    <div className="print-meta">{candidate.summary}</div>
-                  </div>
-                )}
+                <div className="print-meta">
+                  {classification.icon} {classification.label}
+                </div>
+                <div className="print-meta">
+                  {totalScore} / {totalQuestions}
+                </div>
+                <div className="print-meta">
+                  {current.autoScore}: {autoScore} • {current.manualAdjust}: {manualPoints}
+                </div>
               </div>
             )}
           </div>
