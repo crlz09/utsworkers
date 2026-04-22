@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
-
 import {
   CheckCircle2,
   Loader2,
@@ -612,101 +611,54 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const workerPayload = {
-        name: form.name.trim(),
-        phone: form.phone.trim() || null,
-        email: form.email.trim() || null,
-        trade_id: form.trade_id,
-        location_id: form.location_id,
-        total_experience_years: Number(form.total_experience_years || 0),
-        commercial_experience_years: Number(
-          form.commercial_experience_years || 0
-        ),
-        industrial_experience_years: Number(
-          form.industrial_experience_years || 0
-        ),
-        residential_experience_years: Number(
-          form.residential_experience_years || 0
-        ),
-        strengths: form.strengths.trim() || null,
-        needs_improvement: form.needs_improvement.trim() || null,
-      };
-
-      const { data: worker, error: workerError } = await supabase
-        .from("workers")
-        .insert(workerPayload)
-        .select("id")
-        .single();
-
-      if (workerError) throw workerError;
-
-      const workerId = worker.id;
-
-      const validProjects = projects.filter(
-        (project) =>
-          project.project_name.trim() ||
-          project.project_location.trim() ||
-          project.project_duration.trim() ||
-          project.project_description.trim()
-      );
-
-      if (validProjects.length > 0) {
-        const projectRows = validProjects.map((project, index) => ({
-          worker_id: workerId,
-          project_name: project.project_name.trim() || null,
-          project_location: project.project_location.trim() || null,
-          duration: project.project_duration.trim() || null,
-          description: project.project_description.trim() || null,
+      const validProjects = projects
+        .filter(
+          (project) =>
+            project.project_name.trim() ||
+            project.project_location.trim() ||
+            project.project_duration.trim() ||
+            project.project_description.trim()
+        )
+        .map((project, index) => ({
+          project_name: project.project_name.trim() || "",
+          project_location: project.project_location.trim() || "",
+          duration: project.project_duration.trim() || "",
+          description: project.project_description.trim() || "",
           sort_order: index + 1,
         }));
 
-        const { error: projectsError } = await supabase
-          .from("worker_projects")
-          .insert(projectRows);
+      const { data: workerId, error: workerError } = await supabase.rpc(
+        "register_worker_public",
+        {
+          p_name: form.name.trim(),
+          p_phone: form.phone.trim() || null,
+          p_email: form.email.trim() || null,
+          p_location_id: form.location_id,
+          p_trade_id: form.trade_id,
+          p_total_experience_years: Number(form.total_experience_years || 0),
+          p_commercial_experience_years: Number(
+            form.commercial_experience_years || 0
+          ),
+          p_industrial_experience_years: Number(
+            form.industrial_experience_years || 0
+          ),
+          p_residential_experience_years: Number(
+            form.residential_experience_years || 0
+          ),
+          p_strengths: form.strengths.trim() || null,
+          p_needs_improvement: form.needs_improvement.trim() || null,
+          p_available_from: null,
+          p_willing_to_travel: true,
+          p_languages: languages,
+          p_skill_ids: selectedSkillIds,
+          p_certification_ids: selectedCertificationIds,
+          p_projects: validProjects,
+        }
+      );
 
-        if (projectsError) throw projectsError;
-      }
+      if (workerError) throw workerError;
 
-      if (languages.length > 0) {
-        const languageRows = languages.map((language) => ({
-          worker_id: workerId,
-          language_name: language,
-        }));
-
-        const { error: languageError } = await supabase
-          .from("worker_languages")
-          .insert(languageRows);
-
-        if (languageError) throw languageError;
-      }
-
-      if (selectedSkillIds.length > 0) {
-        const skillRows = selectedSkillIds.map((skillId) => ({
-          worker_id: workerId,
-          skill_id: skillId,
-        }));
-
-        const { error: skillError } = await supabase
-          .from("worker_skills")
-          .insert(skillRows);
-
-        if (skillError) throw skillError;
-      }
-
-      if (selectedCertificationIds.length > 0) {
-        const certificationRows = selectedCertificationIds.map(
-          (certificationId) => ({
-            worker_id: workerId,
-            certification_id: certificationId,
-          })
-        );
-
-        const { error: certificationError } = await supabase
-          .from("worker_certifications")
-          .insert(certificationRows);
-
-        if (certificationError) throw certificationError;
-      }
+      console.log("Worker created:", workerId);
 
       resetForm();
       setSuccess(true);
@@ -725,7 +677,7 @@ export default function RegisterPage() {
     <>
       <UtsTopNavBar />
       <PageStyles />
-      
+
       <div
         className="container-shell"
         style={{
@@ -796,7 +748,8 @@ export default function RegisterPage() {
                     maxWidth: 760,
                   }}
                 >
-                 
+                  Complete the form below to register a new worker profile into
+                  the UTS talent pool.
                 </p>
               </div>
 
@@ -840,9 +793,7 @@ export default function RegisterPage() {
                   <Field label="Location">
                     <select
                       value={form.location_id}
-                      onChange={(e) =>
-                        handleChange("location_id", e.target.value)
-                      }
+                      onChange={(e) => handleChange("location_id", e.target.value)}
                       style={inputStyle()}
                     >
                       <option value="">Select a location</option>
@@ -890,10 +841,7 @@ export default function RegisterPage() {
                       step="0.5"
                       value={form.commercial_experience_years}
                       onChange={(e) =>
-                        handleChange(
-                          "commercial_experience_years",
-                          e.target.value
-                        )
+                        handleChange("commercial_experience_years", e.target.value)
                       }
                       placeholder="4"
                       style={inputStyle()}
@@ -907,10 +855,7 @@ export default function RegisterPage() {
                       step="0.5"
                       value={form.industrial_experience_years}
                       onChange={(e) =>
-                        handleChange(
-                          "industrial_experience_years",
-                          e.target.value
-                        )
+                        handleChange("industrial_experience_years", e.target.value)
                       }
                       placeholder="6"
                       style={inputStyle()}
