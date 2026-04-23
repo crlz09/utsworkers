@@ -15,6 +15,7 @@ import {
   Download,
   ExternalLink,
   FileSpreadsheet,
+  StickyNote,
 } from "lucide-react";
 
 function PageStyles() {
@@ -93,7 +94,8 @@ function PageStyles() {
         .profile-top,
         .profile-summary,
         .profile-notes,
-        .profile-meta {
+        .profile-meta,
+        .admin-notes-card {
           break-inside: avoid;
           page-break-inside: avoid;
         }
@@ -363,6 +365,21 @@ export default function WorkerProfilePage() {
   const skills = useMemo(() => worker?.skills || [], [worker]);
   const certifications = useMemo(() => worker?.certifications || [], [worker]);
   const languages = useMemo(() => worker?.languages || [], [worker]);
+  const recruiterAdminNotes = useMemo(() => {
+    if (!worker) return "";
+
+    return (
+      worker.recruiter_notes ||
+      worker.recruiter_admin_notes ||
+      worker.recruiter_admin_note ||
+      worker.admin_notes ||
+      worker.admin_note ||
+      worker.recruiter_note ||
+      worker.internal_notes ||
+      worker.internal_note ||
+      ""
+    );
+  }, [worker]);
   const projects = useMemo(
     () =>
       [...(worker?.projects || [])].sort(
@@ -386,6 +403,7 @@ export default function WorkerProfilePage() {
       ["Commercial Experience (Years)", worker.commercial_experience_years ?? ""],
       ["Industrial Experience (Years)", worker.industrial_experience_years ?? ""],
       ["Residential Experience (Years)", worker.residential_experience_years ?? ""],
+      ["Recruiter / Admin Notes", recruiterAdminNotes || ""],
       ["Profile URL", profileUrl],
     ];
 
@@ -663,25 +681,43 @@ export default function WorkerProfilePage() {
             >
               <div className="print-card" style={cardStyle()}>
                 <div style={sectionTitleStyle()}>Strengths</div>
-                <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                <div style={{ color: "#475569", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                   {worker.strengths || "No strengths listed."}
                 </div>
               </div>
 
               <div className="print-card" style={cardStyle()}>
                 <div style={sectionTitleStyle()}>Needs Improvement</div>
-                <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                <div style={{ color: "#475569", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                   {worker.needs_improvement || "No notes listed."}
                 </div>
               </div>
 
               <div className="print-card" style={cardStyle()}>
                 <div style={sectionTitleStyle()}>Availability Details</div>
-                <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                <div style={{ color: "#475569", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                   Available From: {worker.available_from || "—"}
                   <br />
                   Willing To Travel: {worker.willing_to_travel ? "Yes" : "No"}
                 </div>
+              </div>
+            </div>
+
+            <div className="print-card admin-notes-card" style={cardStyle()}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, ...sectionTitleStyle() }}>
+                <StickyNote size={16} />
+                <span>Recruiter / Admin Notes</span>
+              </div>
+
+              <div
+                style={{
+                  color: "#475569",
+                  lineHeight: 1.7,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {recruiterAdminNotes || "No recruiter/admin notes listed."}
               </div>
             </div>
 
@@ -723,7 +759,7 @@ export default function WorkerProfilePage() {
                         {p.duration ? <span style={pillStyle()}>{p.duration}</span> : null}
                       </div>
 
-                      <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                      <div style={{ color: "#475569", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                         {p.description || "No description."}
                       </div>
                     </div>
