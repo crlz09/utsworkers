@@ -16,8 +16,35 @@ export default function WorkerInterviewSection({ worker }) {
 
   const workerId = worker?.id;
 
+  useEffect(() => {
+    const loadLinked = async () => {
+      if (!workerId) {
+        setLinkedInterviews([]);
+        setLoadingLinked(false);
+        return;
+      }
+
+      setLoadingLinked(true);
+      try {
+        const data = await getWorkerInterviews(workerId);
+        setLinkedInterviews(data);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoadingLinked(false);
+      }
+    };
+
+    void Promise.resolve().then(loadLinked);
+  }, [workerId]);
+
   const loadLinked = async () => {
-    if (!workerId) return;
+    if (!workerId) {
+      setLinkedInterviews([]);
+      setLoadingLinked(false);
+      return;
+    }
+
     setLoadingLinked(true);
     try {
       const data = await getWorkerInterviews(workerId);
@@ -28,10 +55,6 @@ export default function WorkerInterviewSection({ worker }) {
       setLoadingLinked(false);
     }
   };
-
-  useEffect(() => {
-    loadLinked();
-  }, [workerId]);
 
   const runSearch = async () => {
     setLoadingSearch(true);

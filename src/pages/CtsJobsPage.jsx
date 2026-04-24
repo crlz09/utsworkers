@@ -252,6 +252,10 @@ function PageStyles() {
         background: #f8fbff;
       }
 
+      .job-row-openable {
+        cursor: pointer;
+      }
+
       .status-pill,
       .priority-pill,
       .flag-pill {
@@ -1372,9 +1376,11 @@ export default function CtsJobsPage() {
 
   const [feedback, setFeedback] = useState({ error: "", success: "" });
 
-  const load = async () => {
+  const load = async ({ preserveFeedback = false } = {}) => {
     setLoading(true);
-    setFeedback({ error: "", success: "" });
+    if (!preserveFeedback) {
+      setFeedback({ error: "", success: "" });
+    }
     setOpenMenu(null);
 
     const [jobsRes, candidatesRes] = await Promise.all([
@@ -1402,7 +1408,7 @@ export default function CtsJobsPage() {
   };
 
   useEffect(() => {
-    void Promise.resolve().then(load);
+    void Promise.resolve().then(() => load());
   }, []);
 
   const openCreate = () => {
@@ -1485,7 +1491,7 @@ export default function CtsJobsPage() {
       error: "",
       success: modalMode === "edit" ? "CTS job updated." : "CTS job created.",
     });
-    load();
+    await load({ preserveFeedback: true });
   };
 
   const handleDelete = async (job) => {
@@ -1501,7 +1507,7 @@ export default function CtsJobsPage() {
     }
 
     setFeedback({ error: "", success: "CTS job deleted." });
-    load();
+    await load({ preserveFeedback: true });
   };
 
   const handleDuplicate = async (job) => {
@@ -1532,7 +1538,7 @@ export default function CtsJobsPage() {
     }
 
     setFeedback({ error: "", success: "CTS job duplicated." });
-    load();
+    await load({ preserveFeedback: true });
   };
 
   const clearImport = () => {
@@ -1714,7 +1720,7 @@ export default function CtsJobsPage() {
       error: "",
       success: `Imported ${payload.length} CTS jobs successfully.`,
     });
-    load();
+    await load({ preserveFeedback: true });
   };
 
   const undoLastImport = async () => {
@@ -1764,7 +1770,7 @@ export default function CtsJobsPage() {
       error: "",
       success: `Last import undone. Deleted ${batchRows.length} jobs.`,
     });
-    load();
+    await load({ preserveFeedback: true });
   };
 
   const deleteSelectedJobs = async () => {
@@ -1787,9 +1793,9 @@ export default function CtsJobsPage() {
       return;
     }
 
-    setFeedback({ error: "", success: `Deleted ${ids.length} selected jobs.` });
     setSelectedIds(new Set());
-    load();
+    setFeedback({ error: "", success: `Deleted ${ids.length} selected jobs.` });
+    await load({ preserveFeedback: true });
   };
 
   const filteredJobs = useMemo(() => {
@@ -1886,6 +1892,19 @@ export default function CtsJobsPage() {
       }
       return next;
     });
+  };
+
+  const shouldUseSingleTapOpen = () =>
+    typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+
+  const shouldIgnoreRowOpen = (event) =>
+    event.target instanceof Element &&
+    !!event.target.closest("button, a, input, select, textarea, label");
+
+  const openJobFromRow = (event, jobId, mode = "click") => {
+    if (shouldIgnoreRowOpen(event)) return;
+    if (mode === "click" && !shouldUseSingleTapOpen()) return;
+    navigate(`/cts-jobs/${jobId}`);
   };
 
   return (
@@ -2102,7 +2121,12 @@ export default function CtsJobsPage() {
                       const isSelected = selectedIds.has(job.id);
 
                       return (
-                        <tr key={job.id}>
+                        <tr
+                          key={job.id}
+                          className="job-row-openable"
+                          onDoubleClick={(event) => openJobFromRow(event, job.id, "double")}
+                          onClick={(event) => openJobFromRow(event, job.id, "click")}
+                        >
                           <td>
                             <button
                               className={`select-cell-btn ${isSelected ? "active" : ""}`}

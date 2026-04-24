@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   ClipboardList,
   Loader2,
@@ -25,6 +24,14 @@ const initialWorkerForm = {
   willing_to_travel: true,
   recruiter_notes: "",
 };
+
+function buildInitialWorkerForm(interview) {
+  return {
+    ...initialWorkerForm,
+    strengths: interview?.final_summary || interview?.quick_notes || "",
+    recruiter_notes: interview ? buildWorkerNotesFromInterview(interview) : "",
+  };
+}
 
 function PageStyles() {
   return (
@@ -218,17 +225,7 @@ function WorkerConversionModal({
   saving,
   error,
 }) {
-  const [form, setForm] = useState(initialWorkerForm);
-
-  useEffect(() => {
-    if (!open || !interview) return;
-
-    setForm({
-      ...initialWorkerForm,
-      strengths: interview.final_summary || interview.quick_notes || "",
-      recruiter_notes: buildWorkerNotesFromInterview(interview),
-    });
-  }, [open, interview]);
+  const [form, setForm] = useState(() => buildInitialWorkerForm(interview));
 
   if (!open || !interview) return null;
 
@@ -461,8 +458,6 @@ function WorkerConversionModal({
 }
 
 export default function InterviewsPage() {
-  const navigate = useNavigate();
-
   const [rows, setRows] = useState([]);
   const [query, setQuery] = useState("");
   const [classification, setClassification] = useState("all");
@@ -971,6 +966,7 @@ export default function InterviewsPage() {
       </div>
 
       <WorkerConversionModal
+        key={conversionInterview?.id || "conversion-closed"}
         interview={conversionInterview}
         open={!!conversionInterview}
         onClose={() => setConversionInterview(null)}

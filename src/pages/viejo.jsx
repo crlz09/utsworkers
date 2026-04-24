@@ -10,7 +10,7 @@ import {
   Trash2,
   FolderKanban,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -736,7 +736,7 @@ export default function RegisterPage() {
             margin: "0 auto",
           }}
         >
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
@@ -1141,7 +1141,7 @@ export default function RegisterPage() {
                 </div>
               </form>
             </div>
-          </motion.div>
+          </Motion.div>
         </div>
       </div>
     </>

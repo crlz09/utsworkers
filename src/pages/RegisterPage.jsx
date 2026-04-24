@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
@@ -12,10 +12,11 @@ import {
   Trash2,
   FolderKanban,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
 const supabase =
   supabaseUrl && supabaseAnonKey
@@ -52,13 +53,113 @@ const emptyProject = () => ({
   project_description: "",
 });
 
-function createCaptcha() {
-  const a = Math.floor(Math.random() * 8) + 2;
-  const b = Math.floor(Math.random() * 8) + 2;
-  return {
-    question: `${a} + ${b}`,
-    answer: String(a + b),
-  };
+let turnstileScriptPromise;
+
+function loadTurnstileScript() {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Turnstile can only load in the browser."));
+  }
+
+  if (window.turnstile) {
+    return Promise.resolve(window.turnstile);
+  }
+
+  if (!turnstileScriptPromise) {
+    turnstileScriptPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"]');
+
+      if (existing) {
+        existing.addEventListener("load", () => resolve(window.turnstile), { once: true });
+        existing.addEventListener("error", () => reject(new Error("Could not load Turnstile.")), { once: true });
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve(window.turnstile);
+      script.onerror = () => reject(new Error("Could not load Turnstile."));
+      document.head.appendChild(script);
+    });
+  }
+
+  return turnstileScriptPromise;
+}
+
+function TurnstileField({ siteKey, onVerify, resetKey }) {
+  const containerRef = useRef(null);
+  const widgetIdRef = useRef(null);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    const mountWidget = async () => {
+      if (!siteKey || !containerRef.current) return;
+
+      try {
+        const turnstile = await loadTurnstileScript();
+        if (!active || !containerRef.current) return;
+
+        containerRef.current.innerHTML = "";
+        widgetIdRef.current = turnstile.render(containerRef.current, {
+          sitekey: siteKey,
+          theme: "light",
+          callback: (token) => onVerify(token),
+          "expired-callback": () => onVerify(""),
+          "error-callback": () => onVerify(""),
+        });
+        setLoadError("");
+      } catch (error) {
+        setLoadError(error.message || "Could not load verification challenge.");
+      }
+    };
+
+    mountWidget();
+
+    return () => {
+      active = false;
+      if (widgetIdRef.current !== null && window.turnstile) {
+        window.turnstile.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
+      }
+    };
+  }, [siteKey, onVerify]);
+
+  useEffect(() => {
+    if (widgetIdRef.current !== null && window.turnstile) {
+      window.turnstile.reset(widgetIdRef.current);
+    }
+  }, [resetKey]);
+
+  if (!siteKey) {
+    return (
+      <div
+        style={{
+          padding: "14px 16px",
+          borderRadius: 14,
+          background: "#fef2f2",
+          border: "1px solid #fecaca",
+          color: "#b91c1c",
+          fontWeight: 600,
+        }}
+      >
+        Turnstile is not configured yet. Add `VITE_TURNSTILE_SITE_KEY` to your local environment.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      <div ref={containerRef} />
+      {loadError ? (
+        <div style={{ color: "#b91c1c", fontSize: 14, fontWeight: 600 }}>
+          {loadError}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function PageStyles() {
@@ -526,9 +627,8 @@ export default function RegisterPage() {
   const [bootLoading, setBootLoading] = useState(true);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
-
-  const [captcha, setCaptcha] = useState(createCaptcha());
-  const [captchaInput, setCaptchaInput] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -575,8 +675,8 @@ export default function RegisterPage() {
     setLanguages([]);
     setSelectedSkillIds([]);
     setSelectedCertificationIds([]);
-    setCaptcha(createCaptcha());
-    setCaptchaInput("");
+    setTurnstileToken("");
+    setTurnstileResetKey((prev) => prev + 1);
   };
 
   const handleSubmit = async (e) => {
@@ -601,64 +701,53 @@ export default function RegisterPage() {
       return;
     }
 
-    if (captchaInput.trim() !== captcha.answer) {
-      setError("Captcha answer is incorrect. Please try again.");
-      setCaptcha(createCaptcha());
-      setCaptchaInput("");
+    if (!turnstileSiteKey) {
+      setError("Turnstile is not configured. Please contact support.");
+      return;
+    }
+
+    if (!turnstileToken) {
+      setError("Please complete the verification challenge.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const validProjects = projects
-        .filter(
-          (project) =>
-            project.project_name.trim() ||
-            project.project_location.trim() ||
-            project.project_duration.trim() ||
-            project.project_description.trim()
-        )
-        .map((project, index) => ({
-          project_name: project.project_name.trim() || "",
-          project_location: project.project_location.trim() || "",
-          duration: project.project_duration.trim() || "",
-          description: project.project_description.trim() || "",
-          sort_order: index + 1,
-        }));
-
-      const { data: workerId, error: workerError } = await supabase.rpc(
-        "register_worker_public",
+      const response = await fetch(
+        `${supabaseUrl}/functions/v1/register-worker-public`,
         {
-          p_name: form.name.trim(),
-          p_phone: form.phone.trim() || null,
-          p_email: form.email.trim() || null,
-          p_location_id: form.location_id,
-          p_trade_id: form.trade_id,
-          p_total_experience_years: Number(form.total_experience_years || 0),
-          p_commercial_experience_years: Number(
-            form.commercial_experience_years || 0
-          ),
-          p_industrial_experience_years: Number(
-            form.industrial_experience_years || 0
-          ),
-          p_residential_experience_years: Number(
-            form.residential_experience_years || 0
-          ),
-          p_strengths: form.strengths.trim() || null,
-          p_needs_improvement: form.needs_improvement.trim() || null,
-          p_available_from: null,
-          p_willing_to_travel: true,
-          p_languages: languages,
-          p_skill_ids: selectedSkillIds,
-          p_certification_ids: selectedCertificationIds,
-          p_projects: validProjects,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify({
+            ...form,
+            languages,
+            selectedSkillIds,
+            selectedCertificationIds,
+            projects: projects.map((project) => ({
+              project_name: project.project_name.trim() || "",
+              project_location: project.project_location.trim() || "",
+              duration: project.project_duration.trim() || "",
+              description: project.project_description.trim() || "",
+            })),
+            captchaToken: turnstileToken,
+          }),
         }
       );
 
-      if (workerError) throw workerError;
+      const result = await response.json().catch(() => ({}));
 
-      console.log("Worker created:", workerId);
+      if (!response.ok) {
+        throw new Error(
+          result.error || "Something went wrong while saving the worker profile."
+        );
+      }
+
+      console.log("Worker created:", result.workerId);
 
       resetForm();
       setSuccess(true);
@@ -666,8 +755,8 @@ export default function RegisterPage() {
       setError(
         err.message || "Something went wrong while saving the worker profile."
       );
-      setCaptcha(createCaptcha());
-      setCaptchaInput("");
+      setTurnstileToken("");
+      setTurnstileResetKey((prev) => prev + 1);
     } finally {
       setLoading(false);
     }
@@ -692,7 +781,7 @@ export default function RegisterPage() {
             margin: "0 auto",
           }}
         >
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
@@ -958,60 +1047,17 @@ export default function RegisterPage() {
                   }}
                 >
                   <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                    Spam protection
+                    Verification
                   </div>
                   <div style={{ color: "#475569", fontSize: 14 }}>
-                    Solve this to submit the form.
+                    Complete the security check before submitting the public registration form.
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 12,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div
-                      style={{
-                        minWidth: 100,
-                        padding: "12px 14px",
-                        borderRadius: 14,
-                        background: "#dbeafe",
-                        color: "#0f172a",
-                        fontWeight: 800,
-                        textAlign: "center",
-                      }}
-                    >
-                      {captcha.question} = ?
-                    </div>
-
-                    <input
-                      value={captchaInput}
-                      onChange={(e) => setCaptchaInput(e.target.value)}
-                      placeholder="Answer"
-                      style={{ ...inputStyle(), maxWidth: 220 }}
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCaptcha(createCaptcha());
-                        setCaptchaInput("");
-                      }}
-                      style={{
-                        border: "1px solid #cbd5e1",
-                        background: "#ffffff",
-                        color: "#0f172a",
-                        borderRadius: 14,
-                        padding: "12px 16px",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      New captcha
-                    </button>
-                  </div>
+                  <TurnstileField
+                    siteKey={turnstileSiteKey}
+                    onVerify={setTurnstileToken}
+                    resetKey={turnstileResetKey}
+                  />
                 </div>
 
                 {error ? (
@@ -1090,7 +1136,7 @@ export default function RegisterPage() {
                 </div>
               </form>
             </div>
-          </motion.div>
+          </Motion.div>
         </div>
       </div>
       <GoToTopButton showAfter={600} />

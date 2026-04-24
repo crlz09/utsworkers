@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate, useParams } from "react-router-dom";
 import UtsTopNavBar from "../components/UtsTopNavBar";
@@ -215,10 +215,6 @@ function AddCandidateModal({ open, onClose, workers, loadingWorkers, onAddCandid
   const [assigningId, setAssigningId] = useState("");
   const [drafts, setDrafts] = useState({});
 
-  useEffect(() => {
-    if (!open) { setSearch(""); setTradeFilter(""); setLocationFilter(""); setAvailabilityFilter(""); setAssigningId(""); setDrafts({}); }
-  }, [open]);
-
   const tradeOptions = useMemo(() => [...new Set(workers.map((worker) => worker.trades?.name).filter(Boolean))].sort(), [workers]);
   const locationOptions = useMemo(() => [...new Set(workers.map((worker) => worker.locations?.name).filter(Boolean))].sort(), [workers]);
 
@@ -343,8 +339,9 @@ export default function CtsJobDetailPage() {
   const [savingIds, setSavingIds] = useState({});
   const [deleteIds, setDeleteIds] = useState({});
   const [editingFieldKey, setEditingFieldKey] = useState(null);
+  const [pickerSession, setPickerSession] = useState(0);
 
-  const load = async ({ preserveFeedback = false } = {}) => {
+  const load = useCallback(async ({ preserveFeedback = false } = {}) => {
     setLoading(true);
     if (!preserveFeedback) {
       setFeedback({ error: "", success: "" });
@@ -361,9 +358,11 @@ export default function CtsJobDetailPage() {
     setJob(jobRes.data);
     setJobCandidates(candidatesRes.data || []);
     setLoading(false);
-  };
+  }, [jobId]);
 
-  useEffect(() => { load(); }, [jobId]);
+  useEffect(() => {
+    void Promise.resolve().then(() => load());
+  }, [load]);
 
   const loadWorkers = async () => {
     setLoadingWorkers(true);
@@ -373,7 +372,11 @@ export default function CtsJobDetailPage() {
     setLoadingWorkers(false);
   };
 
-  const openPicker = async () => { setPickerOpen(true); if (!workers.length) await loadWorkers(); };
+  const openPicker = async () => {
+    setPickerSession((prev) => prev + 1);
+    setPickerOpen(true);
+    if (!workers.length) await loadWorkers();
+  };
 
   const assignedWorkerIds = useMemo(() => new Set(jobCandidates.map((item) => item.worker_id).filter(Boolean)), [jobCandidates]);
   const availableWorkersForPicker = useMemo(() => workers.filter((worker) => !assignedWorkerIds.has(worker.id)), [workers, assignedWorkerIds]);
@@ -429,7 +432,7 @@ export default function CtsJobDetailPage() {
       return;
     }
     setFeedback({ error: "", success: "Candidate added to CTS job." });
-    load();
+    await load({ preserveFeedback: true });
   };
 
   const updateCandidateField = (candidateId, field, value) => {
@@ -482,34 +485,7 @@ export default function CtsJobDetailPage() {
 
     setEditingFieldKey(null);
     setFeedback({ error: "", success: "Field saved." });
-    load();
-  };
-
-  const saveCandidateRow = async (row) => {
-    setSavingIds((prev) => ({ ...prev, [row.id]: true }));
-    setFeedback({ error: "", success: "" });
-    const payload = {
-      name_snapshot: row.name_snapshot?.trim() || "",
-      phone_snapshot: row.phone_snapshot?.trim() || null,
-      class_snapshot: row.class_snapshot?.trim() || null,
-      local_travelers_snapshot: row.local_travelers_snapshot?.trim() || null,
-      location_snapshot: row.location_snapshot?.trim() || null,
-      english_snapshot: row.english_snapshot?.trim() || null,
-      on_system_cts: !!row.on_system_cts,
-      rate_snapshot: row.rate_snapshot === "" || row.rate_snapshot === null ? null : Number(row.rate_snapshot),
-      per_diem_snapshot: row.per_diem_snapshot?.trim() || null,
-      candidate_status: row.candidate_status,
-      notes: row.notes?.trim() || null,
-      submitted_at: row.candidate_status === "submitted" && !row.submitted_at ? new Date().toISOString() : row.submitted_at || null,
-      placed_at: row.candidate_status === "placed" && !row.placed_at ? new Date().toISOString() : row.placed_at || null,
-    };
-    const { error } = await supabase.from("cts_job_candidates").update(payload).eq("id", row.id);
-    setSavingIds((prev) => ({ ...prev, [row.id]: false }));
-    if (error) { setFeedback({ error: error.message || "Could not save candidate row.", success: "" }); return; }
-    const touchError = await touchJobModifiedAt(row.cts_job_id);
-    if (touchError) { await load({ preserveFeedback: true }); setFeedback({ error: touchError.message || "Candidate row updated, but job modification date could not be updated.", success: "" }); return; }
-    setFeedback({ error: "", success: "Candidate row updated." });
-    load();
+    await load({ preserveFeedback: true });
   };
 
   const removeCandidate = async (row) => {
@@ -523,7 +499,7 @@ export default function CtsJobDetailPage() {
     const touchError = await touchJobModifiedAt(row.cts_job_id);
     if (touchError) { await load({ preserveFeedback: true }); setFeedback({ error: touchError.message || "Candidate removed, but job modification date could not be updated.", success: "" }); return; }
     setFeedback({ error: "", success: "Candidate removed from CTS job." });
-    load();
+    await load({ preserveFeedback: true });
   };
 
   const filteredCandidates = useMemo(() => {
@@ -657,7 +633,7 @@ export default function CtsJobDetailPage() {
         </div>
       </div>
 
-      <AddCandidateModal open={pickerOpen} onClose={() => setPickerOpen(false)} workers={availableWorkersForPicker} loadingWorkers={loadingWorkers} onAddCandidate={addCandidateToJob} currentJobState={job} />
+      <AddCandidateModal key={pickerSession} open={pickerOpen} onClose={() => setPickerOpen(false)} workers={availableWorkersForPicker} loadingWorkers={loadingWorkers} onAddCandidate={addCandidateToJob} currentJobState={job} />
       <GoToTopButton />
     </>
   );

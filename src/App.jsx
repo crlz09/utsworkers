@@ -15,11 +15,46 @@ export default function App() {
       <Route path="/" element={<Navigate to="/register" replace />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/interviews/new" element={<InterviewMiniApp />} />
-      <Route path="/interviews" element={<InterviewsPage />} />
-      <Route path="/profile/:slug" element={<WorkerProfilePage />} />
-      <Route path="/cts-jobs" element={<CtsJobsPage />} />
-      <Route path="/cts-jobs/:jobId" element={<CtsJobDetailPage />} />
+      <Route
+        path="/interviews/new"
+        element={
+          <ProtectedRoute>
+            <InterviewMiniApp />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/interviews"
+        element={
+          <ProtectedRoute>
+            <InterviewsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile/:slug"
+        element={
+          <ProtectedRoute>
+            <WorkerProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cts-jobs"
+        element={
+          <ProtectedRoute>
+            <CtsJobsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cts-jobs/:jobId"
+        element={
+          <ProtectedRoute>
+            <CtsJobDetailPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/admin"
         element={
@@ -28,8 +63,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-     
-    
     </Routes>
   );
 }
