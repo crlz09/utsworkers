@@ -1820,8 +1820,8 @@ export default function AdminPage() {
                   style={{
                     display: "grid",
                     gridTemplateColumns: "auto minmax(320px, 1fr)",
-                    gap: 400,
-                    alignItems: "center",
+                    gap: 450,
+                    alignItems: "start",
                     width: "100%",
                   }}
                 >
@@ -1850,7 +1850,6 @@ export default function AdminPage() {
   style={{
     ...inputStyle,
     height: 50,
-    marginLeft: 20, // ⬅️ ajuste fino extra
   }}
 />
 

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+
   --text: #6b6375;
   --text-h: #08060d;
   --bg: #fff;
@@ -8,7 +9,7 @@
   --code-bg: #f4f3ec;
   --accent: #aa3bff;
   --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --accent-border: rgba(5, 0, 8, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
@@ -26,7 +27,10 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
   @media (max-width: 1024px) {
     font-size: 16px;
   }
@@ -52,17 +56,29 @@
   }
 }
 
+html,
 body {
+  width: 100%;
+  min-height: 100vh;
   margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+body {
+  background: #152837;
+}
+* {
+  box-sizing: border-box;
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  text-align: initial;
+  border-inline: none;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
