@@ -33,11 +33,19 @@ function PageStyles() {
     <style>{`
       * { box-sizing: border-box; }
 
+      html,
       body {
         margin: 0;
+        width: 100%;
+        overflow-x: hidden;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: #eef4ff;
         color: #0f172a;
+      }
+
+      #root {
+        width: 100%;
+        overflow-x: hidden;
       }
 
       input, select, textarea, button { font: inherit; }
@@ -49,14 +57,16 @@ function PageStyles() {
       }
 
       .jobs-shell {
+        width: min(1440px, calc(100% - 48px));
         max-width: 1440px;
         margin: 0 auto;
-        padding: 24px;
+        padding: 24px 0;
         display: grid;
         gap: 20px;
       }
 
       .glass-card {
+        min-width: 0;
         background: rgba(255,255,255,0.88);
         backdrop-filter: blur(10px);
         border: 1px solid #dbeafe;
@@ -203,6 +213,8 @@ function PageStyles() {
       }
 
       .table-scroll {
+        width: 100%;
+        max-width: 100%;
         overflow-x: auto;
         margin-top: 18px;
       }
@@ -504,7 +516,8 @@ function PageStyles() {
 
       @media (max-width: 760px) {
         .jobs-shell {
-          padding: 14px;
+          width: min(100%, calc(100% - 28px));
+          padding: 14px 0;
         }
 
         .hero-title {
