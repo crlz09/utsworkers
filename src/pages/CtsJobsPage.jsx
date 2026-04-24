@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 import UtsTopNavBar from "../components/UtsTopNavBar";
@@ -13,8 +14,11 @@ import {
   Copy,
   ExternalLink,
   Filter,
+  MoreVertical,
   X,
 } from "lucide-react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 function PageStyles() {
   return (
@@ -52,6 +56,16 @@ function PageStyles() {
       .table-actions { display: flex; gap: 8px; flex-wrap: wrap; }
       .icon-btn { border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; border-radius: 12px; padding: 10px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 800; }
       .icon-btn:hover { background: #f8fafc; }
+      .actions-menu-wrap { position: relative; display: inline-flex; justify-content: flex-end; width: 100%; }
+      .actions-trigger { width: 40px; height: 40px; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; border-radius: 12px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: 0.18s ease; }
+      .actions-trigger:hover { background: #f8fafc; }
+      .actions-trigger.active { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+      .actions-menu-overlay { position: fixed; inset: 0; background: transparent; z-index: 80; }
+      .actions-dropdown { position: fixed; width: 190px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22); padding: 8px; z-index: 90; display: grid; gap: 4px; }
+      .actions-menu-item { width: 100%; border: none; background: transparent; color: #0f172a; border-radius: 12px; padding: 10px 12px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-weight: 800; text-align: left; }
+      .actions-menu-item:hover { background: #f8fafc; }
+      .actions-menu-item.danger { color: #991b1b; }
+      .actions-menu-item.danger:hover { background: #fef2f2; }
       .empty-state { padding: 30px; border-radius: 20px; border: 1px dashed #cbd5e1; background: #f8fafc; color: #64748b; text-align: center; font-weight: 700; }
       .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55); display: grid; place-items: center; padding: 20px; z-index: 50; }
       .modal-card { width: min(900px, 100%); max-height: 90vh; overflow: auto; background: #ffffff; border-radius: 24px; border: 1px solid #dbeafe; box-shadow: 0 30px 80px rgba(15, 23, 42, 0.18); padding: 24px; }
@@ -148,7 +162,14 @@ function JobModal({ open, mode, form, setForm, onClose, onSave, saving }) {
           </div>
           <div className="field">
             <label className="field-label">Order Date</label>
-            <input className="input" type="date" value={form.order_date} onChange={(e) => update("order_date", e.target.value)} />
+           <DatePicker
+  selected={form.order_date ? new Date(form.order_date) : null}
+  onChange={(date) => update("order_date", date)}
+  dateFormat="MM/dd/yyyy"
+  placeholderText="MM/DD/YYYY"
+  className="input"
+/>
+         
           </div>
           <div className="field">
             <label className="field-label">Client Name</label>
@@ -211,6 +232,8 @@ export default function CtsJobsPage() {
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
+  const [openActionsId, setOpenActionsId] = useState(null);
+  const [actionMenuPosition, setActionMenuPosition] = useState({ top: 0, left: 0 });
 
   const load = async () => {
     setLoading(true);
@@ -232,9 +255,58 @@ export default function CtsJobsPage() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    if (!openActionsId) return;
+
+    const closeMenu = () => setOpenActionsId(null);
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openActionsId]);
+
+  const toggleActionsMenu = (event, jobId) => {
+    event.stopPropagation();
+
+    if (openActionsId === jobId) {
+      setOpenActionsId(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 190;
+    const menuHeight = 184;
+    const gap = 8;
+    const viewportPadding = 10;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const shouldOpenUp = spaceBelow < menuHeight + gap;
+
+    const left = Math.min(
+      Math.max(rect.right - menuWidth, viewportPadding),
+      window.innerWidth - menuWidth - viewportPadding
+    );
+
+    const top = shouldOpenUp
+      ? Math.max(rect.top - menuHeight - gap, viewportPadding)
+      : Math.min(rect.bottom + gap, window.innerHeight - menuHeight - viewportPadding);
+
+    setActionMenuPosition({ top, left });
+    setOpenActionsId(jobId);
+  };
+
   const openCreate = () => { setModalMode("create"); setEditingId(null); setForm(EMPTY_FORM); setModalOpen(true); };
 
   const openEdit = (job) => {
+    setOpenActionsId(null);
     setModalMode("edit");
     setEditingId(job.id);
     setForm({
@@ -272,6 +344,7 @@ export default function CtsJobsPage() {
   };
 
   const handleDelete = async (job) => {
+    setOpenActionsId(null);
     const confirmed = window.confirm(`Delete "${job.level_type}"? This will also remove its assigned candidates.`);
     if (!confirmed) return;
     setFeedback({ error: "", success: "" });
@@ -282,6 +355,7 @@ export default function CtsJobsPage() {
   };
 
   const handleDuplicate = async (job) => {
+    setOpenActionsId(null);
     const payload = {
       qty: job.qty ?? 1, level_type: job.level_type, city: job.city, state: job.state, start_text: job.start_text,
       details: job.details, language_requirement: job.language_requirement, bd_rep: job.bd_rep, order_date: job.order_date,
@@ -332,7 +406,7 @@ export default function CtsJobsPage() {
               </div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <button className="btn white" type="button" onClick={load}><Filter size={16} />Refresh</button>
-                <button className="btn dark" type="button" onClick={openCreate}><Plus size={16} />New Job</button>
+                <button className="btn dark" type="button" onClick={openCreate}><Plus size={16} />New CTS Job</button>
               </div>
             </div>
 
@@ -397,11 +471,72 @@ export default function CtsJobsPage() {
                         <td><span className="priority-pill" style={getPriorityStyle(job.priority)}>{job.priority}</span></td>
                         <td style={{ fontWeight: 900 }}>{jobCounts[job.id] || 0}</td>
                         <td>
-                          <div className="table-actions">
-                            <button className="icon-btn" type="button" onClick={() => navigate(`/cts-jobs/${job.id}`)}><ExternalLink size={14} />Open</button>
-                            <button className="icon-btn" type="button" onClick={() => openEdit(job)}><Pencil size={14} />Edit</button>
-                            <button className="icon-btn" type="button" onClick={() => handleDuplicate(job)}><Copy size={14} />Duplicate</button>
-                            <button className="icon-btn" type="button" onClick={() => handleDelete(job)}><Trash2 size={14} />Delete</button>
+                          <div className="actions-menu-wrap">
+                            <button
+                              className={`actions-trigger ${openActionsId === job.id ? "active" : ""}`}
+                              type="button"
+                              aria-label={`Actions for ${job.level_type || "CTS job"}`}
+                              onClick={(event) => toggleActionsMenu(event, job.id)}
+                            >
+                              <MoreVertical size={18} />
+                            </button>
+
+                            {openActionsId === job.id &&
+                              createPortal(
+                                <>
+                                  <div
+                                    className="actions-menu-overlay"
+                                    onClick={() => setOpenActionsId(null)}
+                                  />
+                                  <div
+                                    className="actions-dropdown"
+                                    style={{
+                                      top: `${actionMenuPosition.top}px`,
+                                      left: `${actionMenuPosition.left}px`,
+                                    }}
+                                  >
+                                    <button
+                                      className="actions-menu-item"
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenActionsId(null);
+                                        navigate(`/cts-jobs/${job.id}`);
+                                      }}
+                                    >
+                                      <ExternalLink size={14} />
+                                      Open
+                                    </button>
+
+                                    <button
+                                      className="actions-menu-item"
+                                      type="button"
+                                      onClick={() => openEdit(job)}
+                                    >
+                                      <Pencil size={14} />
+                                      Edit
+                                    </button>
+
+                                    <button
+                                      className="actions-menu-item"
+                                      type="button"
+                                      onClick={() => handleDuplicate(job)}
+                                    >
+                                      <Copy size={14} />
+                                      Duplicate
+                                    </button>
+
+                                    <button
+                                      className="actions-menu-item danger"
+                                      type="button"
+                                      onClick={() => handleDelete(job)}
+                                    >
+                                      <Trash2 size={14} />
+                                      Delete
+                                    </button>
+                                  </div>
+                                </>,
+                                document.body
+                              )}
                           </div>
                         </td>
                       </tr>

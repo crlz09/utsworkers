@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { useNavigate } from "react-router-dom";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import {
@@ -24,6 +25,7 @@ import {
   Trash2,
   Download,
   ExternalLink,
+  ClipboardList,
   UserPlus,
   History,
 } from "lucide-react";
@@ -754,6 +756,7 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
 
 function WorkerCard({
   worker,
+  navigate,
   onStatusSaved,
   onAvailabilitySaved,
   onRecruiterNotesSaved,
@@ -888,6 +891,28 @@ function WorkerCard({
     setSavingNotes(false);
   };
 
+  const startInterview = () => {
+    const speaksSpanish = languages.some((lang) =>
+      String(lang).toLowerCase().includes("spanish")
+    );
+
+    const speaksEnglish = languages.some((lang) =>
+      String(lang).toLowerCase().includes("english")
+    );
+
+    const params = new URLSearchParams({
+      name: worker.name || "",
+      position: worker.trades?.name || "",
+      phone: worker.phone || "",
+      email: worker.email || "",
+      address: worker.locations?.name || "",
+      spanish: speaksSpanish ? "true" : "false",
+      english: speaksEnglish ? "true" : "false",
+    });
+
+    navigate(`/interviews/new?${params.toString()}`);
+  };
+
   const showAvailabilityTag = status === "pending";
 
   return (
@@ -912,45 +937,8 @@ function WorkerCard({
         }}
       >
         <div style={{ display: "grid", gap: 12 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a" }}>
-              {worker.name}
-            </div>
-
-            <button
-              type="button"
-              title="Open public profile"
-              aria-label="Open public profile"
-              onClick={() => {
-                if (!worker.public_profile_slug) {
-                  alert("This worker does not have a public profile slug yet.");
-                  return;
-                }
-                window.open(`/profile/${worker.public_profile_slug}`, "_blank");
-              }}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 12,
-                border: "1px solid #cbd5e1",
-                background: "#ffffff",
-                color: "#0f172a",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
-              }}
-            >
-              <ExternalLink size={17} />
-            </button>
+          <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a" }}>
+            {worker.name}
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1438,6 +1426,54 @@ function WorkerCard({
             }}
           >
             <button
+              type="button"
+              onClick={startInterview}
+              style={{
+                border: "none",
+                background: "#0f172a",
+                color: "#ffffff",
+                borderRadius: 14,
+                padding: "12px 16px",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                width: "fit-content",
+              }}
+            >
+              <ClipboardList size={16} />
+              Start Interview
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!worker.public_profile_slug) {
+                  alert("This worker does not have a public profile slug yet.");
+                  return;
+                }
+                window.open(`/profile/${worker.public_profile_slug}`, "_blank");
+              }}
+              style={{
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                color: "#0f172a",
+                borderRadius: 14,
+                padding: "12px 16px",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                width: "fit-content",
+              }}
+            >
+              <ExternalLink size={16} />
+              Open Public Profile
+            </button>
+
+            <button
               onClick={() => setProjectsOpen(!projectsOpen)}
               style={{
                 border: "1px solid #cbd5e1",
@@ -1516,6 +1552,8 @@ function WorkerCard({
 
 
 export default function AdminPage() {
+  const navigate = useNavigate();
+
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -1528,6 +1566,7 @@ export default function AdminPage() {
   const [trades, setTrades] = useState([]);
   const [locations, setLocations] = useState([]);
   const [skills, setSkills] = useState([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -1703,6 +1742,27 @@ export default function AdminPage() {
     (w) => w.status === "pending" && w.availability === "unavailable"
   ).length;
 
+  const hasAdvancedFilters =
+    !!tradeFilter ||
+    !!locationFilter ||
+    !!statusFilter ||
+    !!availabilityFilter ||
+    selectedSkillIds.length > 0 ||
+    sortBy !== "status_priority";
+
+  const clearAdvancedFilters = () => {
+    setTradeFilter("");
+    setLocationFilter("");
+    setStatusFilter("");
+    setAvailabilityFilter("");
+    setSelectedSkillIds([]);
+    setSortBy("status_priority");
+  };
+
+  const clearSearch = () => {
+    setSearch("");
+  };
+
   return (
     <>
       <PageStyles />
@@ -1737,7 +1797,7 @@ export default function AdminPage() {
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "grid", gap: 16, width: "100%" }}>
                 <div
                   style={{
                     display: "inline-flex",
@@ -1755,16 +1815,72 @@ export default function AdminPage() {
                   Universal Talent Source
                 </div>
 
-                <h1
+                <div
+                  className="admin-title-search-row"
                   style={{
-                    margin: 0,
-                    fontSize: 42,
-                    lineHeight: 1.05,
-                    letterSpacing: "-0.03em",
+                    display: "grid",
+                    gridTemplateColumns: "auto minmax(320px, 1fr)",
+                    gap: 400,
+                    alignItems: "center",
+                    width: "100%",
                   }}
                 >
-                  Admin Panel
-                </h1>
+                  <h1
+                    style={{
+                      margin: 0,
+                      fontSize: 42,
+                      lineHeight: 1.05,
+                      letterSpacing: "-0.03em",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Admin Panel
+                  </h1>
+
+                  <div
+                    style={{
+                      position: "relative",
+                      width: "100%",
+                    }}
+                  >
+                    <input
+  placeholder="Search by name, email, phone or notes"
+  value={search}
+  onChange={(e) => setSearch(e.target.value)}
+  style={{
+    ...inputStyle,
+    height: 50,
+    marginLeft: 20, // ⬅️ ajuste fino extra
+  }}
+/>
+
+                    {search ? (
+                      <button
+                        type="button"
+                        onClick={clearSearch}
+                        aria-label="Clear search"
+                        style={{
+                          position: "absolute",
+                          right: 10,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          width: 32,
+                          height: 32,
+                          border: "none",
+                          background: "#f1f5f9",
+                          color: "#334155",
+                          borderRadius: 999,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <X size={16} />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
 
                 <p style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
                   Review, search, filter, sort, and manage both workflow status and pending-pool availability.
@@ -1858,93 +1974,141 @@ export default function AdminPage() {
                 borderRadius: 24,
                 padding: 18,
                 display: "grid",
-                gap: 18,
+                gap: filtersOpen ? 18 : 0,
               }}
             >
-              <div style={{ fontWeight: 900, fontSize: 18 }}>Filters & Sorting</div>
-
               <div
-                className="filters-grid"
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.4fr 1fr 1fr 1fr 1fr 1fr",
-                  gap: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
                 }}
               >
-                <input
-                  placeholder="Search by name, email, phone or notes"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={inputStyle}
-                />
-
-                <select
-                  value={tradeFilter}
-                  onChange={(e) => setTradeFilter(e.target.value)}
-                  style={inputStyle}
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen((prev) => !prev)}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    color: "#0f172a",
+                    padding: 0,
+                    fontWeight: 900,
+                    fontSize: 18,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
                 >
-                  <option value="">All Trades</option>
-                  {trades.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
+                  {filtersOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  Filters & Sorting
+                </button>
 
-                <select
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">All Locations</option>
-                  {locations.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">All Statuses</option>
-                  <option value="pending">Pending</option>
-                  <option value="onboarding">OnBoarding</option>
-                  <option value="hold">Hold</option>
-                  <option value="rejected">Rejected</option>
-                  <option value="completed">Completed</option>
-                  <option value="working">Working</option>
-                </select>
-
-                <select
-                  value={availabilityFilter}
-                  onChange={(e) => setAvailabilityFilter(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">All Pool Availability</option>
-                  <option value="available_soon">Available</option>
-                  <option value="on_project">On Project</option>
-                  <option value="unavailable">Unavailable</option>
-                </select>
-
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="status_priority">Sort: Status Priority</option>
-                  <option value="newest_registered">Sort: Newest Registered</option>
-                  <option value="oldest_registered">Sort: Oldest Registered</option>
-                </select>
+                {hasAdvancedFilters ? (
+                  <button
+                    type="button"
+                    onClick={clearAdvancedFilters}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      background: "#ffffff",
+                      color: "#0f172a",
+                      borderRadius: 14,
+                      padding: "10px 14px",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <X size={16} />
+                    Clear filters
+                  </button>
+                ) : null}
               </div>
 
-              <SkillMultiFilter
-                skills={skills}
-                selectedSkillIds={selectedSkillIds}
-                setSelectedSkillIds={setSelectedSkillIds}
-              />
+              {filtersOpen ? (
+                <>
+                  <div
+                    className="filters-grid"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+                      gap: 14,
+                    }}
+                  >
+                    <select
+                      value={tradeFilter}
+                      onChange={(e) => setTradeFilter(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">All Trades</option>
+                      {trades.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={locationFilter}
+                      onChange={(e) => setLocationFilter(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">All Locations</option>
+                      {locations.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">All Statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="onboarding">OnBoarding</option>
+                      <option value="hold">Hold</option>
+                      <option value="rejected">Rejected</option>
+                      <option value="completed">Completed</option>
+                      <option value="working">Working</option>
+                    </select>
+
+                    <select
+                      value={availabilityFilter}
+                      onChange={(e) => setAvailabilityFilter(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">All Pool Availability</option>
+                      <option value="available_soon">Available</option>
+                      <option value="on_project">On Project</option>
+                      <option value="unavailable">Unavailable</option>
+                    </select>
+
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="status_priority">Sort: Status Priority</option>
+                      <option value="newest_registered">Sort: Newest Registered</option>
+                      <option value="oldest_registered">Sort: Oldest Registered</option>
+                    </select>
+                  </div>
+
+                  <SkillMultiFilter
+                    skills={skills}
+                    selectedSkillIds={selectedSkillIds}
+                    setSelectedSkillIds={setSelectedSkillIds}
+                  />
+                </>
+              ) : null}
             </div>
 
             <div style={{ display: "grid", gap: 18 }}>
@@ -1982,6 +2146,7 @@ export default function AdminPage() {
                   <WorkerCard
                     key={w.id}
                     worker={w}
+                    navigate={navigate}
                     onStatusSaved={handleStatusSaved}
                     onAvailabilitySaved={handleAvailabilitySaved}
                     onRecruiterNotesSaved={handleRecruiterNotesSaved}

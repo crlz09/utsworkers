@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Trash2,
   Save,
+  Pencil,
 } from "lucide-react";
 
 function PageStyles() {
@@ -51,13 +52,27 @@ function PageStyles() {
       .field-label { font-size: 12px; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
       .input, .select, .textarea { width: 100%; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; border-radius: 14px; padding: 12px 14px; outline: none; }
       .textarea { min-height: 90px; resize: vertical; }
-      .table-scroll { overflow-x: auto; margin-top: 18px; }
-      table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1520px; }
-      thead th { position: sticky; top: 0; background: #eff6ff; color: #1e3a8a; text-align: left; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; padding: 14px 12px; border-bottom: 1px solid #bfdbfe; }
-      tbody td { background: #ffffff; padding: 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+      .table-scroll { overflow-x: auto; margin-top: 18px; padding-bottom: 12px; -webkit-overflow-scrolling: touch; }
+      .assigned-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; }
+      thead th { position: sticky; top: 0; background: #eff6ff; color: #1e3a8a; text-align: left; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; padding: 14px 16px; border-bottom: 1px solid #bfdbfe; white-space: nowrap; }
+      tbody td { background: #ffffff; padding: 16px; border-bottom: 1px solid #e2e8f0; vertical-align: top; white-space: nowrap; width: 1%; }
+      tbody td.notes-cell { min-width: 280px; width: 280px; white-space: normal; }
+      tbody td.actions-cell { min-width: 150px; width: 150px; }
       tbody tr:hover td { background: #f8fbff; }
       .mini-input, .mini-select, .mini-textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 12px; padding: 10px 12px; background: #ffffff; color: #0f172a; }
       .mini-textarea { min-height: 78px; resize: vertical; }
+      .inline-field-shell { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
+      .inline-read-value { min-height: 46px; display: inline-flex; align-items: center; border: 1px solid transparent; background: transparent; color: #0f172a; border-radius: 14px; padding: 10px 12px; font-weight: 700; line-height: 1.2; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+      .inline-read-value.empty { color: #94a3b8; font-weight: 700; }
+      .inline-read-notes { min-height: 78px; width: 100%; align-items: flex-start; white-space: pre-wrap; line-height: 1.45; color: #475569; }
+      .inline-edit-control { width: auto; min-width: 76px; max-width: 320px; border: 1px solid #93c5fd; border-radius: 14px; padding: 10px 12px; background: #ffffff; color: #0f172a; font-weight: 700; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.08); }
+      .inline-edit-control.notes { width: 100%; min-width: 240px; min-height: 90px; resize: vertical; line-height: 1.45; }
+      .inline-action-btn { width: 38px; height: 38px; border-radius: 12px; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: 0.16s ease; flex-shrink: 0; }
+      .inline-action-btn.save { opacity: 1; border-color: #86efac; background: #dcfce7; color: #166534; }
+      .inline-field-shell:hover .inline-action-btn, .inline-field-shell:focus-within .inline-action-btn { opacity: 1; }
+      .inline-action-btn:hover { background: #f8fafc; transform: translateY(-1px); }
+      .inline-action-btn.save:hover { background: #bbf7d0; }
+      @media (hover: none) { .inline-action-btn { opacity: 1; } }
       .row-actions { display: grid; gap: 8px; }
       .icon-btn { border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a; border-radius: 12px; padding: 10px 12px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
       .icon-btn:hover { background: #f8fafc; }
@@ -80,7 +95,16 @@ function PageStyles() {
   );
 }
 
-const EMPTY_ASSIGN_FORM = { local_travelers_snapshot: "Local", english_snapshot: "", on_system_cts: false, rate_snapshot: "", per_diem_snapshot: "", candidate_status: "sourced", notes: "" };
+const EMPTY_ASSIGN_FORM = {
+  class_snapshot: "",
+  local_travelers_snapshot: "Local",
+  english_snapshot: "",
+  on_system_cts: false,
+  rate_snapshot: "",
+  per_diem_snapshot: "",
+  candidate_status: "sourced",
+  notes: "",
+};
 
 function getJobStatusStyle(status) {
   switch (status) {
@@ -125,6 +149,64 @@ const deriveLocalTraveler = (worker) => (worker.willing_to_travel ? "Traveler" :
 const deriveLocationLabel = (worker) => worker.locations?.name || "";
 const deriveClassLabel = (worker) => worker.trades?.name || "";
 
+function getAutoWidth(value, minCh = 8, maxCh = 28) {
+  const length = String(value || "").length;
+  return `${Math.min(Math.max(length + 3, minCh), maxCh)}ch`;
+}
+
+function InlineEditableField({
+  row,
+  field,
+  value,
+  type = "text",
+  options = [],
+  placeholder = "—",
+  editingKey,
+  setEditingKey,
+  onChange,
+  onSave,
+  saving,
+  className = "",
+}) {
+  const key = `${row.id}:${field}`;
+  const isEditing = editingKey === key;
+  const displayValue = type === "boolean" ? (value ? "Yes" : "No") : value || "";
+  const startEdit = () => setEditingKey(key);
+  const save = () => onSave(row, field);
+
+  if (isEditing) {
+    return (
+      <div className={`inline-field-shell ${className}`}>
+        {type === "select" ? (
+          <select className="inline-edit-control" value={value || ""} onChange={(e) => onChange(row.id, field, e.target.value)} autoFocus>
+            {options.map((option) => (<option key={option.value} value={option.value}>{option.label}</option>))}
+          </select>
+        ) : type === "boolean" ? (
+          <select className="inline-edit-control" value={value ? "yes" : "no"} onChange={(e) => onChange(row.id, field, e.target.value === "yes")} autoFocus>
+            <option value="no">No</option><option value="yes">Yes</option>
+          </select>
+        ) : type === "textarea" ? (
+          <textarea className="inline-edit-control notes" value={value || ""} onChange={(e) => onChange(row.id, field, e.target.value)} placeholder={placeholder} autoFocus />
+        ) : (
+          <input className="inline-edit-control" style={{ width: getAutoWidth(value, field === "rate_snapshot" ? 7 : 8) }} value={value ?? ""} onChange={(e) => onChange(row.id, field, e.target.value)} placeholder={placeholder} autoFocus />
+        )}
+        <button type="button" className="inline-action-btn save" onClick={save} disabled={saving} title="Save field">
+          {saving ? <Loader2 className="spin" size={16} /> : <Save size={16} />}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`inline-field-shell ${className}`}>
+      <div className={`inline-read-value ${type === "textarea" ? "inline-read-notes" : ""} ${displayValue ? "" : "empty"}`} title={displayValue || placeholder} onDoubleClick={startEdit}>
+        {displayValue || placeholder}
+      </div>
+      <button type="button" className="inline-action-btn" onClick={startEdit} title="Edit field"><Pencil size={16} /></button>
+    </div>
+  );
+}
+
 function AddCandidateModal({ open, onClose, workers, loadingWorkers, onAddCandidate, currentJobState }) {
   const [search, setSearch] = useState("");
   const [tradeFilter, setTradeFilter] = useState("");
@@ -152,7 +234,15 @@ function AddCandidateModal({ open, onClose, workers, loadingWorkers, onAddCandid
     });
   }, [workers, search, tradeFilter, locationFilter, availabilityFilter]);
 
-  const getDraft = (worker) => drafts[worker.id] || { ...EMPTY_ASSIGN_FORM, local_travelers_snapshot: deriveLocalTraveler(worker), english_snapshot: deriveEnglishLabel(worker), rate_snapshot: "", per_diem_snapshot: "" };
+  const getDraft = (worker) =>
+    drafts[worker.id] || {
+      ...EMPTY_ASSIGN_FORM,
+      class_snapshot: "",
+      local_travelers_snapshot: deriveLocalTraveler(worker),
+      english_snapshot: deriveEnglishLabel(worker),
+      rate_snapshot: "",
+      per_diem_snapshot: "",
+    };
   const updateDraft = (workerId, field, value) => setDrafts((prev) => ({ ...prev, [workerId]: { ...(prev[workerId] || EMPTY_ASSIGN_FORM), [field]: value } }));
 
   if (!open) return null;
@@ -204,7 +294,17 @@ function AddCandidateModal({ open, onClose, workers, loadingWorkers, onAddCandid
                   </div>
 
                   <div className="snapshot-grid">
-                    <div className="snapshot-box"><div className="field-label">Class</div><input className="mini-input" value={deriveClassLabel(worker)} readOnly /></div>
+                    <div className="snapshot-box">
+                      <div className="field-label">Class</div>
+                      <input
+                        className="mini-input"
+                        value={draft.class_snapshot || ""}
+                        onChange={(e) =>
+                          updateDraft(worker.id, "class_snapshot", e.target.value)
+                        }
+                        placeholder="E5"
+                      />
+                    </div>
                     <div className="snapshot-box"><div className="field-label">Local / Traveler</div><select className="mini-select" value={draft.local_travelers_snapshot} onChange={(e) => updateDraft(worker.id, "local_travelers_snapshot", e.target.value)}><option value="Local">Local</option><option value="Traveler">Traveler</option></select></div>
                     <div className="snapshot-box"><div className="field-label">English</div><input className="mini-input" value={draft.english_snapshot} onChange={(e) => updateDraft(worker.id, "english_snapshot", e.target.value)} placeholder="40% / Bilingual / English" /></div>
                     <div className="snapshot-box"><div className="field-label">On System (CTS)</div><select className="mini-select" value={draft.on_system_cts ? "yes" : "no"} onChange={(e) => updateDraft(worker.id, "on_system_cts", e.target.value === "yes")}><option value="no">No</option><option value="yes">Yes</option></select></div>
@@ -242,6 +342,7 @@ export default function CtsJobDetailPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [savingIds, setSavingIds] = useState({});
   const [deleteIds, setDeleteIds] = useState({});
+  const [editingFieldKey, setEditingFieldKey] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -282,7 +383,7 @@ export default function CtsJobDetailPage() {
       worker_id: worker.id,
       name_snapshot: worker.name || "",
       phone_snapshot: worker.phone || null,
-      class_snapshot: deriveClassLabel(worker) || null,
+      class_snapshot: draft.class_snapshot?.trim() || null,
       local_travelers_snapshot: draft.local_travelers_snapshot || null,
       location_snapshot: deriveLocationLabel(worker) || null,
       english_snapshot: draft.english_snapshot || null,
@@ -303,6 +404,48 @@ export default function CtsJobDetailPage() {
 
   const updateCandidateField = (candidateId, field, value) => {
     setJobCandidates((prev) => prev.map((item) => item.id === candidateId ? { ...item, [field]: value } : item));
+  };
+
+  const saveCandidateField = async (row, field) => {
+    const savingKey = `${row.id}:${field}`;
+    setSavingIds((prev) => ({ ...prev, [savingKey]: true }));
+    setFeedback({ error: "", success: "" });
+
+    let value = row[field];
+    if (typeof value === "string") value = value.trim();
+
+    const payload = { [field]: value === "" ? null : value };
+
+    if (field === "rate_snapshot") {
+      payload[field] = value === "" || value === null || value === undefined ? null : Number(value);
+    }
+
+    if (field === "on_system_cts") {
+      payload[field] = !!row[field];
+    }
+
+    if (field === "candidate_status") {
+      payload.submitted_at = row.candidate_status === "submitted" && !row.submitted_at ? new Date().toISOString() : row.submitted_at || null;
+      payload.placed_at = row.candidate_status === "placed" && !row.placed_at ? new Date().toISOString() : row.placed_at || null;
+    }
+
+    if (field === "name_snapshot" && !payload[field]) {
+      setSavingIds((prev) => ({ ...prev, [savingKey]: false }));
+      setFeedback({ error: "Candidate name cannot be empty.", success: "" });
+      return;
+    }
+
+    const { error } = await supabase.from("cts_job_candidates").update(payload).eq("id", row.id);
+    setSavingIds((prev) => ({ ...prev, [savingKey]: false }));
+
+    if (error) {
+      setFeedback({ error: error.message || "Could not save field.", success: "" });
+      return;
+    }
+
+    setEditingFieldKey(null);
+    setFeedback({ error: "", success: "Field saved." });
+    load();
   };
 
   const saveCandidateRow = async (row) => {
@@ -414,7 +557,7 @@ export default function CtsJobDetailPage() {
             </div>
           </div>
 
-          <div className="glass-card card-pad">
+          <div className="glass-card card-pad" style={{ maxWidth: "100%", overflow: "hidden" }}>
             <div className="toolbar-top">
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}><Users size={20} /><div style={{ fontWeight: 900, fontSize: 22 }}>Assigned Candidates ({filteredCandidates.length})</div></div>
             </div>
@@ -433,7 +576,7 @@ export default function CtsJobDetailPage() {
               <div className="empty-state" style={{ marginTop: 18 }}>No candidates assigned to this job yet.</div>
             ) : (
               <div className="table-scroll">
-                <table>
+                <table className="assigned-table">
                   <thead>
                     <tr>
                       <th>Name</th><th>Phone</th><th>Class</th><th>Local / Travelers</th><th>Location</th><th>English</th><th>On System (CTS)</th><th>Rate</th><th>Per Diem</th><th>Stage</th><th>Notes</th><th>Actions</th>
@@ -442,27 +585,24 @@ export default function CtsJobDetailPage() {
                   <tbody>
                     {filteredCandidates.map((row) => (
                       <tr key={row.id}>
-                        <td><input className="mini-input" value={row.name_snapshot || ""} onChange={(e) => updateCandidateField(row.id, "name_snapshot", e.target.value)} /></td>
-                        <td><input className="mini-input" value={row.phone_snapshot || ""} onChange={(e) => updateCandidateField(row.id, "phone_snapshot", e.target.value)} /></td>
-                        <td><input className="mini-input" value={row.class_snapshot || ""} onChange={(e) => updateCandidateField(row.id, "class_snapshot", e.target.value)} /></td>
-                        <td><select className="mini-select" value={row.local_travelers_snapshot || ""} onChange={(e) => updateCandidateField(row.id, "local_travelers_snapshot", e.target.value)}><option value="">—</option><option value="Local">Local</option><option value="Traveler">Traveler</option></select></td>
-                        <td><input className="mini-input" value={row.location_snapshot || ""} onChange={(e) => updateCandidateField(row.id, "location_snapshot", e.target.value)} /></td>
-                        <td><input className="mini-input" value={row.english_snapshot || ""} onChange={(e) => updateCandidateField(row.id, "english_snapshot", e.target.value)} placeholder="40% / Bilingual / English" /></td>
-                        <td><select className="mini-select" value={row.on_system_cts ? "yes" : "no"} onChange={(e) => updateCandidateField(row.id, "on_system_cts", e.target.value === "yes")}><option value="no">No</option><option value="yes">Yes</option></select></td>
-                        <td><input className="mini-input" value={row.rate_snapshot ?? ""} onChange={(e) => updateCandidateField(row.id, "rate_snapshot", e.target.value)} placeholder="35.00" /></td>
-                        <td><input className="mini-input" value={row.per_diem_snapshot || ""} onChange={(e) => updateCandidateField(row.id, "per_diem_snapshot", e.target.value)} placeholder="$10/HR" /></td>
+                        <td><InlineEditableField row={row} field="name_snapshot" value={row.name_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:name_snapshot`]} /></td>
+                        <td><InlineEditableField row={row} field="phone_snapshot" value={row.phone_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:phone_snapshot`]} /></td>
+                        <td><InlineEditableField row={row} field="class_snapshot" value={row.class_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:class_snapshot`]} /></td>
+                        <td><InlineEditableField row={row} field="local_travelers_snapshot" value={row.local_travelers_snapshot} type="select" options={[{ value: "", label: "—" }, { value: "Local", label: "Local" }, { value: "Traveler", label: "Traveler" }]} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:local_travelers_snapshot`]} /></td>
+                        <td><InlineEditableField row={row} field="location_snapshot" value={row.location_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:location_snapshot`]} /></td>
+                        <td><InlineEditableField row={row} field="english_snapshot" value={row.english_snapshot} placeholder="40% / Bilingual" editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:english_snapshot`]} /></td>
+                        <td><InlineEditableField row={row} field="on_system_cts" value={row.on_system_cts} type="boolean" editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:on_system_cts`]} /></td>
+                        <td><InlineEditableField row={row} field="rate_snapshot" value={row.rate_snapshot ?? ""} placeholder="35.00" editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:rate_snapshot`]} /></td>
+                        <td><InlineEditableField row={row} field="per_diem_snapshot" value={row.per_diem_snapshot} placeholder="$10/HR" editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:per_diem_snapshot`]} /></td>
                         <td>
                           <div style={{ display: "grid", gap: 8 }}>
                             <span className="status-pill" style={getCandidateStatusStyle(row.candidate_status)}>{row.candidate_status}</span>
-                            <select className="mini-select" value={row.candidate_status} onChange={(e) => updateCandidateField(row.id, "candidate_status", e.target.value)}>
-                              <option value="sourced">Sourced</option><option value="contacted">Contacted</option><option value="interested">Interested</option><option value="interviewed">Interviewed</option><option value="submitted">Submitted</option><option value="placed">Placed</option><option value="rejected">Rejected</option><option value="on_hold">On Hold</option>
-                            </select>
+                            <InlineEditableField row={row} field="candidate_status" value={row.candidate_status} type="select" options={[{ value: "sourced", label: "Sourced" }, { value: "contacted", label: "Contacted" }, { value: "interested", label: "Interested" }, { value: "interviewed", label: "Interviewed" }, { value: "submitted", label: "Submitted" }, { value: "placed", label: "Placed" }, { value: "rejected", label: "Rejected" }, { value: "on_hold", label: "On Hold" }]} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:candidate_status`]} />
                           </div>
                         </td>
-                        <td style={{ minWidth: 220 }}><textarea className="mini-textarea" value={row.notes || ""} onChange={(e) => updateCandidateField(row.id, "notes", e.target.value)} placeholder="CTS submission notes..." /></td>
-                        <td>
+                        <td className="notes-cell"><InlineEditableField row={row} field="notes" value={row.notes} type="textarea" placeholder="CTS submission notes..." editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:notes`]} /></td>
+                        <td className="actions-cell">
                           <div className="row-actions">
-                            <button className="icon-btn" type="button" onClick={() => saveCandidateRow(row)} disabled={!!savingIds[row.id]}>{savingIds[row.id] ? <Loader2 className="spin" size={14} /> : <Save size={14} />}Save</button>
                             <button className="icon-btn" type="button" onClick={() => removeCandidate(row)} disabled={!!deleteIds[row.id]}>{deleteIds[row.id] ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />}Remove</button>
                           </div>
                         </td>
