@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { useNavigate } from "react-router-dom";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import {
@@ -25,8 +24,8 @@ import {
   Trash2,
   Download,
   ExternalLink,
-  ClipboardList,
   UserPlus,
+  UserCheck,
   History,
 } from "lucide-react";
 
@@ -756,14 +755,19 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
 
 function WorkerCard({
   worker,
-  navigate,
+  recruiters,
   onStatusSaved,
   onAvailabilitySaved,
+  onRecruiterSaved,
   onRecruiterNotesSaved,
   onDocumentsChanged,
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
+
+  const [recruiterUserId, setRecruiterUserId] = useState(worker.recruiter_user_id || "");
+  const [savingRecruiter, setSavingRecruiter] = useState(false);
+  const [recruiterError, setRecruiterError] = useState("");
 
   const [status, setStatus] = useState(worker.status || "pending");
   const [savingStatus, setSavingStatus] = useState(false);
@@ -797,6 +801,32 @@ function WorkerCard({
   const projects = [...(worker.worker_projects || [])].sort(
     (a, b) => (a.sort_order || 0) - (b.sort_order || 0)
   );
+
+  const assignedRecruiter = recruiters.find(
+    (recruiter) => recruiter.user_id === recruiterUserId
+  );
+
+  const saveRecruiterOwner = async (newRecruiterUserId) => {
+    setRecruiterUserId(newRecruiterUserId);
+    setRecruiterError("");
+    setSavingRecruiter(true);
+
+    const { error } = await supabase
+      .from("workers")
+      .update({
+        recruiter_user_id: newRecruiterUserId || null,
+      })
+      .eq("id", worker.id);
+
+    if (error) {
+      setRecruiterError(error.message || "Could not update recruiter owner.");
+      setRecruiterUserId(worker.recruiter_user_id || "");
+    } else {
+      onRecruiterSaved(worker.id, newRecruiterUserId || null);
+    }
+
+    setSavingRecruiter(false);
+  };
 
   const saveStatus = async (newStatus) => {
     setStatus(newStatus);
@@ -891,28 +921,6 @@ function WorkerCard({
     setSavingNotes(false);
   };
 
-  const startInterview = () => {
-    const speaksSpanish = languages.some((lang) =>
-      String(lang).toLowerCase().includes("spanish")
-    );
-
-    const speaksEnglish = languages.some((lang) =>
-      String(lang).toLowerCase().includes("english")
-    );
-
-    const params = new URLSearchParams({
-      name: worker.name || "",
-      position: worker.trades?.name || "",
-      phone: worker.phone || "",
-      email: worker.email || "",
-      address: worker.locations?.name || "",
-      spanish: speaksSpanish ? "true" : "false",
-      english: speaksEnglish ? "true" : "false",
-    });
-
-    navigate(`/interviews/new?${params.toString()}`);
-  };
-
   const showAvailabilityTag = status === "pending";
 
   return (
@@ -937,8 +945,45 @@ function WorkerCard({
         }}
       >
         <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a" }}>
-            {worker.name}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a" }}>
+              {worker.name}
+            </div>
+
+            <button
+              type="button"
+              title="Open public profile"
+              aria-label="Open public profile"
+              onClick={() => {
+                if (!worker.public_profile_slug) {
+                  alert("This worker does not have a public profile slug yet.");
+                  return;
+                }
+                window.open(`/profile/${worker.public_profile_slug}`, "_blank");
+              }}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 12,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                color: "#0f172a",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
+              }}
+            >
+              <ExternalLink size={17} />
+            </button>
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -950,6 +995,11 @@ function WorkerCard({
             <span style={pillStyle()}>
               <MapPin size={14} />
               {worker.locations?.name || "No location"}
+            </span>
+
+            <span style={pillStyle()}>
+              <UserCheck size={14} />
+              {assignedRecruiter?.full_name || "Unassigned recruiter"}
             </span>
 
             <span
@@ -1017,6 +1067,59 @@ function WorkerCard({
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
             <Mail size={15} />
             <span>{worker.email || "No email"}</span>
+          </div>
+
+          <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
+            <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 14 }}>
+              Recruiter Owner
+            </div>
+
+            <select
+              value={recruiterUserId}
+              onChange={(e) => saveRecruiterOwner(e.target.value)}
+              disabled={savingRecruiter}
+              style={{
+                ...inputStyle,
+                padding: "10px 12px",
+                background: savingRecruiter ? "#f8fafc" : "#ffffff",
+                cursor: savingRecruiter ? "not-allowed" : "pointer",
+              }}
+            >
+              <option value="">Unassigned</option>
+              {recruiters.map((recruiter) => (
+                <option key={recruiter.user_id} value={recruiter.user_id}>
+                  {recruiter.full_name || recruiter.email || recruiter.user_id}
+                </option>
+              ))}
+            </select>
+
+            {savingRecruiter ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: "#475569",
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                <Loader2 size={14} className="spin" />
+                Saving recruiter...
+              </div>
+            ) : null}
+
+            {recruiterError ? (
+              <div
+                style={{
+                  color: "#b91c1c",
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                {recruiterError}
+              </div>
+            ) : null}
           </div>
 
           <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
@@ -1426,54 +1529,6 @@ function WorkerCard({
             }}
           >
             <button
-              type="button"
-              onClick={startInterview}
-              style={{
-                border: "none",
-                background: "#0f172a",
-                color: "#ffffff",
-                borderRadius: 14,
-                padding: "12px 16px",
-                fontWeight: 800,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                width: "fit-content",
-              }}
-            >
-              <ClipboardList size={16} />
-              Start Interview
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (!worker.public_profile_slug) {
-                  alert("This worker does not have a public profile slug yet.");
-                  return;
-                }
-                window.open(`/profile/${worker.public_profile_slug}`, "_blank");
-              }}
-              style={{
-                border: "1px solid #cbd5e1",
-                background: "#ffffff",
-                color: "#0f172a",
-                borderRadius: 14,
-                padding: "12px 16px",
-                fontWeight: 800,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                width: "fit-content",
-              }}
-            >
-              <ExternalLink size={16} />
-              Open Public Profile
-            </button>
-
-            <button
               onClick={() => setProjectsOpen(!projectsOpen)}
               style={{
                 border: "1px solid #cbd5e1",
@@ -1552,8 +1607,6 @@ function WorkerCard({
 
 
 export default function AdminPage() {
-  const navigate = useNavigate();
-
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -1566,7 +1619,8 @@ export default function AdminPage() {
   const [trades, setTrades] = useState([]);
   const [locations, setLocations] = useState([]);
   const [skills, setSkills] = useState([]);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [recruiters, setRecruiters] = useState([]);
+  const [recruiterFilter, setRecruiterFilter] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -1588,11 +1642,17 @@ export default function AdminPage() {
       const tradesData = await supabase.from("trades").select("*").order("name");
       const locationsData = await supabase.from("locations").select("*").order("name");
       const skillsData = await supabase.from("skills").select("*").order("name");
+      const recruitersData = await supabase
+        .from("recruiters")
+        .select("id, user_id, full_name, email, is_active")
+        .eq("is_active", true)
+        .order("full_name", { ascending: true });
 
       if (!error) setWorkers(data || []);
       setTrades(tradesData.data || []);
       setLocations(locationsData.data || []);
       setSkills(skillsData.data || []);
+      setRecruiters(recruitersData.data || []);
       setLoading(false);
     };
 
@@ -1642,6 +1702,19 @@ export default function AdminPage() {
     );
   };
 
+  const handleRecruiterSaved = (workerId, recruiterUserId) => {
+    setWorkers((prev) =>
+      prev.map((worker) =>
+        worker.id === workerId
+          ? {
+              ...worker,
+              recruiter_user_id: recruiterUserId,
+            }
+          : worker
+      )
+    );
+  };
+
   const handleRecruiterNotesSaved = (workerId, notes, notesUpdatedAt) => {
     setWorkers((prev) =>
       prev.map((worker) =>
@@ -1670,6 +1743,11 @@ export default function AdminPage() {
       const matchTrade = !tradeFilter || w.trade_id === tradeFilter;
       const matchLocation = !locationFilter || w.location_id === locationFilter;
       const matchStatus = !statusFilter || w.status === statusFilter;
+      const matchRecruiter =
+        !recruiterFilter ||
+        (recruiterFilter === "unassigned"
+          ? !w.recruiter_user_id
+          : w.recruiter_user_id === recruiterFilter);
 
       const matchAvailability =
         !availabilityFilter ||
@@ -1687,6 +1765,7 @@ export default function AdminPage() {
         matchTrade &&
         matchLocation &&
         matchStatus &&
+        matchRecruiter &&
         matchAvailability &&
         matchSkills
       );
@@ -1715,6 +1794,7 @@ export default function AdminPage() {
     locationFilter,
     statusFilter,
     availabilityFilter,
+    recruiterFilter,
     selectedSkillIds,
     sortBy,
   ]);
@@ -1741,27 +1821,6 @@ export default function AdminPage() {
   const unavailableCount = workers.filter(
     (w) => w.status === "pending" && w.availability === "unavailable"
   ).length;
-
-  const hasAdvancedFilters =
-    !!tradeFilter ||
-    !!locationFilter ||
-    !!statusFilter ||
-    !!availabilityFilter ||
-    selectedSkillIds.length > 0 ||
-    sortBy !== "status_priority";
-
-  const clearAdvancedFilters = () => {
-    setTradeFilter("");
-    setLocationFilter("");
-    setStatusFilter("");
-    setAvailabilityFilter("");
-    setSelectedSkillIds([]);
-    setSortBy("status_priority");
-  };
-
-  const clearSearch = () => {
-    setSearch("");
-  };
 
   return (
     <>
@@ -1797,7 +1856,7 @@ export default function AdminPage() {
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ display: "grid", gap: 16, width: "100%" }}>
+              <div style={{ display: "grid", gap: 8 }}>
                 <div
                   style={{
                     display: "inline-flex",
@@ -1815,71 +1874,16 @@ export default function AdminPage() {
                   Universal Talent Source
                 </div>
 
-                <div
-                  className="admin-title-search-row"
+                <h1
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "auto minmax(320px, 1fr)",
-                    gap: 450,
-                    alignItems: "start",
-                    width: "100%",
+                    margin: 0,
+                    fontSize: 42,
+                    lineHeight: 1.05,
+                    letterSpacing: "-0.03em",
                   }}
                 >
-                  <h1
-                    style={{
-                      margin: 0,
-                      fontSize: 42,
-                      lineHeight: 1.05,
-                      letterSpacing: "-0.03em",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Admin Panel
-                  </h1>
-
-                  <div
-                    style={{
-                      position: "relative",
-                      width: "100%",
-                    }}
-                  >
-                    <input
-  placeholder="Search by name, email, phone or notes"
-  value={search}
-  onChange={(e) => setSearch(e.target.value)}
-  style={{
-    ...inputStyle,
-    height: 50,
-  }}
-/>
-
-                    {search ? (
-                      <button
-                        type="button"
-                        onClick={clearSearch}
-                        aria-label="Clear search"
-                        style={{
-                          position: "absolute",
-                          right: 10,
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          width: 32,
-                          height: 32,
-                          border: "none",
-                          background: "#f1f5f9",
-                          color: "#334155",
-                          borderRadius: 999,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <X size={16} />
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
+                  Admin Panel
+                </h1>
 
                 <p style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
                   Review, search, filter, sort, and manage both workflow status and pending-pool availability.
@@ -1973,141 +1977,107 @@ export default function AdminPage() {
                 borderRadius: 24,
                 padding: 18,
                 display: "grid",
-                gap: filtersOpen ? 18 : 0,
+                gap: 18,
               }}
             >
+              <div style={{ fontWeight: 900, fontSize: 18 }}>Filters & Sorting</div>
+
               <div
+                className="filters-grid"
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  flexWrap: "wrap",
+                  display: "grid",
+                  gridTemplateColumns: "1.4fr repeat(6, minmax(0, 1fr))",
+                  gap: 14,
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => setFiltersOpen((prev) => !prev)}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    color: "#0f172a",
-                    padding: 0,
-                    fontWeight: 900,
-                    fontSize: 18,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  {filtersOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  Filters & Sorting
-                </button>
+                <input
+                  placeholder="Search by name, email, phone or notes"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={inputStyle}
+                />
 
-                {hasAdvancedFilters ? (
-                  <button
-                    type="button"
-                    onClick={clearAdvancedFilters}
-                    style={{
-                      border: "1px solid #cbd5e1",
-                      background: "#ffffff",
-                      color: "#0f172a",
-                      borderRadius: 14,
-                      padding: "10px 14px",
-                      fontWeight: 800,
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <X size={16} />
-                    Clear filters
-                  </button>
-                ) : null}
+                <select
+                  value={tradeFilter}
+                  onChange={(e) => setTradeFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">All Trades</option>
+                  {trades.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={locationFilter}
+                  onChange={(e) => setLocationFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">All Locations</option>
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="onboarding">OnBoarding</option>
+                  <option value="hold">Hold</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="completed">Completed</option>
+                  <option value="working">Working</option>
+                </select>
+
+                <select
+                  value={recruiterFilter}
+                  onChange={(e) => setRecruiterFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">All Recruiters</option>
+                  <option value="unassigned">Unassigned</option>
+                  {recruiters.map((recruiter) => (
+                    <option key={recruiter.user_id} value={recruiter.user_id}>
+                      {recruiter.full_name || recruiter.email || recruiter.user_id}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={availabilityFilter}
+                  onChange={(e) => setAvailabilityFilter(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">All Pool Availability</option>
+                  <option value="available_soon">Available</option>
+                  <option value="on_project">On Project</option>
+                  <option value="unavailable">Unavailable</option>
+                </select>
+
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="status_priority">Sort: Status Priority</option>
+                  <option value="newest_registered">Sort: Newest Registered</option>
+                  <option value="oldest_registered">Sort: Oldest Registered</option>
+                </select>
               </div>
 
-              {filtersOpen ? (
-                <>
-                  <div
-                    className="filters-grid"
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-                      gap: 14,
-                    }}
-                  >
-                    <select
-                      value={tradeFilter}
-                      onChange={(e) => setTradeFilter(e.target.value)}
-                      style={inputStyle}
-                    >
-                      <option value="">All Trades</option>
-                      {trades.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={locationFilter}
-                      onChange={(e) => setLocationFilter(e.target.value)}
-                      style={inputStyle}
-                    >
-                      <option value="">All Locations</option>
-                      {locations.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      style={inputStyle}
-                    >
-                      <option value="">All Statuses</option>
-                      <option value="pending">Pending</option>
-                      <option value="onboarding">OnBoarding</option>
-                      <option value="hold">Hold</option>
-                      <option value="rejected">Rejected</option>
-                      <option value="completed">Completed</option>
-                      <option value="working">Working</option>
-                    </select>
-
-                    <select
-                      value={availabilityFilter}
-                      onChange={(e) => setAvailabilityFilter(e.target.value)}
-                      style={inputStyle}
-                    >
-                      <option value="">All Pool Availability</option>
-                      <option value="available_soon">Available</option>
-                      <option value="on_project">On Project</option>
-                      <option value="unavailable">Unavailable</option>
-                    </select>
-
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      style={inputStyle}
-                    >
-                      <option value="status_priority">Sort: Status Priority</option>
-                      <option value="newest_registered">Sort: Newest Registered</option>
-                      <option value="oldest_registered">Sort: Oldest Registered</option>
-                    </select>
-                  </div>
-
-                  <SkillMultiFilter
-                    skills={skills}
-                    selectedSkillIds={selectedSkillIds}
-                    setSelectedSkillIds={setSelectedSkillIds}
-                  />
-                </>
-              ) : null}
+              <SkillMultiFilter
+                skills={skills}
+                selectedSkillIds={selectedSkillIds}
+                setSelectedSkillIds={setSelectedSkillIds}
+              />
             </div>
 
             <div style={{ display: "grid", gap: 18 }}>
@@ -2145,9 +2115,10 @@ export default function AdminPage() {
                   <WorkerCard
                     key={w.id}
                     worker={w}
-                    navigate={navigate}
+                    recruiters={recruiters}
                     onStatusSaved={handleStatusSaved}
                     onAvailabilitySaved={handleAvailabilitySaved}
+                    onRecruiterSaved={handleRecruiterSaved}
                     onRecruiterNotesSaved={handleRecruiterNotesSaved}
                     onDocumentsChanged={() => reloadWorkerDocuments(w.id)}
                   />
