@@ -699,6 +699,13 @@ function formatDate(value) {
   return date.toLocaleDateString("en-US");
 }
 
+function formatDateOnly(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-US");
+}
+
 function parseBoolean(value) {
   const raw = String(value || "").trim().toLowerCase();
   return ["true", "yes", "y", "1", "x", "✓", "checked", "now", "wait"].includes(raw);
@@ -1810,6 +1817,13 @@ export default function CtsJobsPage() {
           return priorityA - priorityB;
         }
 
+        const updatedAtA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const updatedAtB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+
+        if (updatedAtA !== updatedAtB) {
+          return updatedAtB - updatedAtA;
+        }
+
         const createdAtA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const createdAtB = b.created_at ? new Date(b.created_at).getTime() : 0;
 
@@ -2063,6 +2077,7 @@ export default function CtsJobsPage() {
                       <th>Language</th>
                       <th>BD Rep</th>
                       <th>Order Date</th>
+                      <th>Modification Date</th>
                       <th>Status</th>
                       <th>Priority</th>
                       <th>Candidates</th>
@@ -2107,6 +2122,7 @@ export default function CtsJobsPage() {
                           <td>{job.language_requirement || "—"}</td>
                           <td>{job.bd_rep || "—"}</td>
                           <td>{formatDate(job.order_date)}</td>
+                          <td>{formatDateOnly(job.updated_at)}</td>
                           <td>
                             <span className="status-pill" style={getStatusStyle(job.status)}>
                               {job.status}

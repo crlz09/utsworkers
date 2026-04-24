@@ -344,9 +344,11 @@ export default function CtsJobDetailPage() {
   const [deleteIds, setDeleteIds] = useState({});
   const [editingFieldKey, setEditingFieldKey] = useState(null);
 
-  const load = async () => {
+  const load = async ({ preserveFeedback = false } = {}) => {
     setLoading(true);
-    setFeedback({ error: "", success: "" });
+    if (!preserveFeedback) {
+      setFeedback({ error: "", success: "" });
+    }
     const [jobRes, candidatesRes] = await Promise.all([
       supabase.from("cts_jobs").select("*").eq("id", jobId).maybeSingle(),
       supabase.from("cts_job_candidates").select("*").eq("cts_job_id", jobId).order("sort_order", { ascending: true }).order("created_at", { ascending: true }),
@@ -376,6 +378,28 @@ export default function CtsJobDetailPage() {
   const assignedWorkerIds = useMemo(() => new Set(jobCandidates.map((item) => item.worker_id).filter(Boolean)), [jobCandidates]);
   const availableWorkersForPicker = useMemo(() => workers.filter((worker) => !assignedWorkerIds.has(worker.id)), [workers, assignedWorkerIds]);
 
+  const touchJobModifiedAt = async (currentJobId) => {
+    const nowIso = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("cts_jobs")
+      .update({ updated_at: nowIso })
+      .eq("id", currentJobId)
+      .select("id, updated_at")
+      .maybeSingle();
+
+    if (error) {
+      return error;
+    }
+
+    if (!data) {
+      return new Error("Could not update job modification date.");
+    }
+
+    setJob((prev) => (prev ? { ...prev, updated_at: data.updated_at || nowIso } : prev));
+
+    return null;
+  };
+
   const addCandidateToJob = async (worker, draft, currentJobState) => {
     if (!currentJobState) return;
     const payload = {
@@ -398,6 +422,12 @@ export default function CtsJobDetailPage() {
     };
     const { error } = await supabase.from("cts_job_candidates").insert(payload);
     if (error) { setFeedback({ error: error.message || "Could not assign worker to CTS job.", success: "" }); return; }
+    const touchError = await touchJobModifiedAt(currentJobState.id);
+    if (touchError) {
+      await load({ preserveFeedback: true });
+      setFeedback({ error: touchError.message || "Candidate added, but job modification date could not be updated.", success: "" });
+      return;
+    }
     setFeedback({ error: "", success: "Candidate added to CTS job." });
     load();
   };
@@ -443,6 +473,13 @@ export default function CtsJobDetailPage() {
       return;
     }
 
+    const touchError = await touchJobModifiedAt(row.cts_job_id);
+    if (touchError) {
+      await load({ preserveFeedback: true });
+      setFeedback({ error: touchError.message || "Field saved, but job modification date could not be updated.", success: "" });
+      return;
+    }
+
     setEditingFieldKey(null);
     setFeedback({ error: "", success: "Field saved." });
     load();
@@ -469,6 +506,8 @@ export default function CtsJobDetailPage() {
     const { error } = await supabase.from("cts_job_candidates").update(payload).eq("id", row.id);
     setSavingIds((prev) => ({ ...prev, [row.id]: false }));
     if (error) { setFeedback({ error: error.message || "Could not save candidate row.", success: "" }); return; }
+    const touchError = await touchJobModifiedAt(row.cts_job_id);
+    if (touchError) { await load({ preserveFeedback: true }); setFeedback({ error: touchError.message || "Candidate row updated, but job modification date could not be updated.", success: "" }); return; }
     setFeedback({ error: "", success: "Candidate row updated." });
     load();
   };
@@ -481,6 +520,8 @@ export default function CtsJobDetailPage() {
     const { error } = await supabase.from("cts_job_candidates").delete().eq("id", row.id);
     setDeleteIds((prev) => ({ ...prev, [row.id]: false }));
     if (error) { setFeedback({ error: error.message || "Could not remove candidate.", success: "" }); return; }
+    const touchError = await touchJobModifiedAt(row.cts_job_id);
+    if (touchError) { await load({ preserveFeedback: true }); setFeedback({ error: touchError.message || "Candidate removed, but job modification date could not be updated.", success: "" }); return; }
     setFeedback({ error: "", success: "Candidate removed from CTS job." });
     load();
   };
