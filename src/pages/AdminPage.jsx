@@ -174,6 +174,11 @@ function PageStyles() {
           padding: 20px !important;
           border-radius: 24px !important;
         }
+
+        .admin-title-search-row {
+          grid-template-columns: 1fr !important;
+          justify-content: stretch !important;
+        }
       }
     `}</style>
   );
@@ -1071,7 +1076,7 @@ function WorkerCard({
 
           <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
             <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 14 }}>
-              Recruiter Owner
+              Recruiter
             </div>
 
             <select
@@ -1621,6 +1626,7 @@ export default function AdminPage() {
   const [skills, setSkills] = useState([]);
   const [recruiters, setRecruiters] = useState([]);
   const [recruiterFilter, setRecruiterFilter] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -1822,6 +1828,25 @@ export default function AdminPage() {
     (w) => w.status === "pending" && w.availability === "unavailable"
   ).length;
 
+  const hasAdvancedFilters =
+    !!tradeFilter ||
+    !!locationFilter ||
+    !!statusFilter ||
+    !!availabilityFilter ||
+    !!recruiterFilter ||
+    selectedSkillIds.length > 0 ||
+    sortBy !== "status_priority";
+
+  const clearAdvancedFilters = () => {
+    setTradeFilter("");
+    setLocationFilter("");
+    setStatusFilter("");
+    setAvailabilityFilter("");
+    setRecruiterFilter("");
+    setSelectedSkillIds([]);
+    setSortBy("status_priority");
+  };
+
   return (
     <>
       <PageStyles />
@@ -1847,16 +1872,17 @@ export default function AdminPage() {
               gap: 24,
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "start",
-                gap: 16,
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "grid", gap: 18 }}>
+              <div
+                className="admin-title-search-row"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "auto minmax(320px, 560px)",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 28,
+                }}
+              >
                 <div
                   style={{
                     display: "inline-flex",
@@ -1874,6 +1900,48 @@ export default function AdminPage() {
                   Universal Talent Source
                 </div>
 
+                <div style={{ position: "relative", width: "100%" }}>
+                  <input
+                    placeholder="Search by name, email, phone or notes"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{
+                      ...inputStyle,
+                      height: 50,
+                      paddingRight: search ? 46 : 14,
+                    }}
+                  />
+
+                  {search ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearch("")}
+                      aria-label="Clear search"
+                      title="Clear search"
+                      style={{
+                        position: "absolute",
+                        right: 10,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 30,
+                        height: 30,
+                        borderRadius: 999,
+                        border: "none",
+                        background: "#f1f5f9",
+                        color: "#334155",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gap: 8 }}>
                 <h1
                   style={{
                     margin: 0,
@@ -1977,107 +2045,154 @@ export default function AdminPage() {
                 borderRadius: 24,
                 padding: 18,
                 display: "grid",
-                gap: 18,
+                gap: filtersOpen ? 18 : 0,
               }}
             >
-              <div style={{ fontWeight: 900, fontSize: 18 }}>Filters & Sorting</div>
-
               <div
-                className="filters-grid"
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.4fr repeat(6, minmax(0, 1fr))",
-                  gap: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
                 }}
               >
-                <input
-                  placeholder="Search by name, email, phone or notes"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={inputStyle}
-                />
-
-                <select
-                  value={tradeFilter}
-                  onChange={(e) => setTradeFilter(e.target.value)}
-                  style={inputStyle}
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen((prev) => !prev)}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    color: "#0f172a",
+                    fontWeight: 900,
+                    fontSize: 18,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: 0,
+                  }}
                 >
-                  <option value="">All Trades</option>
-                  {trades.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
+                  {filtersOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  Filters & Sorting
+                </button>
 
-                <select
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">All Locations</option>
-                  {locations.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">All Statuses</option>
-                  <option value="pending">Pending</option>
-                  <option value="onboarding">OnBoarding</option>
-                  <option value="hold">Hold</option>
-                  <option value="rejected">Rejected</option>
-                  <option value="completed">Completed</option>
-                  <option value="working">Working</option>
-                </select>
-
-                <select
-                  value={recruiterFilter}
-                  onChange={(e) => setRecruiterFilter(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">All Recruiters</option>
-                  <option value="unassigned">Unassigned</option>
-                  {recruiters.map((recruiter) => (
-                    <option key={recruiter.user_id} value={recruiter.user_id}>
-                      {recruiter.full_name || recruiter.email || recruiter.user_id}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={availabilityFilter}
-                  onChange={(e) => setAvailabilityFilter(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">All Pool Availability</option>
-                  <option value="available_soon">Available</option>
-                  <option value="on_project">On Project</option>
-                  <option value="unavailable">Unavailable</option>
-                </select>
-
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="status_priority">Sort: Status Priority</option>
-                  <option value="newest_registered">Sort: Newest Registered</option>
-                  <option value="oldest_registered">Sort: Oldest Registered</option>
-                </select>
+                {filtersOpen && hasAdvancedFilters ? (
+                  <button
+                    type="button"
+                    onClick={clearAdvancedFilters}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      background: "#ffffff",
+                      color: "#0f172a",
+                      borderRadius: 12,
+                      padding: "8px 12px",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <X size={14} />
+                    Clear filters
+                  </button>
+                ) : null}
               </div>
 
-              <SkillMultiFilter
-                skills={skills}
-                selectedSkillIds={selectedSkillIds}
-                setSelectedSkillIds={setSelectedSkillIds}
-              />
+              {filtersOpen ? (
+                <>
+                  <div
+                    className="filters-grid"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+                      gap: 14,
+                    }}
+                  >
+                    <select
+                      value={tradeFilter}
+                      onChange={(e) => setTradeFilter(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">All Trades</option>
+                      {trades.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={locationFilter}
+                      onChange={(e) => setLocationFilter(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">All Locations</option>
+                      {locations.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">All Statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="onboarding">OnBoarding</option>
+                      <option value="hold">Hold</option>
+                      <option value="rejected">Rejected</option>
+                      <option value="completed">Completed</option>
+                      <option value="working">Working</option>
+                    </select>
+
+                    <select
+                      value={recruiterFilter}
+                      onChange={(e) => setRecruiterFilter(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">All Recruiters</option>
+                      <option value="unassigned">Unassigned</option>
+                      {recruiters.map((recruiter) => (
+                        <option key={recruiter.user_id} value={recruiter.user_id}>
+                          {recruiter.full_name || recruiter.email || recruiter.user_id}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={availabilityFilter}
+                      onChange={(e) => setAvailabilityFilter(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">All Pool Availability</option>
+                      <option value="available_soon">Available</option>
+                      <option value="on_project">On Project</option>
+                      <option value="unavailable">Unavailable</option>
+                    </select>
+
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="status_priority">Sort: Status Priority</option>
+                      <option value="newest_registered">Sort: Newest Registered</option>
+                      <option value="oldest_registered">Sort: Oldest Registered</option>
+                    </select>
+                  </div>
+
+                  <SkillMultiFilter
+                    skills={skills}
+                    selectedSkillIds={selectedSkillIds}
+                    setSelectedSkillIds={setSelectedSkillIds}
+                  />
+                </>
+              ) : null}
             </div>
 
             <div style={{ display: "grid", gap: 18 }}>
