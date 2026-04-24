@@ -6,6 +6,7 @@ import {
   History,
   ClipboardList,
   LogOut,
+  Briefcase,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
@@ -14,36 +15,54 @@ export default function UtsTopNavBar() {
   const navigate = useNavigate();
   const location = useLocation();
 
- const navItems = [
-  {
-    label: "Admin",
-    path: "/admin",
-    icon: LayoutDashboard,
-    match: (pathname) => pathname === "/admin",
-  },
-  {
-    label: "Register",
-    path: "/register",
-    icon: UserPlus,
-    match: (pathname) => pathname.startsWith("/register"),
-  },
-  {
-    label: "Interviews",
-    path: "/interviews",
-    icon: History,
-    match: (pathname) => pathname === "/interviews",
-  },
-  {
-    label: "New Interview",
-    path: "/interviews/new",
-    icon: ClipboardList,
-    match: (pathname) => pathname === "/interviews/new",
-  },
-];
+  const routeFlags = {
+    isAdmin: location.pathname === "/admin",
+    isRegister: location.pathname.startsWith("/register"),
+    isInterviews: location.pathname.startsWith("/interviews"),
+    isCtsJobs: location.pathname.startsWith("/cts-jobs"),
+  };
+
+  const navItems = [
+    {
+      label: "Admin",
+      path: "/admin",
+      icon: LayoutDashboard,
+      match: (pathname) => pathname === "/admin",
+    },
+    {
+      label: "Register",
+      path: "/register",
+      icon: UserPlus,
+      match: (pathname) => pathname.startsWith("/register"),
+      openInNewTab: true,
+    },
+    {
+      label: "Interviews",
+      path: "/interviews",
+      icon: History,
+      match: (pathname) => pathname === "/interviews",
+    },
+    
+    {
+      label: "Jobs",
+      path: "/cts-jobs",
+      icon: Briefcase,
+      match: (pathname) => pathname.startsWith("/cts-jobs"),
+    },
+  ];
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = "/login";
+  };
+
+  const handleNavClick = (item) => {
+    if (item.openInNewTab) {
+      window.open(item.path, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    navigate(item.path);
   };
 
   return (
@@ -180,34 +199,40 @@ export default function UtsTopNavBar() {
             <img src={utsLogo} alt="UTS" />
           </div>
 
-          <div className="uts-nav">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = item.match(location.pathname);
+          {!routeFlags.isRegister && (
+            <div className="uts-nav">
+              {navItems
+                .filter((item) => !item.visibleWhen || item.visibleWhen())
+                .map((item) => {
+                  const Icon = item.icon;
+                  const active = item.match(location.pathname);
 
-              return (
-                <button
-                  key={item.path}
-                  type="button"
-                  className={`uts-nav-btn ${active ? "active" : ""}`}
-                  onClick={() => navigate(item.path)}
-                >
-                  <Icon size={16} />
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
+                  return (
+                    <button
+                      key={item.path}
+                      type="button"
+                      className={`uts-nav-btn ${active ? "active" : ""}`}
+                      onClick={() => handleNavClick(item)}
+                    >
+                      <Icon size={16} />
+                      {item.label}
+                    </button>
+                  );
+                })}
+            </div>
+          )}
 
           <div className="uts-topbar-right">
-            <button
-              type="button"
-              className="uts-logout-btn"
-              onClick={handleLogout}
-            >
-              <LogOut size={16} />
-              Logout
-            </button>
+            {routeFlags.isAdmin && (
+              <button
+                type="button"
+                className="uts-logout-btn"
+                onClick={handleLogout}
+              >
+                <LogOut size={16} />
+                Logout
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { useNavigate } from "react-router-dom";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import {
@@ -25,7 +24,6 @@ import {
   Trash2,
   Download,
   ExternalLink,
-  ClipboardList,
   UserPlus,
   History,
 } from "lucide-react";
@@ -756,13 +754,13 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
 
 function WorkerCard({
   worker,
-  navigate,
   onStatusSaved,
   onAvailabilitySaved,
   onRecruiterNotesSaved,
   onDocumentsChanged,
 }) {
-  const [open, setOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
 
   const [status, setStatus] = useState(worker.status || "pending");
   const [savingStatus, setSavingStatus] = useState(false);
@@ -890,30 +888,6 @@ function WorkerCard({
     setSavingNotes(false);
   };
 
-  const startInterview = () => {
-    const speaksSpanish =
-      languages.some((lang) =>
-        String(lang).toLowerCase().includes("spanish")
-      );
-
-    const speaksEnglish =
-      languages.some((lang) =>
-        String(lang).toLowerCase().includes("english")
-      );
-
-    const params = new URLSearchParams({
-      name: worker.name || "",
-      position: worker.trades?.name || "",
-      phone: worker.phone || "",
-      email: worker.email || "",
-      address: worker.locations?.name || "",
-      spanish: speaksSpanish ? "true" : "false",
-      english: speaksEnglish ? "true" : "false",
-    });
-
-    navigate(`/interviews/new?${params.toString()}`);
-  };
-
   const showAvailabilityTag = status === "pending";
 
   return (
@@ -937,9 +911,46 @@ function WorkerCard({
           alignItems: "start",
         }}
       >
-        <div style={{ display: "grid", gap: 10 }}>
-          <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a" }}>
-            {worker.name}
+        <div style={{ display: "grid", gap: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a" }}>
+              {worker.name}
+            </div>
+
+            <button
+              type="button"
+              title="Open public profile"
+              aria-label="Open public profile"
+              onClick={() => {
+                if (!worker.public_profile_slug) {
+                  alert("This worker does not have a public profile slug yet.");
+                  return;
+                }
+                window.open(`/profile/${worker.public_profile_slug}`, "_blank");
+              }}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 12,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                color: "#0f172a",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
+              }}
+            >
+              <ExternalLink size={17} />
+            </button>
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -982,6 +993,21 @@ function WorkerCard({
                 {formatAvailability(availability)}
               </span>
             ) : null}
+          </div>
+
+          <div
+            className="worker-meta"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              gap: 12,
+              marginTop: 4,
+            }}
+          >
+            <MiniMetric label="Total Experience" value={`${worker.total_experience_years || 0} yrs`} />
+            <MiniMetric label="Industrial" value={`${worker.industrial_experience_years || 0} yrs`} />
+            <MiniMetric label="Commercial" value={`${worker.commercial_experience_years || 0} yrs`} />
+            <MiniMetric label="Residential" value={`${worker.residential_experience_years || 0} yrs`} />
           </div>
         </div>
 
@@ -1057,6 +1083,28 @@ function WorkerCard({
               </div>
             ) : null}
           </div>
+
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((prev) => !prev)}
+            style={{
+              border: detailsOpen ? "none" : "1px solid #cbd5e1",
+              background: detailsOpen ? "#0f172a" : "#ffffff",
+              color: detailsOpen ? "#ffffff" : "#0f172a",
+              borderRadius: 14,
+              padding: "12px 16px",
+              fontWeight: 800,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
+            {detailsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            {detailsOpen ? "Hide Details" : "View Details"}
+          </button>
         </div>
       </div>
 
@@ -1123,424 +1171,344 @@ function WorkerCard({
         </div>
       </div>
 
-      <div
-        style={{
-          padding: 16,
-          borderRadius: 18,
-          background: "#f8fafc",
-          border: "1px solid #e2e8f0",
-          display: "grid",
-          gap: 12,
-        }}
-      >
-        <div style={{ fontWeight: 800, color: "#0f172a" }}>Pending Pool Availability</div>
+      {detailsOpen ? (
+        <>
+          <div
+            style={{
+              padding: 16,
+              borderRadius: 18,
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              display: "grid",
+              gap: 12,
+            }}
+          >
+            <div style={{ fontWeight: 800, color: "#0f172a" }}>Pending Pool Availability</div>
 
-        <div
-          className="availability-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 12,
-          }}
-        >
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 700, fontSize: 14 }}>Availability</label>
-            <select
-              value={availability}
-              onChange={(e) => setAvailability(e.target.value)}
-              style={inputStyle}
-              disabled={status !== "pending"}
+            <div
+              className="availability-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: 12,
+              }}
             >
-              <option value="available_soon">Available</option>
-              <option value="on_project">On Project</option>
-              <option value="unavailable">Unavailable</option>
-            </select>
+              <div style={{ display: "grid", gap: 8 }}>
+                <label style={{ fontWeight: 700, fontSize: 14 }}>Availability</label>
+                <select
+                  value={availability}
+                  onChange={(e) => setAvailability(e.target.value)}
+                  style={inputStyle}
+                  disabled={status !== "pending"}
+                >
+                  <option value="available_soon">Available</option>
+                  <option value="on_project">On Project</option>
+                  <option value="unavailable">Unavailable</option>
+                </select>
+              </div>
+
+              <div style={{ display: "grid", gap: 8 }}>
+                <label style={{ fontWeight: 700, fontSize: 14 }}>Available From</label>
+                <input
+                  type="date"
+                  value={availableFrom || ""}
+                  onChange={(e) => setAvailableFrom(e.target.value)}
+                  style={inputStyle}
+                  disabled={status !== "pending"}
+                />
+              </div>
+
+              <div style={{ display: "grid", gap: 8 }}>
+                <label style={{ fontWeight: 700, fontSize: 14 }}>Travel</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (status !== "pending") return;
+                    setWillingToTravel((prev) => !prev);
+                  }}
+                  disabled={status !== "pending"}
+                  style={{
+                    ...inputStyle,
+                    cursor: status !== "pending" ? "not-allowed" : "pointer",
+                    textAlign: "left",
+                    background:
+                      status !== "pending"
+                        ? "#f8fafc"
+                        : willingToTravel
+                        ? "#dcfce7"
+                        : "#fee2e2",
+                    color:
+                      status !== "pending"
+                        ? "#94a3b8"
+                        : willingToTravel
+                        ? "#166534"
+                        : "#991b1b",
+                    border:
+                      status !== "pending"
+                        ? "1px solid #e2e8f0"
+                        : willingToTravel
+                        ? "1px solid #86efac"
+                        : "1px solid #fca5a5",
+                  }}
+                >
+                  {status !== "pending"
+                    ? "Availability controlled only for Pending"
+                    : willingToTravel
+                    ? "Willing to Travel"
+                    : "Not Willing to Travel"}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={saveAvailability}
+                disabled={savingAvailability || status !== "pending"}
+                style={{
+                  border: "none",
+                  background:
+                    savingAvailability || status !== "pending" ? "#94a3b8" : "#0f172a",
+                  color: "#ffffff",
+                  borderRadius: 14,
+                  padding: "12px 16px",
+                  fontWeight: 800,
+                  cursor:
+                    savingAvailability || status !== "pending" ? "not-allowed" : "pointer",
+                }}
+              >
+                {savingAvailability ? "Saving..." : "Save Availability"}
+              </button>
+
+              {status !== "pending" ? (
+                <div
+                  style={{
+                    color: "#64748b",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    alignSelf: "center",
+                  }}
+                >
+                  Availability only applies to workers in Pending.
+                </div>
+              ) : null}
+
+              {availabilityError ? (
+                <div
+                  style={{
+                    color: "#b91c1c",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    alignSelf: "center",
+                  }}
+                >
+                  {availabilityError}
+                </div>
+              ) : null}
+            </div>
           </div>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 700, fontSize: 14 }}>Available From</label>
-            <input
-              type="date"
-              value={availableFrom || ""}
-              onChange={(e) => setAvailableFrom(e.target.value)}
-              style={inputStyle}
-              disabled={status !== "pending"}
+          <div
+            style={{
+              padding: 16,
+              borderRadius: 18,
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              display: "grid",
+              gap: 12,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "#0f172a" }}>
+              <FileText size={16} />
+              <span>Recruiter / Admin Notes</span>
+            </div>
+
+            <textarea
+              value={recruiterNotes}
+              onChange={(e) => setRecruiterNotes(e.target.value)}
+              placeholder="Internal notes about communication, readiness, interview impression, pay expectations, travel flexibility, etc."
+              style={textareaStyle}
+            />
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={saveRecruiterNotes}
+                disabled={savingNotes}
+                style={{
+                  border: "none",
+                  background: savingNotes ? "#94a3b8" : "#0f172a",
+                  color: "#ffffff",
+                  borderRadius: 14,
+                  padding: "12px 16px",
+                  fontWeight: 800,
+                  cursor: savingNotes ? "not-allowed" : "pointer",
+                }}
+              >
+                {savingNotes ? "Saving..." : "Save Notes"}
+              </button>
+
+              {notesError ? (
+                <div
+                  style={{
+                    color: "#b91c1c",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    alignSelf: "center",
+                  }}
+                >
+                  {notesError}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <WorkerDocumentsPanel
+            workerId={worker.id}
+            documents={worker.worker_documents || []}
+            onDocumentsChanged={onDocumentsChanged}
+          />
+
+          <div style={{ display: "grid", gap: 16 }}>
+            <TagRow
+              title="Skills"
+              values={skills}
+              icon={<Wrench size={16} color="#334155" />}
+              emptyLabel="No skills"
+            />
+
+            <TagRow
+              title="Certifications"
+              values={certifications}
+              icon={<ShieldCheck size={16} color="#334155" />}
+              emptyLabel="No certifications"
+            />
+
+            <TagRow
+              title="Languages"
+              values={languages}
+              icon={<Languages size={16} color="#334155" />}
+              emptyLabel="No languages"
             />
           </div>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 700, fontSize: 14 }}>Travel</label>
-            <button
-              type="button"
-              onClick={() => {
-                if (status !== "pending") return;
-                setWillingToTravel((prev) => !prev);
-              }}
-              disabled={status !== "pending"}
-              style={{
-                ...inputStyle,
-                cursor: status !== "pending" ? "not-allowed" : "pointer",
-                textAlign: "left",
-                background:
-                  status !== "pending"
-                    ? "#f8fafc"
-                    : willingToTravel
-                    ? "#dcfce7"
-                    : "#fee2e2",
-                color:
-                  status !== "pending"
-                    ? "#94a3b8"
-                    : willingToTravel
-                    ? "#166534"
-                    : "#991b1b",
-                border:
-                  status !== "pending"
-                    ? "1px solid #e2e8f0"
-                    : willingToTravel
-                    ? "1px solid #86efac"
-                    : "1px solid #fca5a5",
-              }}
-            >
-              {status !== "pending"
-                ? "Availability controlled only for Pending"
-                : willingToTravel
-                ? "Willing to Travel"
-                : "Not Willing to Travel"}
-            </button>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={saveAvailability}
-            disabled={savingAvailability || status !== "pending"}
+          <div
+            className="worker-notes"
             style={{
-              border: "none",
-              background:
-                savingAvailability || status !== "pending" ? "#94a3b8" : "#0f172a",
-              color: "#ffffff",
-              borderRadius: 14,
-              padding: "12px 16px",
-              fontWeight: 800,
-              cursor:
-                savingAvailability || status !== "pending" ? "not-allowed" : "pointer",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 16,
             }}
           >
-            {savingAvailability ? "Saving..." : "Save Availability"}
-          </button>
-
-          {status !== "pending" ? (
-            <div
-              style={{
-                color: "#64748b",
-                fontSize: 13,
-                fontWeight: 700,
-                alignSelf: "center",
-              }}
-            >
-              Availability only applies to workers in Pending.
-            </div>
-          ) : null}
-
-          {availabilityError ? (
-            <div
-              style={{
-                color: "#b91c1c",
-                fontSize: 13,
-                fontWeight: 700,
-                alignSelf: "center",
-              }}
-            >
-              {availabilityError}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div
-        style={{
-          padding: 16,
-          borderRadius: 18,
-          background: "#f8fafc",
-          border: "1px solid #e2e8f0",
-          display: "grid",
-          gap: 12,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "#0f172a" }}>
-          <FileText size={16} />
-          <span>Recruiter / Admin Notes</span>
-        </div>
-
-        <textarea
-          value={recruiterNotes}
-          onChange={(e) => setRecruiterNotes(e.target.value)}
-          placeholder="Internal notes about communication, readiness, interview impression, pay expectations, travel flexibility, etc."
-          style={textareaStyle}
-        />
-
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={saveRecruiterNotes}
-            disabled={savingNotes}
-            style={{
-              border: "none",
-              background: savingNotes ? "#94a3b8" : "#0f172a",
-              color: "#ffffff",
-              borderRadius: 14,
-              padding: "12px 16px",
-              fontWeight: 800,
-              cursor: savingNotes ? "not-allowed" : "pointer",
-            }}
-          >
-            {savingNotes ? "Saving..." : "Save Notes"}
-          </button>
-
-          {notesError ? (
-            <div
-              style={{
-                color: "#b91c1c",
-                fontSize: 13,
-                fontWeight: 700,
-                alignSelf: "center",
-              }}
-            >
-              {notesError}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <WorkerDocumentsPanel
-        workerId={worker.id}
-        documents={worker.worker_documents || []}
-        onDocumentsChanged={onDocumentsChanged}
-      />
-
-      <div
-        className="worker-meta"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: 12,
-        }}
-      >
-        <MiniMetric label="Total Experience" value={`${worker.total_experience_years || 0} yrs`} />
-        <MiniMetric label="Industrial" value={`${worker.industrial_experience_years || 0} yrs`} />
-        <MiniMetric label="Commercial" value={`${worker.commercial_experience_years || 0} yrs`} />
-        <MiniMetric label="Residential" value={`${worker.residential_experience_years || 0} yrs`} />
-      </div>
-
-      <div style={{ display: "grid", gap: 16 }}>
-        <TagRow
-          title="Skills"
-          values={skills}
-          icon={<Wrench size={16} color="#334155" />}
-          emptyLabel="No skills"
-        />
-
-        <TagRow
-          title="Certifications"
-          values={certifications}
-          icon={<ShieldCheck size={16} color="#334155" />}
-          emptyLabel="No certifications"
-        />
-
-        <TagRow
-          title="Languages"
-          values={languages}
-          icon={<Languages size={16} color="#334155" />}
-          emptyLabel="No languages"
-        />
-      </div>
-
-      <div
-        className="worker-notes"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 16,
-        }}
-      >
-        <div
-          style={{
-            padding: 16,
-            borderRadius: 18,
-            background: "#f8fafc",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <div style={fieldGroupTitleStyle()}>Strengths</div>
-          <div style={{ color: "#475569", lineHeight: 1.7 }}>
-            {worker.strengths || "No strengths listed."}
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: 16,
-            borderRadius: 18,
-            background: "#f8fafc",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <div style={fieldGroupTitleStyle()}>Needs Improvement</div>
-          <div style={{ color: "#475569", lineHeight: 1.7 }}>
-            {worker.needs_improvement || "No notes listed."}
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="worker-actions"
-        style={{
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <button
-          type="button"
-          onClick={startInterview}
-          style={{
-            border: "none",
-            background: "#0f172a",
-            color: "#ffffff",
-            borderRadius: 14,
-            padding: "12px 16px",
-            fontWeight: 800,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            width: "fit-content",
-          }}
-        >
-          <ClipboardList size={16} />
-          Start Interview
-        </button>
-
-       {/* BOTON DE REGISTRAR-NO LO NECESITO
-        <button
-          type="button"
-          onClick={() => navigate("/register")}
-          style={{
-            border: "1px solid #cbd5e1",
-            background: "#ffffff",
-            color: "#0f172a",
-            borderRadius: 14,
-            padding: "12px 16px",
-            fontWeight: 800,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            width: "fit-content",
-          }}
-        >
-          <UserPlus size={16} />
-          Register
-        </button>
-*/}
-        <button
-          type="button"
-          onClick={() => {
-            if (!worker.public_profile_slug) {
-              alert("This worker does not have a public profile slug yet.");
-              return;
-            }
-            window.open(`/profile/${worker.public_profile_slug}`, "_blank");
-          }}
-          style={{
-            border: "1px solid #cbd5e1",
-            background: "#ffffff",
-            color: "#0f172a",
-            borderRadius: 14,
-            padding: "12px 16px",
-            fontWeight: 800,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            width: "fit-content",
-          }}
-        >
-          <ExternalLink size={16} />
-          Open Public Profile
-        </button>
-
-        <button
-          onClick={() => setOpen(!open)}
-          style={{
-            border: "1px solid #cbd5e1",
-            background: "#ffffff",
-            color: "#0f172a",
-            borderRadius: 14,
-            padding: "12px 16px",
-            fontWeight: 800,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            width: "fit-content",
-          }}
-        >
-          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          {open ? "Hide Projects" : `Projects (${projects.length})`}
-        </button>
-      </div>
-
-      {open ? (
-        <div style={{ display: "grid", gap: 12 }}>
-          {projects.length === 0 ? (
             <div
               style={{
                 padding: 16,
-                borderRadius: 16,
+                borderRadius: 18,
                 background: "#f8fafc",
-                border: "1px dashed #cbd5e1",
-                color: "#64748b",
+                border: "1px solid #e2e8f0",
               }}
             >
-              No project history found.
-            </div>
-          ) : (
-            projects.map((p) => (
-              <div
-                key={p.id}
-                style={{
-                  background: "#f8fbff",
-                  padding: 16,
-                  borderRadius: 18,
-                  border: "1px solid #dbeafe",
-                  display: "grid",
-                  gap: 8,
-                }}
-              >
-                <div style={{ fontWeight: 900, color: "#0f172a" }}>
-                  {p.project_name || "Untitled project"}
-                </div>
-
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {p.project_location ? (
-                    <span style={pillStyle()}>
-                      <MapPin size={14} />
-                      {p.project_location}
-                    </span>
-                  ) : null}
-
-                  {p.duration ? <span style={pillStyle()}>{p.duration}</span> : null}
-                </div>
-
-                <div style={{ color: "#475569", lineHeight: 1.7 }}>
-                  {p.description || "No description."}
-                </div>
+              <div style={fieldGroupTitleStyle()}>Strengths</div>
+              <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                {worker.strengths || "No strengths listed."}
               </div>
-            ))
-          )}
-        </div>
+            </div>
+
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 18,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+              }}
+            >
+              <div style={fieldGroupTitleStyle()}>Needs Improvement</div>
+              <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                {worker.needs_improvement || "No notes listed."}
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="worker-actions"
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              onClick={() => setProjectsOpen(!projectsOpen)}
+              style={{
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                color: "#0f172a",
+                borderRadius: 14,
+                padding: "12px 16px",
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                width: "fit-content",
+              }}
+            >
+              {projectsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              {projectsOpen ? "Hide Projects" : `Projects (${projects.length})`}
+            </button>
+          </div>
+
+          {projectsOpen ? (
+            <div style={{ display: "grid", gap: 12 }}>
+              {projects.length === 0 ? (
+                <div
+                  style={{
+                    padding: 16,
+                    borderRadius: 16,
+                    background: "#f8fafc",
+                    border: "1px dashed #cbd5e1",
+                    color: "#64748b",
+                  }}
+                >
+                  No project history found.
+                </div>
+              ) : (
+                projects.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      background: "#f8fbff",
+                      padding: 16,
+                      borderRadius: 18,
+                      border: "1px solid #dbeafe",
+                      display: "grid",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                      {p.project_name || "Untitled project"}
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {p.project_location ? (
+                        <span style={pillStyle()}>
+                          <MapPin size={14} />
+                          {p.project_location}
+                        </span>
+                      ) : null}
+
+                      {p.duration ? <span style={pillStyle()}>{p.duration}</span> : null}
+                    </div>
+
+                    <div style={{ color: "#475569", lineHeight: 1.7 }}>
+                      {p.description || "No description."}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
@@ -1548,8 +1516,6 @@ function WorkerCard({
 
 
 export default function AdminPage() {
-  const navigate = useNavigate();
-
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -2016,7 +1982,6 @@ export default function AdminPage() {
                   <WorkerCard
                     key={w.id}
                     worker={w}
-                    navigate={navigate}
                     onStatusSaved={handleStatusSaved}
                     onAvailabilitySaved={handleAvailabilitySaved}
                     onRecruiterNotesSaved={handleRecruiterNotesSaved}
