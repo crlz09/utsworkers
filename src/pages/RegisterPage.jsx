@@ -3,6 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import {
+  findLocationIdByState,
+  lookupUsZipCode,
+  normalizeZipCode,
+} from "../lib/addressLookup";
+import {
   CheckCircle2,
   Loader2,
   ShieldCheck,
@@ -36,6 +41,10 @@ const initialForm = {
   name: "",
   phone: "",
   email: "",
+  address: "",
+  zip_code: "",
+  city: "",
+  state: "",
   trade_id: "",
   location_id: "",
   total_experience_years: "",
@@ -178,6 +187,15 @@ function PageStyles() {
         font: inherit;
       }
 
+      input, textarea, select {
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+      }
+
+      input:focus, textarea:focus, select:focus {
+        border-color: #1f2c40 !important;
+        box-shadow: 0 0 0 4px rgba(31, 44, 64, 0.11);
+      }
+
       input::placeholder, textarea::placeholder {
         color: #94a3b8;
       }
@@ -204,11 +222,17 @@ function PageStyles() {
 
         .panel {
           padding: 20px !important;
-          border-radius: 24px !important;
+          border-radius: 18px !important;
         }
 
         .hero-title {
-          font-size: 30px !important;
+          font-size: 28px !important;
+        }
+
+        .brand-pill {
+          font-size: 15px !important;
+          line-height: 1.2 !important;
+          padding: 8px 14px !important;
         }
       }
     `}</style>
@@ -219,11 +243,23 @@ function inputStyle() {
   return {
     width: "100%",
     padding: "13px 14px",
-    borderRadius: 14,
+    borderRadius: 10,
     border: "1px solid #cbd5e1",
     background: "#ffffff",
     color: "#0f172a",
     outline: "none",
+    boxSizing: "border-box",
+  };
+}
+
+function honeypotStyle() {
+  return {
+    position: "absolute",
+    left: "-10000px",
+    top: "auto",
+    width: 1,
+    height: 1,
+    overflow: "hidden",
   };
 }
 
@@ -629,6 +665,8 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [company, setCompany] = useState("");
+  const [zipLookupStatus, setZipLookupStatus] = useState("");
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -669,6 +707,49 @@ export default function RegisterPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleZipChange = (value) => {
+    const zip = normalizeZipCode(value);
+    handleChange("zip_code", zip);
+    setZipLookupStatus(zip.length === 5 ? "Looking up ZIP..." : "");
+  };
+
+  useEffect(() => {
+    const zip = normalizeZipCode(form.zip_code);
+    if (zip.length !== 5) {
+      return;
+    }
+
+    let active = true;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await lookupUsZipCode(zip);
+        if (!active) return;
+
+        if (!result) {
+          setZipLookupStatus("ZIP not found.");
+          return;
+        }
+
+        const locationId = findLocationIdByState(locationOptions, result.state);
+        setForm((prev) => ({
+          ...prev,
+          city: result.city || prev.city,
+          state: result.state || prev.state,
+          location_id: locationId || prev.location_id,
+        }));
+        setZipLookupStatus("City and state filled from ZIP.");
+      } catch {
+        if (active) setZipLookupStatus("Could not look up ZIP.");
+      }
+    }, 350);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [form.zip_code, locationOptions]);
+
   const resetForm = () => {
     setForm(initialForm);
     setProjects([emptyProject()]);
@@ -677,6 +758,8 @@ export default function RegisterPage() {
     setSelectedCertificationIds([]);
     setTurnstileToken("");
     setTurnstileResetKey((prev) => prev + 1);
+    setCompany("");
+    setZipLookupStatus("");
   };
 
   const handleSubmit = async (e) => {
@@ -734,6 +817,7 @@ export default function RegisterPage() {
               duration: project.project_duration.trim() || "",
               description: project.project_description.trim() || "",
             })),
+            company,
             captchaToken: turnstileToken,
           }),
         }
@@ -790,7 +874,7 @@ export default function RegisterPage() {
               className="panel"
               style={{
                 background: "#ffffff",
-                borderRadius: 30,
+                borderRadius: 20,
                 padding: 32,
                 boxShadow: "0 20px 60px rgba(15, 23, 42, 0.08)",
                 border: "1px solid #dbeafe",
@@ -798,6 +882,7 @@ export default function RegisterPage() {
             >
               <div style={{ marginBottom: 26 }}>
                 <div
+                  className="brand-pill"
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -807,7 +892,8 @@ export default function RegisterPage() {
                     background: "#0f172a",
                     color: "#ffffff",
                     fontWeight: 800,
-                    fontSize: 25,
+                    fontSize: 15,
+                    lineHeight: 1.2,
                     marginBottom: 18,
                   }}
                 >
@@ -819,9 +905,9 @@ export default function RegisterPage() {
                   style={{
                     margin: 0,
                     color: "#0f172a",
-                    fontSize: 42,
-                    lineHeight: 1.05,
-                    letterSpacing: "-0.03em",
+                    fontSize: "clamp(30px, 5vw, 42px)",
+                    lineHeight: 1.08,
+                    letterSpacing: 0,
                   }}
                 >
                   Worker Registration Portal
@@ -843,6 +929,19 @@ export default function RegisterPage() {
               </div>
 
               <form onSubmit={handleSubmit} style={{ display: "grid", gap: 26 }}>
+                <div aria-hidden="true" style={honeypotStyle()}>
+                  <label htmlFor="company-field">Company</label>
+                  <input
+                    id="company-field"
+                    name="company"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                  />
+                </div>
+
                 <div
                   className="two-col"
                   style={{
@@ -875,6 +974,56 @@ export default function RegisterPage() {
                       value={form.email}
                       onChange={(e) => handleChange("email", e.target.value)}
                       placeholder="carlos@email.com"
+                      style={inputStyle()}
+                    />
+                  </Field>
+
+                  <Field label="Street Address">
+                    <input
+                      value={form.address}
+                      onChange={(e) => handleChange("address", e.target.value)}
+                      placeholder="123 Main St"
+                      style={inputStyle()}
+                    />
+                  </Field>
+
+                  <Field label="ZIP Code">
+                    <input
+                      inputMode="numeric"
+                      value={form.zip_code}
+                      onChange={(e) => handleZipChange(e.target.value)}
+                      placeholder="46204"
+                      style={inputStyle()}
+                    />
+                    {zipLookupStatus ? (
+                      <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700 }}>
+                        {zipLookupStatus}
+                      </div>
+                    ) : null}
+                  </Field>
+
+                  <Field label="City">
+                    <input
+                      value={form.city}
+                      onChange={(e) => handleChange("city", e.target.value)}
+                      placeholder="Indianapolis"
+                      style={inputStyle()}
+                    />
+                  </Field>
+
+                  <Field label="State">
+                    <input
+                      value={form.state}
+                      onChange={(e) => {
+                        const state = e.target.value;
+                        const locationId = findLocationIdByState(locationOptions, state);
+                        setForm((prev) => ({
+                          ...prev,
+                          state,
+                          location_id: locationId || prev.location_id,
+                        }));
+                      }}
+                      placeholder="Indiana"
                       style={inputStyle()}
                     />
                   </Field>

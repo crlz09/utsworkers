@@ -80,7 +80,7 @@ export default function UtsTopNavBar() {
         .uts-topbar-inner {
           max-width: 1280px;
           margin: 0 auto;
-          min-height: 78px;
+          min-height: 74px;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -110,6 +110,7 @@ export default function UtsTopNavBar() {
           flex-wrap: wrap;
           justify-content: center;
           flex: 1;
+          min-width: 0;
         }
 
         .uts-nav-btn {
@@ -117,7 +118,7 @@ export default function UtsTopNavBar() {
           background: transparent;
           color: rgba(255,255,255,0.82);
           padding: 12px 14px;
-          border-radius: 12px;
+          border-radius: 10px;
           font-weight: 800;
           font-size: 15px;
           cursor: pointer;
@@ -148,7 +149,7 @@ export default function UtsTopNavBar() {
           border: 1px solid rgba(255,255,255,0.18);
           background: rgba(255,255,255,0.04);
           color: #ffffff;
-          border-radius: 14px;
+          border-radius: 10px;
           padding: 11px 15px;
           font-weight: 800;
           cursor: pointer;
@@ -166,13 +167,14 @@ export default function UtsTopNavBar() {
           .uts-topbar-inner {
             align-items: flex-start;
             flex-direction: column;
-            padding-top: 14px;
-            padding-bottom: 14px;
+            padding-top: 12px;
+            padding-bottom: 12px;
           }
 
           .uts-nav {
             width: 100%;
             justify-content: flex-start;
+            flex-wrap: wrap;
           }
 
           .uts-topbar-right {
@@ -182,6 +184,11 @@ export default function UtsTopNavBar() {
         }
 
         @media (max-width: 640px) {
+          .uts-topbar-inner {
+            gap: 12px;
+            padding-inline: 16px;
+          }
+
           .uts-brand img {
             height: 48px;
           }
@@ -189,6 +196,8 @@ export default function UtsTopNavBar() {
           .uts-nav-btn,
           .uts-logout-btn {
             font-size: 14px;
+            white-space: nowrap;
+            padding: 10px 12px;
           }
         }
       `}</style>

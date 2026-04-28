@@ -776,7 +776,7 @@ export default function RegisterPage() {
                     color: "#0f172a",
                     fontSize: 42,
                     lineHeight: 1.05,
-                    letterSpacing: "-0.03em",
+                    letterSpacing: 0,
                   }}
                 >
                   Worker Registration Portal

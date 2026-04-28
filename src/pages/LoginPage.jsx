@@ -67,7 +67,7 @@ export default function LoginPage() {
   const inputStyle = {
     width: "100%",
     padding: "14px 44px",
-    borderRadius: 14,
+    borderRadius: 10,
     border: "1px solid #cbd5e1",
     outline: "none",
     fontSize: 15,
@@ -136,7 +136,7 @@ export default function LoginPage() {
             width: "100%",
             maxWidth: 430,
             background: "#ffffff",
-            borderRadius: 30,
+            borderRadius: 20,
             padding: 34,
             boxShadow: "0 30px 90px rgba(0,0,0,0.36)",
             display: "grid",
@@ -165,8 +165,8 @@ export default function LoginPage() {
               style={{
                 margin: 0,
                 fontSize: 34,
-                lineHeight: 1.05,
-                letterSpacing: "-0.035em",
+                lineHeight: 1.08,
+                letterSpacing: 0,
                 color: "#0f172a",
               }}
             >

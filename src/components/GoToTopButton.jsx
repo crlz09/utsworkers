@@ -35,7 +35,7 @@ export default function GoToTopButton({
       <style>{`
         .go-to-top-btn {
           position: fixed;
-          z-index: 60;
+          z-index: 35;
           border: none;
           cursor: pointer;
           width: 54px;

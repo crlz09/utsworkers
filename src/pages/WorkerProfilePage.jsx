@@ -1,18 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
-  ArrowLeft,
   Phone,
   Mail,
   MapPin,
   Briefcase,
-  CalendarDays,
   ShieldCheck,
   Wrench,
   Languages,
   FolderKanban,
   Download,
+  Copy,
+  Check,
   ExternalLink,
   FileSpreadsheet,
   StickyNote,
@@ -30,6 +30,14 @@ function PageStyles() {
         color: #0f172a;
       }
 
+      button {
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
       @media (max-width: 950px) {
         .profile-top,
         .profile-meta,
@@ -44,11 +52,17 @@ function PageStyles() {
 
         .profile-panel {
           padding: 20px !important;
-          border-radius: 24px !important;
+          border-radius: 18px !important;
         }
 
         .profile-actions {
           width: 100%;
+          display: grid !important;
+          grid-template-columns: 1fr !important;
+        }
+
+        .profile-title {
+          font-size: 40px !important;
         }
       }
 
@@ -143,7 +157,7 @@ function cardStyle() {
   return {
     background: "#ffffff",
     border: "1px solid #dbeafe",
-    borderRadius: 22,
+    borderRadius: 12,
     padding: 18,
     boxShadow: "0 10px 30px rgba(15, 23, 42, 0.05)",
   };
@@ -253,13 +267,6 @@ function formatAvailability(availability) {
   }
 }
 
-function formatDate(dateString) {
-  if (!dateString) return "—";
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString();
-}
-
 function MiniMetric({ label, value }) {
   return (
     <div
@@ -302,6 +309,18 @@ function TagRow({ title, values, icon, emptyLabel }) {
   );
 }
 
+function formatWorkerAddress(worker) {
+  return [
+    worker?.address,
+    worker?.city,
+    worker?.state,
+    worker?.zip_code,
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
 function ActionButton({ children, onClick, dark = false, icon: Icon }) {
   return (
     <button
@@ -311,7 +330,7 @@ function ActionButton({ children, onClick, dark = false, icon: Icon }) {
         border: dark ? "none" : "1px solid #cbd5e1",
         background: dark ? "#0f172a" : "#ffffff",
         color: dark ? "#ffffff" : "#0f172a",
-        borderRadius: 14,
+        borderRadius: 10,
         padding: "12px 16px",
         fontWeight: 800,
         cursor: "pointer",
@@ -328,11 +347,11 @@ function ActionButton({ children, onClick, dark = false, icon: Icon }) {
 
 export default function WorkerProfilePage() {
   const { slug } = useParams();
-  const navigate = useNavigate();
 
   const [worker, setWorker] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [copiedProfileUrl, setCopiedProfileUrl] = useState(false);
 
   useEffect(() => {
     const loadWorker = async () => {
@@ -365,6 +384,7 @@ export default function WorkerProfilePage() {
   const skills = useMemo(() => worker?.skills || [], [worker]);
   const certifications = useMemo(() => worker?.certifications || [], [worker]);
   const languages = useMemo(() => worker?.languages || [], [worker]);
+  const workerAddress = formatWorkerAddress(worker);
   const recruiterAdminNotes = useMemo(() => {
     if (!worker) return "";
 
@@ -397,6 +417,7 @@ export default function WorkerProfilePage() {
       ["Name", worker.name || ""],
       ["Phone", worker.phone || ""],
       ["Email", worker.email || ""],
+      ["Address", workerAddress || ""],
       ["Trade", worker.trade || ""],
       ["Location", worker.location || ""],
       ["Total Experience (Years)", worker.total_experience_years ?? ""],
@@ -426,6 +447,16 @@ export default function WorkerProfilePage() {
 
   const downloadPdf = () => {
     window.print();
+  };
+
+  const copyProfileUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopiedProfileUrl(true);
+      window.setTimeout(() => setCopiedProfileUrl(false), 1800);
+    } catch {
+      setCopiedProfileUrl(false);
+    }
   };
 
   if (loading) {
@@ -490,7 +521,8 @@ export default function WorkerProfilePage() {
             className="profile-panel"
             style={{
               background: "#ffffff",
-              borderRadius: 30,
+              borderRadius: 20,
+              overflow: "hidden",
               padding: 32,
               boxShadow: "0 20px 60px rgba(15, 23, 42, 0.08)",
               border: "1px solid #dbeafe",
@@ -520,17 +552,19 @@ export default function WorkerProfilePage() {
                     color: "#ffffff",
                     fontWeight: 800,
                     fontSize: 15,
+                    lineHeight: 1.2,
                   }}
                 >
                   Universal Talent Source
                 </div>
 
                 <h1
+                  className="profile-title"
                   style={{
                     margin: 0,
-                    fontSize: 42,
+                    fontSize: "clamp(40px, 6vw, 56px)",
                     lineHeight: 1.05,
-                    letterSpacing: "-0.03em",
+                    letterSpacing: 0,
                   }}
                 >
                   Worker Profile
@@ -545,12 +579,12 @@ export default function WorkerProfilePage() {
                 className="profile-actions no-print"
                 style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
               >
-                <ActionButton onClick={() => navigate(-1)} icon={ArrowLeft}>
-                  Back
-                </ActionButton>
-
                 <ActionButton onClick={exportCsv} icon={FileSpreadsheet}>
                   Export CSV
+                </ActionButton>
+
+                <ActionButton onClick={copyProfileUrl} icon={copiedProfileUrl ? Check : Copy}>
+                  {copiedProfileUrl ? "Copied" : "Copy Link"}
                 </ActionButton>
 
                 <ActionButton onClick={downloadPdf} dark icon={Download}>
@@ -627,8 +661,8 @@ export default function WorkerProfilePage() {
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
-                    <CalendarDays size={15} />
-                    <span>Registered: {formatDate(worker.created_at)}</span>
+                    <MapPin size={15} />
+                    <span>{workerAddress || "No address"}</span>
                   </div>
                 </div>
               </div>

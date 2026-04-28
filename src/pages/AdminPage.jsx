@@ -3,6 +3,11 @@ import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import {
+  findLocationIdByState,
+  lookupUsZipCode,
+  normalizeZipCode,
+} from "../lib/addressLookup";
+import {
   Users,
   Search,
   Loader2,
@@ -23,9 +28,9 @@ import {
   Paperclip,
   Trash2,
   Download,
+  Pencil,
   ExternalLink,
   UserPlus,
-  UserCheck,
   History,
 } from "lucide-react";
 
@@ -43,6 +48,15 @@ function PageStyles() {
 
       input, select, textarea, button {
         font: inherit;
+      }
+
+      input, select, textarea {
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+      }
+
+      input:focus, select:focus, textarea:focus {
+        border-color: #1f2c40 !important;
+        box-shadow: 0 0 0 4px rgba(31, 44, 64, 0.11);
       }
 
       input::placeholder,
@@ -172,12 +186,23 @@ function PageStyles() {
 
         .admin-panel {
           padding: 20px !important;
-          border-radius: 24px !important;
+          border-radius: 18px !important;
         }
 
         .admin-title-search-row {
           grid-template-columns: 1fr !important;
           justify-content: stretch !important;
+        }
+
+        .worker-edit-modal {
+          width: calc(100vw - 28px) !important;
+          max-height: 88dvh !important;
+          padding: 16px !important;
+          gap: 14px !important;
+        }
+
+        .worker-edit-modal textarea {
+          min-height: 88px !important;
         }
       }
     `}</style>
@@ -187,24 +212,26 @@ function PageStyles() {
 const inputStyle = {
   width: "100%",
   padding: "13px 14px",
-  borderRadius: 14,
+  borderRadius: 10,
   border: "1px solid #cbd5e1",
   background: "#ffffff",
   color: "#0f172a",
   outline: "none",
+  boxSizing: "border-box",
 };
 
 const textareaStyle = {
   width: "100%",
   minHeight: 120,
   padding: "13px 14px",
-  borderRadius: 14,
+  borderRadius: 10,
   border: "1px solid #cbd5e1",
   background: "#ffffff",
   color: "#0f172a",
   outline: "none",
   resize: "vertical",
   lineHeight: 1.6,
+  boxSizing: "border-box",
 };
 
 function pillStyle(dark = false) {
@@ -225,7 +252,7 @@ function metricCardStyle() {
   return {
     background: "#ffffff",
     border: "1px solid #dbeafe",
-    borderRadius: 22,
+    borderRadius: 12,
     padding: 18,
     boxShadow: "0 10px 30px rgba(15, 23, 42, 0.05)",
     display: "grid",
@@ -484,6 +511,391 @@ function SkillMultiFilter({ skills, selectedSkillIds, setSelectedSkillIds }) {
         {selectedNames.length === 0
           ? "No skill filters selected."
           : `Selected: ${selectedNames.join(", ")}`}
+      </div>
+    </div>
+  );
+}
+
+function formatWorkerAddress(worker) {
+  return [
+    worker.address,
+    worker.city,
+    worker.state,
+    worker.zip_code,
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name: worker.name || "",
+    phone: worker.phone || "",
+    email: worker.email || "",
+    address: worker.address || "",
+    zip_code: worker.zip_code || "",
+    city: worker.city || "",
+    state: worker.state || "",
+    trade_id: worker.trade_id || "",
+    location_id: worker.location_id || "",
+    total_experience_years: worker.total_experience_years ?? 0,
+    industrial_experience_years: worker.industrial_experience_years ?? 0,
+    commercial_experience_years: worker.commercial_experience_years ?? 0,
+    residential_experience_years: worker.residential_experience_years ?? 0,
+    strengths: worker.strengths || "",
+    needs_improvement: worker.needs_improvement || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [zipLookupStatus, setZipLookupStatus] = useState("");
+
+  const update = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleZipChange = (value) => {
+    const zip = normalizeZipCode(value);
+    update("zip_code", zip);
+    setZipLookupStatus(zip.length === 5 ? "Looking up ZIP..." : "");
+  };
+
+  useEffect(() => {
+    const zip = normalizeZipCode(form.zip_code);
+    if (zip.length !== 5) {
+      return;
+    }
+
+    let active = true;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await lookupUsZipCode(zip);
+        if (!active) return;
+
+        if (!result) {
+          setZipLookupStatus("ZIP not found.");
+          return;
+        }
+
+        const locationId = findLocationIdByState(locations, result.state);
+        setForm((prev) => ({
+          ...prev,
+          city: result.city || prev.city,
+          state: result.state || prev.state,
+          location_id: locationId || prev.location_id,
+        }));
+        setZipLookupStatus("City and state filled from ZIP.");
+      } catch {
+        if (active) setZipLookupStatus("Could not look up ZIP.");
+      }
+    }, 350);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [form.zip_code, locations]);
+
+  const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const save = async () => {
+    setError("");
+
+    if (!form.name.trim() || !form.trade_id || !form.location_id) {
+      setError("Name, trade, and location are required.");
+      return;
+    }
+
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    setSaving(true);
+
+    const payload = {
+      name: form.name.trim(),
+      phone: form.phone.trim() || null,
+      email: form.email.trim() || null,
+      address: form.address.trim() || null,
+      zip_code: form.zip_code.trim() || null,
+      city: form.city.trim() || null,
+      state: form.state.trim() || null,
+      trade_id: form.trade_id,
+      location_id: form.location_id,
+      total_experience_years: toNumber(form.total_experience_years),
+      industrial_experience_years: toNumber(form.industrial_experience_years),
+      commercial_experience_years: toNumber(form.commercial_experience_years),
+      residential_experience_years: toNumber(form.residential_experience_years),
+      strengths: form.strengths.trim() || null,
+      needs_improvement: form.needs_improvement.trim() || null,
+    };
+
+    const { data, error } = await supabase
+      .from("workers")
+      .update(payload)
+      .eq("id", worker.id)
+      .select(`
+        *,
+        trades(name),
+        locations(name),
+        worker_languages(language_name),
+        worker_projects(*),
+        worker_skills(skills(id, name)),
+        worker_certifications(certifications(name)),
+        worker_documents(*)
+      `)
+      .single();
+
+    if (error) {
+      setError(error.message || "Could not update worker.");
+      setSaving(false);
+      return;
+    }
+
+    onSaved(data);
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 60,
+        background: "rgba(15, 23, 42, 0.45)",
+        display: "grid",
+        placeItems: "center",
+        padding: 18,
+      }}
+    >
+      <div
+        className="worker-edit-modal"
+        style={{
+          width: "min(920px, 100%)",
+          maxHeight: "92dvh",
+          overflow: "auto",
+          overscrollBehavior: "contain",
+          background: "#ffffff",
+          borderRadius: 18,
+          border: "1px solid #dbeafe",
+          boxShadow: "0 24px 80px rgba(15, 23, 42, 0.22)",
+          padding: 22,
+          display: "grid",
+          gap: 18,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: "#0f172a" }}>
+              Edit Worker
+            </div>
+            <div style={{ color: "#64748b", fontWeight: 700, marginTop: 4 }}>
+              Update the main profile fields.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close edit worker modal"
+            title="Close"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              border: "1px solid #cbd5e1",
+              background: "#ffffff",
+              color: "#0f172a",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        <div
+          className="filters-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 14,
+          }}
+        >
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>Name</label>
+            <input value={form.name} onChange={(e) => update("name", e.target.value)} style={inputStyle} />
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>Phone</label>
+            <input value={form.phone} onChange={(e) => update("phone", e.target.value)} style={inputStyle} />
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>Email</label>
+            <input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} style={inputStyle} />
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>Street Address</label>
+            <input value={form.address} onChange={(e) => update("address", e.target.value)} style={inputStyle} />
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>ZIP Code</label>
+            <input
+              inputMode="numeric"
+              value={form.zip_code}
+              onChange={(e) => handleZipChange(e.target.value)}
+              style={inputStyle}
+            />
+            {zipLookupStatus ? (
+              <div style={{ color: "#64748b", fontSize: 13, fontWeight: 700 }}>
+                {zipLookupStatus}
+              </div>
+            ) : null}
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>City</label>
+            <input value={form.city} onChange={(e) => update("city", e.target.value)} style={inputStyle} />
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>State</label>
+            <input
+              value={form.state}
+              onChange={(e) => {
+                const state = e.target.value;
+                const locationId = findLocationIdByState(locations, state);
+                setForm((prev) => ({
+                  ...prev,
+                  state,
+                  location_id: locationId || prev.location_id,
+                }));
+              }}
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>Trade</label>
+            <select value={form.trade_id} onChange={(e) => update("trade_id", e.target.value)} style={inputStyle}>
+              <option value="">Select trade</option>
+              {trades.map((trade) => (
+                <option key={trade.id} value={trade.id}>
+                  {trade.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>Location</label>
+            <select value={form.location_id} onChange={(e) => update("location_id", e.target.value)} style={inputStyle}>
+              <option value="">Select location</option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {[
+            ["total_experience_years", "Total Experience"],
+            ["industrial_experience_years", "Industrial"],
+            ["commercial_experience_years", "Commercial"],
+            ["residential_experience_years", "Residential"],
+          ].map(([field, label]) => (
+            <div key={field} style={{ display: "grid", gap: 8 }}>
+              <label style={{ fontWeight: 800, fontSize: 14 }}>{label}</label>
+              <input
+                type="number"
+                min="0"
+                value={form[field]}
+                onChange={(e) => update(field, e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div
+          className="worker-notes"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 14,
+          }}
+        >
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>Strengths</label>
+            <textarea value={form.strengths} onChange={(e) => update("strengths", e.target.value)} style={textareaStyle} />
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ fontWeight: 800, fontSize: 14 }}>Needs Improvement</label>
+            <textarea value={form.needs_improvement} onChange={(e) => update("needs_improvement", e.target.value)} style={textareaStyle} />
+          </div>
+        </div>
+
+        {error ? (
+          <div style={{ color: "#b91c1c", fontWeight: 800 }}>
+            {error}
+          </div>
+        ) : null}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            style={{
+              border: "1px solid #cbd5e1",
+              background: "#ffffff",
+              color: "#0f172a",
+              borderRadius: 14,
+              padding: "12px 16px",
+              fontWeight: 800,
+              cursor: saving ? "not-allowed" : "pointer",
+            }}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            style={{
+              border: "none",
+              background: saving ? "#94a3b8" : "#0f172a",
+              color: "#ffffff",
+              borderRadius: 14,
+              padding: "12px 16px",
+              fontWeight: 800,
+              cursor: saving ? "not-allowed" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {saving ? <Loader2 size={16} className="spin" /> : null}
+            {saving ? "Saving..." : "Save Worker"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -760,15 +1172,21 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
 
 function WorkerCard({
   worker,
+  trades,
+  locations,
   recruiters,
+  permissions,
   onStatusSaved,
   onAvailabilitySaved,
   onRecruiterSaved,
   onRecruiterNotesSaved,
+  onWorkerSaved,
+  onWorkerDeleted,
   onDocumentsChanged,
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const [recruiterUserId, setRecruiterUserId] = useState(worker.recruiter_user_id || "");
   const [savingRecruiter, setSavingRecruiter] = useState(false);
@@ -807,11 +1225,12 @@ function WorkerCard({
     (a, b) => (a.sort_order || 0) - (b.sort_order || 0)
   );
 
-  const assignedRecruiter = recruiters.find(
-    (recruiter) => recruiter.user_id === recruiterUserId
-  );
+  const workerAddress = formatWorkerAddress(worker);
+  const canEditWorkers = !!permissions?.can_edit_workers;
+  const canDeleteWorkers = !!permissions?.can_delete_workers;
 
   const saveRecruiterOwner = async (newRecruiterUserId) => {
+    if (!canEditWorkers) return;
     setRecruiterUserId(newRecruiterUserId);
     setRecruiterError("");
     setSavingRecruiter(true);
@@ -834,6 +1253,7 @@ function WorkerCard({
   };
 
   const saveStatus = async (newStatus) => {
+    if (!canEditWorkers) return;
     setStatus(newStatus);
     setStatusError("");
     setSavingStatus(true);
@@ -877,6 +1297,7 @@ function WorkerCard({
   };
 
   const saveAvailability = async () => {
+    if (!canEditWorkers) return;
     setAvailabilityError("");
     setSavingAvailability(true);
 
@@ -903,6 +1324,7 @@ function WorkerCard({
   };
 
   const saveRecruiterNotes = async () => {
+    if (!canEditWorkers) return;
     setNotesError("");
     setSavingNotes(true);
 
@@ -933,7 +1355,7 @@ function WorkerCard({
       style={{
         background: "#ffffff",
         padding: 22,
-        borderRadius: 24,
+          borderRadius: 16,
         border: "1px solid #dbeafe",
         boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
         display: "grid",
@@ -989,6 +1411,54 @@ function WorkerCard({
             >
               <ExternalLink size={17} />
             </button>
+
+            {canEditWorkers ? (
+              <button
+                type="button"
+                title="Edit worker"
+                aria-label="Edit worker"
+                onClick={() => setEditOpen(true)}
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  border: "1px solid #cbd5e1",
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
+                }}
+              >
+                <Pencil size={17} />
+              </button>
+            ) : null}
+
+            {canDeleteWorkers ? (
+              <button
+                type="button"
+                title="Delete worker"
+                aria-label="Delete worker"
+                onClick={() => onWorkerDeleted(worker)}
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  border: "1px solid #fecaca",
+                  background: "#ffffff",
+                  color: "#b91c1c",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
+                }}
+              >
+                <Trash2 size={17} />
+              </button>
+            ) : null}
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1000,11 +1470,6 @@ function WorkerCard({
             <span style={pillStyle()}>
               <MapPin size={14} />
               {worker.locations?.name || "No location"}
-            </span>
-
-            <span style={pillStyle()}>
-              <UserCheck size={14} />
-              {assignedRecruiter?.full_name || "Unassigned recruiter"}
             </span>
 
             <span
@@ -1074,6 +1539,11 @@ function WorkerCard({
             <span>{worker.email || "No email"}</span>
           </div>
 
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
+            <MapPin size={15} />
+            <span>{workerAddress || "No address"}</span>
+          </div>
+
           <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
             <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 14 }}>
               Recruiter
@@ -1082,12 +1552,12 @@ function WorkerCard({
             <select
               value={recruiterUserId}
               onChange={(e) => saveRecruiterOwner(e.target.value)}
-              disabled={savingRecruiter}
+              disabled={savingRecruiter || !canEditWorkers}
               style={{
                 ...inputStyle,
                 padding: "10px 12px",
-                background: savingRecruiter ? "#f8fafc" : "#ffffff",
-                cursor: savingRecruiter ? "not-allowed" : "pointer",
+                background: savingRecruiter || !canEditWorkers ? "#f8fafc" : "#ffffff",
+                cursor: savingRecruiter || !canEditWorkers ? "not-allowed" : "pointer",
               }}
             >
               <option value="">Unassigned</option>
@@ -1135,12 +1605,12 @@ function WorkerCard({
             <select
               value={status}
               onChange={(e) => saveStatus(e.target.value)}
-              disabled={savingStatus}
+              disabled={savingStatus || !canEditWorkers}
               style={{
                 ...inputStyle,
                 padding: "10px 12px",
-                background: savingStatus ? "#f8fafc" : "#ffffff",
-                cursor: savingStatus ? "not-allowed" : "pointer",
+                background: savingStatus || !canEditWorkers ? "#f8fafc" : "#ffffff",
+                cursor: savingStatus || !canEditWorkers ? "not-allowed" : "pointer",
               }}
             >
               <option value="pending">Pending</option>
@@ -1295,7 +1765,7 @@ function WorkerCard({
                   value={availability}
                   onChange={(e) => setAvailability(e.target.value)}
                   style={inputStyle}
-                  disabled={status !== "pending"}
+                  disabled={status !== "pending" || !canEditWorkers}
                 >
                   <option value="available_soon">Available</option>
                   <option value="on_project">On Project</option>
@@ -1310,7 +1780,7 @@ function WorkerCard({
                   value={availableFrom || ""}
                   onChange={(e) => setAvailableFrom(e.target.value)}
                   style={inputStyle}
-                  disabled={status !== "pending"}
+                  disabled={status !== "pending" || !canEditWorkers}
                 />
               </div>
 
@@ -1319,35 +1789,37 @@ function WorkerCard({
                 <button
                   type="button"
                   onClick={() => {
-                    if (status !== "pending") return;
+                    if (status !== "pending" || !canEditWorkers) return;
                     setWillingToTravel((prev) => !prev);
                   }}
-                  disabled={status !== "pending"}
+                  disabled={status !== "pending" || !canEditWorkers}
                   style={{
                     ...inputStyle,
-                    cursor: status !== "pending" ? "not-allowed" : "pointer",
+                    cursor: status !== "pending" || !canEditWorkers ? "not-allowed" : "pointer",
                     textAlign: "left",
                     background:
-                      status !== "pending"
+                      status !== "pending" || !canEditWorkers
                         ? "#f8fafc"
                         : willingToTravel
                         ? "#dcfce7"
                         : "#fee2e2",
                     color:
-                      status !== "pending"
+                      status !== "pending" || !canEditWorkers
                         ? "#94a3b8"
                         : willingToTravel
                         ? "#166534"
                         : "#991b1b",
                     border:
-                      status !== "pending"
+                      status !== "pending" || !canEditWorkers
                         ? "1px solid #e2e8f0"
                         : willingToTravel
                         ? "1px solid #86efac"
                         : "1px solid #fca5a5",
                   }}
                 >
-                  {status !== "pending"
+                  {!canEditWorkers
+                    ? "View Only"
+                    : status !== "pending"
                     ? "Availability controlled only for Pending"
                     : willingToTravel
                     ? "Willing to Travel"
@@ -1360,17 +1832,21 @@ function WorkerCard({
               <button
                 type="button"
                 onClick={saveAvailability}
-                disabled={savingAvailability || status !== "pending"}
+                disabled={savingAvailability || status !== "pending" || !canEditWorkers}
                 style={{
                   border: "none",
                   background:
-                    savingAvailability || status !== "pending" ? "#94a3b8" : "#0f172a",
+                    savingAvailability || status !== "pending" || !canEditWorkers
+                      ? "#94a3b8"
+                      : "#0f172a",
                   color: "#ffffff",
                   borderRadius: 14,
                   padding: "12px 16px",
                   fontWeight: 800,
                   cursor:
-                    savingAvailability || status !== "pending" ? "not-allowed" : "pointer",
+                    savingAvailability || status !== "pending" || !canEditWorkers
+                      ? "not-allowed"
+                      : "pointer",
                 }}
               >
                 {savingAvailability ? "Saving..." : "Save Availability"}
@@ -1424,21 +1900,22 @@ function WorkerCard({
               onChange={(e) => setRecruiterNotes(e.target.value)}
               placeholder="Internal notes about communication, readiness, interview impression, pay expectations, travel flexibility, etc."
               style={textareaStyle}
+              disabled={!canEditWorkers}
             />
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button
                 type="button"
                 onClick={saveRecruiterNotes}
-                disabled={savingNotes}
+                disabled={savingNotes || !canEditWorkers}
                 style={{
                   border: "none",
-                  background: savingNotes ? "#94a3b8" : "#0f172a",
+                  background: savingNotes || !canEditWorkers ? "#94a3b8" : "#0f172a",
                   color: "#ffffff",
                   borderRadius: 14,
                   padding: "12px 16px",
                   fontWeight: 800,
-                  cursor: savingNotes ? "not-allowed" : "pointer",
+                  cursor: savingNotes || !canEditWorkers ? "not-allowed" : "pointer",
                 }}
               >
                 {savingNotes ? "Saving..." : "Save Notes"}
@@ -1606,6 +2083,16 @@ function WorkerCard({
           ) : null}
         </>
       ) : null}
+
+      {editOpen ? (
+        <WorkerEditModal
+          worker={worker}
+          trades={trades}
+          locations={locations}
+          onClose={() => setEditOpen(false)}
+          onSaved={onWorkerSaved}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1627,6 +2114,10 @@ export default function AdminPage() {
   const [recruiters, setRecruiters] = useState([]);
   const [recruiterFilter, setRecruiterFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_edit_workers: false,
+    can_delete_workers: false,
+  });
 
   useEffect(() => {
     const load = async () => {
@@ -1653,12 +2144,22 @@ export default function AdminPage() {
         .select("id, user_id, full_name, email, is_active")
         .eq("is_active", true)
         .order("full_name", { ascending: true });
+      const permissionsData = await supabase
+        .from("admin_permissions")
+        .select("can_edit_workers, can_delete_workers")
+        .maybeSingle();
 
       if (!error) setWorkers(data || []);
       setTrades(tradesData.data || []);
       setLocations(locationsData.data || []);
       setSkills(skillsData.data || []);
       setRecruiters(recruitersData.data || []);
+      if (!permissionsData.error && permissionsData.data) {
+        setPermissions({
+          can_edit_workers: !!permissionsData.data.can_edit_workers,
+          can_delete_workers: !!permissionsData.data.can_delete_workers,
+        });
+      }
       setLoading(false);
     };
 
@@ -1733,6 +2234,44 @@ export default function AdminPage() {
           : worker
       )
     );
+  };
+
+  const handleWorkerSaved = (updatedWorker) => {
+    setWorkers((prev) =>
+      prev.map((worker) => (worker.id === updatedWorker.id ? updatedWorker : worker))
+    );
+  };
+
+  const handleWorkerDeleted = async (worker) => {
+    if (!permissions.can_delete_workers) return;
+
+    const confirmed = window.confirm(
+      `Delete "${worker.name}"? This will remove the worker profile and related admin data.`
+    );
+    if (!confirmed) return;
+
+    const documentPaths =
+      worker.worker_documents?.map((doc) => doc.file_path).filter(Boolean) || [];
+
+    try {
+      if (documentPaths.length > 0) {
+        const { error: storageError } = await supabase.storage
+          .from("worker-documents")
+          .remove(documentPaths);
+
+        if (storageError) throw storageError;
+      }
+
+      const { error } = await supabase.rpc("delete_worker_admin", {
+        p_worker_id: worker.id,
+      });
+
+      if (error) throw error;
+
+      setWorkers((prev) => prev.filter((item) => item.id !== worker.id));
+    } catch (err) {
+      alert(err.message || "Could not delete worker.");
+    }
   };
 
   const filtered = useMemo(() => {
@@ -1864,7 +2403,7 @@ export default function AdminPage() {
             className="admin-panel"
             style={{
               background: "#ffffff",
-              borderRadius: 30,
+              borderRadius: 20,
               padding: 32,
               boxShadow: "0 20px 60px rgba(15, 23, 42, 0.08)",
               border: "1px solid #dbeafe",
@@ -1945,9 +2484,9 @@ export default function AdminPage() {
                 <h1
                   style={{
                     margin: 0,
-                    fontSize: 42,
-                    lineHeight: 1.05,
-                    letterSpacing: "-0.03em",
+                    fontSize: "clamp(34px, 5vw, 42px)",
+                    lineHeight: 1.08,
+                    letterSpacing: 0,
                   }}
                 >
                   Admin Panel
@@ -2230,11 +2769,16 @@ export default function AdminPage() {
                   <WorkerCard
                     key={w.id}
                     worker={w}
+                    trades={trades}
+                    locations={locations}
                     recruiters={recruiters}
+                    permissions={permissions}
                     onStatusSaved={handleStatusSaved}
                     onAvailabilitySaved={handleAvailabilitySaved}
                     onRecruiterSaved={handleRecruiterSaved}
                     onRecruiterNotesSaved={handleRecruiterNotesSaved}
+                    onWorkerSaved={handleWorkerSaved}
+                    onWorkerDeleted={handleWorkerDeleted}
                     onDocumentsChanged={() => reloadWorkerDocuments(w.id)}
                   />
                 ))

@@ -33,11 +33,7 @@ export default function App() {
       />
       <Route
         path="/profile/:slug"
-        element={
-          <ProtectedRoute>
-            <WorkerProfilePage />
-          </ProtectedRoute>
-        }
+        element={<WorkerProfilePage />}
       />
       <Route
         path="/cts-jobs"
