@@ -17,6 +17,8 @@ import {
   Trash2,
   Save,
   Pencil,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 function PageStyles() {
@@ -56,6 +58,10 @@ function PageStyles() {
       .assigned-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; }
       thead th { position: sticky; top: 0; background: #eff6ff; color: #1e3a8a; text-align: left; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; padding: 14px 16px; border-bottom: 1px solid #bfdbfe; white-space: nowrap; }
       tbody td { background: #ffffff; padding: 16px; border-bottom: 1px solid #e2e8f0; vertical-align: top; white-space: nowrap; width: 1%; }
+      .assigned-table .sticky-name-col { position: sticky; left: 0; z-index: 3; min-width: 220px; width: 220px; box-shadow: 10px 0 18px rgba(15, 23, 42, 0.06); }
+      .assigned-table thead .sticky-name-col { z-index: 5; background: #eff6ff; }
+      .assigned-table tbody .sticky-name-col { background: #ffffff; }
+      .assigned-table tbody tr:hover .sticky-name-col { background: #f8fbff; }
       tbody td.notes-cell { min-width: 280px; width: 280px; white-space: normal; }
       tbody td.actions-cell { min-width: 150px; width: 150px; }
       tbody tr:hover td { background: #f8fbff; }
@@ -152,6 +158,13 @@ const deriveClassLabel = (worker) => worker.trades?.name || "";
 function getAutoWidth(value, minCh = 8, maxCh = 28) {
   const length = String(value || "").length;
   return `${Math.min(Math.max(length + 3, minCh), maxCh)}ch`;
+}
+
+function resetPageScroll() {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
 }
 
 function InlineEditableField({
@@ -340,6 +353,35 @@ export default function CtsJobDetailPage() {
   const [deleteIds, setDeleteIds] = useState({});
   const [editingFieldKey, setEditingFieldKey] = useState(null);
   const [pickerSession, setPickerSession] = useState(0);
+  const [jobHeaderOpen, setJobHeaderOpen] = useState(false);
+
+  useEffect(() => {
+    resetPageScroll();
+    const frame = window.requestAnimationFrame(resetPageScroll);
+    const timeouts = [80, 240, 600].map((delay) =>
+      window.setTimeout(resetPageScroll, delay)
+    );
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      timeouts.forEach((timeout) => window.clearTimeout(timeout));
+    };
+  }, [jobId]);
+
+  useEffect(() => {
+    if (loading || !job) return undefined;
+
+    resetPageScroll();
+    const frame = window.requestAnimationFrame(resetPageScroll);
+    const timeouts = [80, 240, 600].map((delay) =>
+      window.setTimeout(resetPageScroll, delay)
+    );
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      timeouts.forEach((timeout) => window.clearTimeout(timeout));
+    };
+  }, [loading, job]);
 
   const load = useCallback(async ({ preserveFeedback = false } = {}) => {
     setLoading(true);
@@ -530,9 +572,18 @@ export default function CtsJobDetailPage() {
         <div className="page-shell">
           <div className="glass-card card-pad">
             <div className="hero-top">
-              <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <button
+                  className="icon-btn"
+                  type="button"
+                  onClick={() => setJobHeaderOpen((prev) => !prev)}
+                  title={jobHeaderOpen ? "Hide job details" : "Show job details"}
+                  aria-label={jobHeaderOpen ? "Hide job details" : "Show job details"}
+                  style={{ width: 42, height: 42, padding: 0, flexShrink: 0 }}
+                >
+                  {jobHeaderOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
                 <h1 className="title">{job.level_type || "CTS Job Detail"}</h1>
-                <p className="subtitle">Manage candidate assignments and keep a clean CTS-facing submission table for this order.</p>
               </div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <button className="btn white" type="button" onClick={() => navigate("/cts-jobs")}><ArrowLeft size={16} />Back to Jobs</button>
@@ -540,38 +591,42 @@ export default function CtsJobDetailPage() {
               </div>
             </div>
 
-            <div className="summary-grid">
-              <div className="metric-card"><div className="metric-label">Requested Qty</div><div className="metric-value">{job.qty ?? 0}</div></div>
-              <div className="metric-card"><div className="metric-label">Assigned Candidates</div><div className="metric-value">{jobCandidates.length}</div></div>
-              <div className="metric-card"><div className="metric-label">Placed</div><div className="metric-value">{placedCount}</div></div>
-              <div className="metric-card"><div className="metric-label">Remaining to Fill</div><div className="metric-value">{Math.max(Number(job.qty || 0) - placedCount, 0)}</div></div>
-            </div>
-
-            <div className="details-grid">
-              <div className="detail-box">
-                <div style={{ fontWeight: 900, fontSize: 22 }}>Order Snapshot</div>
-                <div className="detail-grid">
-                  <div className="detail-item"><div className="detail-item-label">City</div><div className="detail-item-value">{job.city || "—"}</div></div>
-                  <div className="detail-item"><div className="detail-item-label">State</div><div className="detail-item-value">{job.state || "—"}</div></div>
-                  <div className="detail-item"><div className="detail-item-label">Start</div><div className="detail-item-value">{job.start_text || "—"}</div></div>
-                  <div className="detail-item"><div className="detail-item-label">Language</div><div className="detail-item-value">{job.language_requirement || "—"}</div></div>
-                  <div className="detail-item"><div className="detail-item-label">BD Rep</div><div className="detail-item-value">{job.bd_rep || "—"}</div></div>
-                  <div className="detail-item"><div className="detail-item-label">Order Date</div><div className="detail-item-value">{formatDate(job.order_date)}</div></div>
+            {jobHeaderOpen ? (
+              <>
+                <div className="summary-grid">
+                  <div className="metric-card"><div className="metric-label">Requested Qty</div><div className="metric-value">{job.qty ?? 0}</div></div>
+                  <div className="metric-card"><div className="metric-label">Assigned Candidates</div><div className="metric-value">{jobCandidates.length}</div></div>
+                  <div className="metric-card"><div className="metric-label">Placed</div><div className="metric-value">{placedCount}</div></div>
+                  <div className="metric-card"><div className="metric-label">Remaining to Fill</div><div className="metric-value">{Math.max(Number(job.qty || 0) - placedCount, 0)}</div></div>
                 </div>
-                <div className="detail-item" style={{ marginTop: 4 }}>
-                  <div className="detail-item-label">Details</div>
-                  <div className="detail-item-value" style={{ whiteSpace: "pre-wrap", lineHeight: 1.65 }}>{job.details || "—"}</div>
-                </div>
-              </div>
 
-              <div className="detail-box">
-                <div style={{ fontWeight: 900, fontSize: 22 }}>Internal View</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><span className="status-pill" style={getJobStatusStyle(job.status)}>{job.status}</span></div>
-                <div className="detail-item" style={{ marginTop: 4 }}><div className="detail-item-label">Client</div><div className="detail-item-value">{job.client_name || "CTS"}</div></div>
-                <div className="detail-item"><div className="detail-item-label">Job Code</div><div className="detail-item-value">{job.job_code || "—"}</div></div>
-                <div className="detail-item"><div className="detail-item-label">Internal Notes</div><div className="detail-item-value" style={{ whiteSpace: "pre-wrap", lineHeight: 1.65 }}>{job.internal_notes || "—"}</div></div>
-              </div>
-            </div>
+                <div className="details-grid">
+                  <div className="detail-box">
+                    <div style={{ fontWeight: 900, fontSize: 22 }}>Order Snapshot</div>
+                    <div className="detail-grid">
+                      <div className="detail-item"><div className="detail-item-label">City</div><div className="detail-item-value">{job.city || "—"}</div></div>
+                      <div className="detail-item"><div className="detail-item-label">State</div><div className="detail-item-value">{job.state || "—"}</div></div>
+                      <div className="detail-item"><div className="detail-item-label">Start</div><div className="detail-item-value">{job.start_text || "—"}</div></div>
+                      <div className="detail-item"><div className="detail-item-label">Language</div><div className="detail-item-value">{job.language_requirement || "—"}</div></div>
+                      <div className="detail-item"><div className="detail-item-label">BD Rep</div><div className="detail-item-value">{job.bd_rep || "—"}</div></div>
+                      <div className="detail-item"><div className="detail-item-label">Order Date</div><div className="detail-item-value">{formatDate(job.order_date)}</div></div>
+                    </div>
+                    <div className="detail-item" style={{ marginTop: 4 }}>
+                      <div className="detail-item-label">Details</div>
+                      <div className="detail-item-value" style={{ whiteSpace: "pre-wrap", lineHeight: 1.65 }}>{job.details || "—"}</div>
+                    </div>
+                  </div>
+
+                  <div className="detail-box">
+                    <div style={{ fontWeight: 900, fontSize: 22 }}>Internal View</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><span className="status-pill" style={getJobStatusStyle(job.status)}>{job.status}</span></div>
+                    <div className="detail-item" style={{ marginTop: 4 }}><div className="detail-item-label">Client</div><div className="detail-item-value">{job.client_name || "CTS"}</div></div>
+                    <div className="detail-item"><div className="detail-item-label">Job Code</div><div className="detail-item-value">{job.job_code || "—"}</div></div>
+                    <div className="detail-item"><div className="detail-item-label">Internal Notes</div><div className="detail-item-value" style={{ whiteSpace: "pre-wrap", lineHeight: 1.65 }}>{job.internal_notes || "—"}</div></div>
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
 
           <div className="glass-card card-pad" style={{ maxWidth: "100%", overflow: "hidden" }}>
@@ -596,13 +651,13 @@ export default function CtsJobDetailPage() {
                 <table className="assigned-table">
                   <thead>
                     <tr>
-                      <th>Name</th><th>Phone</th><th>Class</th><th>Local / Travelers</th><th>Location</th><th>English</th><th>On System (CTS)</th><th>Rate</th><th>Per Diem</th><th>Stage</th><th>Notes</th><th>Actions</th>
+                      <th className="sticky-name-col">Name</th><th>Phone</th><th>Class</th><th>Local / Travelers</th><th>Location</th><th>English</th><th>On System (CTS)</th><th>Rate</th><th>Per Diem</th><th>Stage</th><th>Notes</th><th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredCandidates.map((row) => (
                       <tr key={row.id}>
-                        <td><InlineEditableField row={row} field="name_snapshot" value={row.name_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:name_snapshot`]} /></td>
+                        <td className="sticky-name-col"><InlineEditableField row={row} field="name_snapshot" value={row.name_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:name_snapshot`]} /></td>
                         <td><InlineEditableField row={row} field="phone_snapshot" value={row.phone_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:phone_snapshot`]} /></td>
                         <td><InlineEditableField row={row} field="class_snapshot" value={row.class_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:class_snapshot`]} /></td>
                         <td><InlineEditableField row={row} field="local_travelers_snapshot" value={row.local_travelers_snapshot} type="select" options={[{ value: "", label: "—" }, { value: "Local", label: "Local" }, { value: "Traveler", label: "Traveler" }]} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:local_travelers_snapshot`]} /></td>

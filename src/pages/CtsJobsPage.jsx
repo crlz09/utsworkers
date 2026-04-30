@@ -709,13 +709,6 @@ function parseCsvDate(value) {
   return null;
 }
 
-function formatDate(value) {
-  if (!value) return "—";
-  const date = toLocalDate(value);
-  if (!date) return value;
-  return date.toLocaleDateString("en-US");
-}
-
 function formatDateOnly(value) {
   if (!value) return "—";
   const date = new Date(value);
@@ -2098,8 +2091,6 @@ export default function CtsJobsPage() {
                           {allFilteredSelected ? <CheckSquare size={18} /> : <Square size={18} />}
                         </button>
                       </th>
-                      <th>Now</th>
-                      <th>Wait</th>
                       <th>Qty</th>
                       <th>Level / Type</th>
                       <th>City</th>
@@ -2108,7 +2099,6 @@ export default function CtsJobsPage() {
                       <th>Details</th>
                       <th>Language</th>
                       <th>BD Rep</th>
-                      <th>Order Date</th>
                       <th>Modification Date</th>
                       <th>Status</th>
                       <th>Priority</th>
@@ -2137,12 +2127,6 @@ export default function CtsJobsPage() {
                               {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
                             </button>
                           </td>
-                          <td>
-                            {job.is_now ? <span className="flag-pill now">Now</span> : "—"}
-                          </td>
-                          <td>
-                            {job.is_wait ? <span className="flag-pill wait">Wait</span> : "—"}
-                          </td>
                           <td style={{ fontWeight: 900 }}>{job.qty ?? 0}</td>
                           <td>
                             <div style={{ fontWeight: 900, color: "#0f172a" }}>{job.level_type || "—"}</div>
@@ -2158,7 +2142,6 @@ export default function CtsJobsPage() {
                           <td style={{ minWidth: 240 }}>{job.details || "—"}</td>
                           <td>{job.language_requirement || "—"}</td>
                           <td>{job.bd_rep || "—"}</td>
-                          <td>{formatDate(job.order_date)}</td>
                           <td>{formatDateOnly(job.updated_at)}</td>
                           <td>
                             <span className="status-pill" style={getStatusStyle(job.status)}>
