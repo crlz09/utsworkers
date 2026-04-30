@@ -100,14 +100,17 @@ export default function LoginPage() {
     <>
       <style>{`
         .login-page {
+          position: fixed;
+          inset: 0;
           min-height: 100dvh;
           min-height: 100svh;
           width: 100%;
           display: grid;
           place-items: center;
           background: radial-gradient(circle at top, rgba(255,255,255,0.08) 0%, rgba(21,40,55,0) 34%), #152837;
-          padding: calc(22px + env(safe-area-inset-top)) 18px calc(22px + env(safe-area-inset-bottom));
+          padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
           overflow: auto;
+          overscroll-behavior: none;
           font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
@@ -115,17 +118,17 @@ export default function LoginPage() {
           display: grid;
           gap: 24px;
           justify-items: center;
-          width: min(100%, 430px);
+          width: min(100%, 390px);
         }
 
         .login-logo {
-          width: min(280px, 72vw);
+          width: min(240px, 62vw);
           filter: drop-shadow(0 18px 35px rgba(0,0,0,0.25));
         }
 
         .login-card {
           width: 100%;
-          max-width: min(430px, calc(100vw - 32px));
+          max-width: min(390px, calc(100vw - 36px));
           background: #ffffff;
           border-radius: 20px;
           padding: 30px;
@@ -145,22 +148,23 @@ export default function LoginPage() {
         @media (max-width: 640px) {
           .login-page {
             align-items: center;
-            padding-inline: 16px;
+            padding-inline: 14px;
           }
 
           .login-content {
             gap: 18px !important;
-            width: 100%;
+            width: min(100%, 390px) !important;
           }
 
           .login-logo {
-            width: min(230px, 58vw) !important;
+            width: min(210px, 54vw) !important;
           }
 
           .login-card {
-            padding: 24px !important;
-            border-radius: 22px !important;
-            gap: 18px !important;
+            max-width: min(390px, calc(100vw - 36px)) !important;
+            padding: 22px !important;
+            border-radius: 20px !important;
+            gap: 16px !important;
           }
 
           .login-kicker {
@@ -169,7 +173,7 @@ export default function LoginPage() {
           }
 
           .login-title {
-            font-size: 30px !important;
+            font-size: 28px !important;
           }
 
           .login-subtitle {
@@ -194,7 +198,7 @@ export default function LoginPage() {
           }
 
           .login-logo {
-            width: min(190px, 50vw) !important;
+            width: min(170px, 46vw) !important;
           }
         }
       `}</style>
@@ -206,7 +210,7 @@ export default function LoginPage() {
           display: "grid",
           gap: 28,
           justifyItems: "center",
-          width: "100%",
+          width: "min(100%, 390px)",
         }}
       >
         <img
@@ -214,8 +218,8 @@ export default function LoginPage() {
           src="/logo.png"
           alt="UTS Logo"
           style={{
-            width: 300,
-            maxWidth: "90%",
+            width: "min(240px, 62vw)",
+            maxWidth: "100%",
             filter: "drop-shadow(0 18px 35px rgba(0,0,0,0.25))",
           }}
         />
@@ -224,7 +228,7 @@ export default function LoginPage() {
           className="login-card"
           style={{
             width: "100%",
-            maxWidth: "min(430px, calc(100vw - 32px))",
+            maxWidth: "min(390px, calc(100vw - 36px))",
             background: "#ffffff",
             borderRadius: 20,
             padding: 34,

@@ -210,7 +210,8 @@ function PageStyles() {
         }
 
         .admin-shell {
-          padding: 10px 10px calc(28px + env(safe-area-inset-bottom)) !important;
+          padding: 22px 10px calc(28px + env(safe-area-inset-bottom)) !important;
+          scroll-margin-top: 0;
         }
 
         .admin-panel {
@@ -2211,6 +2212,23 @@ export default function AdminPage() {
     can_edit_workers: false,
     can_delete_workers: false,
   });
+
+  useEffect(() => {
+    const resetScroll = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+
+    resetScroll();
+    const frame = window.requestAnimationFrame(resetScroll);
+    const timeout = window.setTimeout(resetScroll, 120);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, []);
 
   useEffect(() => {
     const load = async () => {
