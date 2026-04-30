@@ -79,41 +79,129 @@ export default function LoginPage() {
   if (checkingSession) {
     return (
       <div
-  style={{
-    minHeight: "100dvh",
-    width: "100vw",
-    display: "grid",
-    placeItems: "center",
-    background:
-      "radial-gradient(circle at top, rgba(255,255,255,0.08) 0%, rgba(21,40,55,0) 34%), #152837",
-    padding: 24,
-    fontFamily:
-      'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  }}
->
+        style={{
+          minHeight: "100dvh",
+          width: "100vw",
+          display: "grid",
+          placeItems: "center",
+          background:
+            "radial-gradient(circle at top, rgba(255,255,255,0.08) 0%, rgba(21,40,55,0) 34%), #152837",
+          padding: 24,
+          fontFamily:
+            'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        }}
+      >
         Checking session...
       </div>
     );
   }
 
   return (
-    <div
-  style={{
-    position: "fixed",
-    inset: 0,
-    width: "100vw",
-    height: "100dvh",
-    display: "grid",
-    placeItems: "center",
-    background:
-      "radial-gradient(circle at top, rgba(255,255,255,0.08) 0%, rgba(21,40,55,0) 34%), #152837",
-    padding: 24,
-    overflow: "auto",
-    fontFamily:
-      'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  }}
->
+    <>
+      <style>{`
+        .login-page {
+          min-height: 100dvh;
+          min-height: 100svh;
+          width: 100%;
+          display: grid;
+          place-items: center;
+          background: radial-gradient(circle at top, rgba(255,255,255,0.08) 0%, rgba(21,40,55,0) 34%), #152837;
+          padding: calc(22px + env(safe-area-inset-top)) 18px calc(22px + env(safe-area-inset-bottom));
+          overflow: auto;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .login-content {
+          display: grid;
+          gap: 24px;
+          justify-items: center;
+          width: min(100%, 430px);
+        }
+
+        .login-logo {
+          width: min(280px, 72vw);
+          filter: drop-shadow(0 18px 35px rgba(0,0,0,0.25));
+        }
+
+        .login-card {
+          width: 100%;
+          max-width: min(430px, calc(100vw - 32px));
+          background: #ffffff;
+          border-radius: 20px;
+          padding: 30px;
+          box-shadow: 0 30px 90px rgba(0,0,0,0.36);
+          display: grid;
+          gap: 20px;
+          box-sizing: border-box;
+          border: 1px solid rgba(255,255,255,0.65);
+        }
+
+        @media (display-mode: standalone) {
+          .login-page {
+            min-height: 100vh;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .login-page {
+            align-items: center;
+            padding-inline: 16px;
+          }
+
+          .login-content {
+            gap: 18px !important;
+            width: 100%;
+          }
+
+          .login-logo {
+            width: min(230px, 58vw) !important;
+          }
+
+          .login-card {
+            padding: 24px !important;
+            border-radius: 22px !important;
+            gap: 18px !important;
+          }
+
+          .login-kicker {
+            font-size: 12px !important;
+            padding: 7px 12px !important;
+          }
+
+          .login-title {
+            font-size: 30px !important;
+          }
+
+          .login-subtitle {
+            font-size: 15px !important;
+            line-height: 1.45 !important;
+          }
+
+          .login-input {
+            min-height: 52px;
+            font-size: 16px !important;
+          }
+
+          .login-submit {
+            min-height: 52px;
+            font-size: 16px !important;
+          }
+        }
+
+        @media (max-height: 720px) and (max-width: 640px) {
+          .login-page {
+            place-items: start center;
+          }
+
+          .login-logo {
+            width: min(190px, 50vw) !important;
+          }
+        }
+      `}</style>
+
+      <div className="login-page">
       <div
+        className="login-content"
         style={{
           display: "grid",
           gap: 28,
@@ -122,6 +210,7 @@ export default function LoginPage() {
         }}
       >
         <img
+          className="login-logo"
           src="/logo.png"
           alt="UTS Logo"
           style={{
@@ -132,9 +221,10 @@ export default function LoginPage() {
         />
 
         <div
+          className="login-card"
           style={{
             width: "100%",
-            maxWidth: 430,
+            maxWidth: "min(430px, calc(100vw - 32px))",
             background: "#ffffff",
             borderRadius: 20,
             padding: 34,
@@ -147,6 +237,7 @@ export default function LoginPage() {
         >
           <div>
             <div
+              className="login-kicker"
               style={{
                 display: "inline-flex",
                 padding: "7px 15px",
@@ -162,6 +253,7 @@ export default function LoginPage() {
             </div>
 
             <h1
+              className="login-title"
               style={{
                 margin: 0,
                 fontSize: 34,
@@ -174,6 +266,7 @@ export default function LoginPage() {
             </h1>
 
             <p
+              className="login-subtitle"
               style={{
                 color: "#475569",
                 marginTop: 10,
@@ -204,6 +297,7 @@ export default function LoginPage() {
                   e.target.style.boxShadow = "none";
                 }}
                 style={inputStyle}
+                className="login-input"
               />
             </div>
 
@@ -228,6 +322,7 @@ export default function LoginPage() {
                   ...inputStyle,
                   paddingRight: 48,
                 }}
+                className="login-input"
               />
 
               <button
@@ -269,6 +364,7 @@ export default function LoginPage() {
             ) : null}
 
             <button
+              className="login-submit"
               type="submit"
               disabled={loading}
               onMouseEnter={(e) => {
@@ -301,6 +397,7 @@ export default function LoginPage() {
           </form>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

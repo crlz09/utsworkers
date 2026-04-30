@@ -1,4 +1,4 @@
-const CACHE_VERSION = "uts-pwa-v1";
+const CACHE_VERSION = "uts-pwa-v2";
 const APP_SHELL = [
   "/",
   "/admin",
