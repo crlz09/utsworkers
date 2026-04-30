@@ -8,10 +8,7 @@ import {
   normalizeZipCode,
 } from "../lib/addressLookup";
 import {
-  Users,
-  Search,
   Loader2,
-  FolderKanban,
   Phone,
   Mail,
   ChevronDown,
@@ -172,7 +169,6 @@ function PageStyles() {
         .worker-meta,
         .worker-notes,
         .worker-dates,
-        .availability-grid,
         .document-upload-grid,
         .worker-actions {
           grid-template-columns: 1fr !important;
@@ -511,30 +507,6 @@ function getStatusStyle(status) {
   }
 }
 
-function getAvailabilityStyle(availability) {
-  switch (availability) {
-    case "available_soon":
-      return {
-        background: "#e0f2fe",
-        color: "#0c4a6e",
-        border: "1px solid #7dd3fc",
-      };
-    case "on_project":
-      return {
-        background: "#ede9fe",
-        color: "#5b21b6",
-        border: "1px solid #c4b5fd",
-      };
-    case "unavailable":
-    default:
-      return {
-        background: "#f1f5f9",
-        color: "#334155",
-        border: "1px solid #cbd5e1",
-      };
-  }
-}
-
 function formatStatus(status) {
   switch (status) {
     case "onboarding":
@@ -550,18 +522,6 @@ function formatStatus(status) {
     case "pending":
     default:
       return "Pending";
-  }
-}
-
-function formatAvailability(availability) {
-  switch (availability) {
-    case "available_soon":
-      return "Available";
-    case "on_project":
-      return "On Project";
-    case "unavailable":
-    default:
-      return "Unavailable";
   }
 }
 
@@ -589,18 +549,6 @@ function formatDate(dateString) {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString();
-}
-
-function StatCard({ icon, label, value }) {
-  return (
-    <Card compact style={{ display: "grid", gap: 6 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#334155" }}>
-        {icon}
-        <div style={{ fontWeight: 700 }}>{label}</div>
-      </div>
-      <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a" }}>{value}</div>
-    </Card>
-  );
 }
 
 function MiniMetric({ label, value }) {
@@ -1322,7 +1270,6 @@ function WorkerCard({
   recruiters,
   permissions,
   onStatusSaved,
-  onAvailabilitySaved,
   onRecruiterSaved,
   onRecruiterNotesSaved,
   onWorkerSaved,
@@ -1341,16 +1288,6 @@ function WorkerCard({
   const [savingStatus, setSavingStatus] = useState(false);
   const [statusError, setStatusError] = useState("");
   const [statusUpdatedAt, setStatusUpdatedAt] = useState(worker.status_updated_at);
-
-  const [availability, setAvailability] = useState(
-    worker.availability || "available_soon"
-  );
-  const [availableFrom, setAvailableFrom] = useState(worker.available_from || "");
-  const [willingToTravel, setWillingToTravel] = useState(
-    worker.willing_to_travel ?? true
-  );
-  const [savingAvailability, setSavingAvailability] = useState(false);
-  const [availabilityError, setAvailabilityError] = useState("");
 
   const [recruiterNotes, setRecruiterNotes] = useState(worker.recruiter_notes || "");
   const [notesUpdatedAt, setNotesUpdatedAt] = useState(worker.recruiter_notes_updated_at);
@@ -1416,56 +1353,13 @@ function WorkerCard({
     if (error) {
       setStatusError(error.message || "Could not update status.");
       setStatus(worker.status || "pending");
-      setAvailability(worker.availability || "available_soon");
       setStatusUpdatedAt(worker.status_updated_at);
     } else {
       setStatusUpdatedAt(nowIso);
       onStatusSaved(worker.id, newStatus, nowIso);
-
-      const updatedAvailability =
-        worker.status === "pending" && newStatus !== "pending"
-          ? "unavailable"
-          : newStatus === "pending"
-          ? "available_soon"
-          : availability;
-
-      setAvailability(updatedAvailability);
-
-      onAvailabilitySaved(worker.id, {
-        availability: updatedAvailability,
-        available_from: worker.available_from,
-        willing_to_travel: worker.willing_to_travel,
-      });
     }
 
     setSavingStatus(false);
-  };
-
-  const saveAvailability = async () => {
-    if (!canEditWorkers) return;
-    setAvailabilityError("");
-    setSavingAvailability(true);
-
-    const { error } = await supabase
-      .from("workers")
-      .update({
-        availability,
-        available_from: availableFrom || null,
-        willing_to_travel: willingToTravel,
-      })
-      .eq("id", worker.id);
-
-    if (error) {
-      setAvailabilityError(error.message || "Could not update availability.");
-    } else {
-      onAvailabilitySaved(worker.id, {
-        availability,
-        available_from: availableFrom || null,
-        willing_to_travel: willingToTravel,
-      });
-    }
-
-    setSavingAvailability(false);
   };
 
   const saveRecruiterNotes = async () => {
@@ -1492,8 +1386,6 @@ function WorkerCard({
 
     setSavingNotes(false);
   };
-
-  const showAvailabilityTag = status === "pending";
 
   return (
     <Card
@@ -1576,35 +1468,6 @@ function WorkerCard({
               {worker.locations?.name || "No location"}
             </Pill>
 
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "7px 11px",
-                borderRadius: 999,
-                fontSize: 13,
-                fontWeight: 800,
-                ...getStatusStyle(status),
-              }}
-            >
-              {formatStatus(status)}
-            </span>
-
-            {showAvailabilityTag ? (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "7px 11px",
-                  borderRadius: 999,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  ...getAvailabilityStyle(availability),
-                }}
-              >
-                {formatAvailability(availability)}
-              </span>
-            ) : null}
           </div>
 
           <div
@@ -1646,112 +1509,6 @@ function WorkerCard({
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
             <MapPin size={15} />
             <span>{workerAddress || "No address"}</span>
-          </div>
-
-          <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
-            <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 14 }}>
-              Recruiter
-            </div>
-
-            <select
-              value={recruiterUserId}
-              onChange={(e) => saveRecruiterOwner(e.target.value)}
-              disabled={savingRecruiter || !canEditWorkers}
-              style={{
-                ...inputStyle,
-                padding: "10px 12px",
-                background: savingRecruiter || !canEditWorkers ? "#f8fafc" : "#ffffff",
-                cursor: savingRecruiter || !canEditWorkers ? "not-allowed" : "pointer",
-              }}
-            >
-              <option value="">Unassigned</option>
-              {recruiters.map((recruiter) => (
-                <option key={recruiter.user_id} value={recruiter.user_id}>
-                  {recruiter.full_name || recruiter.email || recruiter.user_id}
-                </option>
-              ))}
-            </select>
-
-            {savingRecruiter ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  color: "#475569",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                <Loader2 size={14} className="spin" />
-                Saving recruiter...
-              </div>
-            ) : null}
-
-            {recruiterError ? (
-              <div
-                style={{
-                  color: "#b91c1c",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                {recruiterError}
-              </div>
-            ) : null}
-          </div>
-
-          <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
-            <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 14 }}>
-              Status
-            </div>
-
-            <select
-              value={status}
-              onChange={(e) => saveStatus(e.target.value)}
-              disabled={savingStatus || !canEditWorkers}
-              style={{
-                ...inputStyle,
-                padding: "10px 12px",
-                background: savingStatus || !canEditWorkers ? "#f8fafc" : "#ffffff",
-                cursor: savingStatus || !canEditWorkers ? "not-allowed" : "pointer",
-              }}
-            >
-              <option value="pending">Pending</option>
-              <option value="onboarding">OnBoarding</option>
-              <option value="hold">Hold</option>
-              <option value="rejected">Rejected</option>
-              <option value="completed">Completed</option>
-              <option value="working">Working</option>
-            </select>
-
-            {savingStatus ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  color: "#475569",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                <Loader2 size={14} className="spin" />
-                Saving status...
-              </div>
-            ) : null}
-
-            {statusError ? (
-              <div
-                style={{
-                  color: "#b91c1c",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                {statusError}
-              </div>
-            ) : null}
           </div>
 
           <Button
@@ -1843,135 +1600,86 @@ function WorkerCard({
               gap: 12,
             }}
           >
-            <div style={{ fontWeight: 800, color: "#0f172a" }}>Pending Pool Availability</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ fontWeight: 800, color: "#0f172a" }}>Workflow</div>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "7px 11px",
+                  borderRadius: 999,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  ...getStatusStyle(status),
+                }}
+              >
+                {formatStatus(status)}
+              </span>
+            </div>
 
             <div
-              className="availability-grid"
+              className="filters-grid"
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
+                gridTemplateColumns: "1fr 1fr",
                 gap: 12,
               }}
             >
-              <div style={{ display: "grid", gap: 8 }}>
-                <label style={{ fontWeight: 700, fontSize: 14 }}>Availability</label>
+              <Field label="Recruiter">
                 <select
-                  value={availability}
-                  onChange={(e) => setAvailability(e.target.value)}
-                  style={inputStyle}
-                  disabled={status !== "pending" || !canEditWorkers}
-                >
-                  <option value="available_soon">Available</option>
-                  <option value="on_project">On Project</option>
-                  <option value="unavailable">Unavailable</option>
-                </select>
-              </div>
-
-              <div style={{ display: "grid", gap: 8 }}>
-                <label style={{ fontWeight: 700, fontSize: 14 }}>Available From</label>
-                <input
-                  type="date"
-                  value={availableFrom || ""}
-                  onChange={(e) => setAvailableFrom(e.target.value)}
-                  style={inputStyle}
-                  disabled={status !== "pending" || !canEditWorkers}
-                />
-              </div>
-
-              <div style={{ display: "grid", gap: 8 }}>
-                <label style={{ fontWeight: 700, fontSize: 14 }}>Travel</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (status !== "pending" || !canEditWorkers) return;
-                    setWillingToTravel((prev) => !prev);
-                  }}
-                  disabled={status !== "pending" || !canEditWorkers}
+                  value={recruiterUserId}
+                  onChange={(e) => saveRecruiterOwner(e.target.value)}
+                  disabled={savingRecruiter || !canEditWorkers}
                   style={{
                     ...inputStyle,
-                    cursor: status !== "pending" || !canEditWorkers ? "not-allowed" : "pointer",
-                    textAlign: "left",
-                    background:
-                      status !== "pending" || !canEditWorkers
-                        ? "#f8fafc"
-                        : willingToTravel
-                        ? "#dcfce7"
-                        : "#fee2e2",
-                    color:
-                      status !== "pending" || !canEditWorkers
-                        ? "#94a3b8"
-                        : willingToTravel
-                        ? "#166534"
-                        : "#991b1b",
-                    border:
-                      status !== "pending" || !canEditWorkers
-                        ? "1px solid #e2e8f0"
-                        : willingToTravel
-                        ? "1px solid #86efac"
-                        : "1px solid #fca5a5",
+                    padding: "10px 12px",
+                    background: savingRecruiter || !canEditWorkers ? "#f8fafc" : "#ffffff",
+                    cursor: savingRecruiter || !canEditWorkers ? "not-allowed" : "pointer",
                   }}
                 >
-                  {!canEditWorkers
-                    ? "View Only"
-                    : status !== "pending"
-                    ? "Availability controlled only for Pending"
-                    : willingToTravel
-                    ? "Willing to Travel"
-                    : "Not Willing to Travel"}
-                </button>
+                  <option value="">Unassigned</option>
+                  {recruiters.map((recruiter) => (
+                    <option key={recruiter.user_id} value={recruiter.user_id}>
+                      {recruiter.full_name || recruiter.email || recruiter.user_id}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Status">
+                <select
+                  value={status}
+                  onChange={(e) => saveStatus(e.target.value)}
+                  disabled={savingStatus || !canEditWorkers}
+                  style={{
+                    ...inputStyle,
+                    padding: "10px 12px",
+                    background: savingStatus || !canEditWorkers ? "#f8fafc" : "#ffffff",
+                    cursor: savingStatus || !canEditWorkers ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="onboarding">OnBoarding</option>
+                  <option value="hold">Hold</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="completed">Completed</option>
+                  <option value="working">Working</option>
+                </select>
+              </Field>
+            </div>
+
+            {savingRecruiter || savingStatus ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569", fontSize: 13, fontWeight: 700 }}>
+                <Loader2 size={14} className="spin" />
+                Saving workflow...
               </div>
-            </div>
+            ) : null}
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={saveAvailability}
-                disabled={savingAvailability || status !== "pending" || !canEditWorkers}
-                style={{
-                  border: "none",
-                  background:
-                    savingAvailability || status !== "pending" || !canEditWorkers
-                      ? "#94a3b8"
-                      : "#0f172a",
-                  color: "#ffffff",
-                  borderRadius: 14,
-                  padding: "12px 16px",
-                  fontWeight: 800,
-                  cursor:
-                    savingAvailability || status !== "pending" || !canEditWorkers
-                      ? "not-allowed"
-                      : "pointer",
-                }}
-              >
-                {savingAvailability ? "Saving..." : "Save Availability"}
-              </button>
-
-              {status !== "pending" ? (
-                <div
-                  style={{
-                    color: "#64748b",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    alignSelf: "center",
-                  }}
-                >
-                  Availability only applies to workers in Pending.
-                </div>
-              ) : null}
-
-              {availabilityError ? (
-                <div
-                  style={{
-                    color: "#b91c1c",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    alignSelf: "center",
-                  }}
-                >
-                  {availabilityError}
-                </div>
-              ) : null}
-            </div>
+            {recruiterError || statusError ? (
+              <div style={{ color: "#b91c1c", fontSize: 13, fontWeight: 700 }}>
+                {recruiterError || statusError}
+              </div>
+            ) : null}
           </div>
 
           <div
@@ -2199,7 +1907,6 @@ export default function AdminPage() {
   const [tradeFilter, setTradeFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [availabilityFilter, setAvailabilityFilter] = useState("");
   const [selectedSkillIds, setSelectedSkillIds] = useState([]);
   const [sortBy, setSortBy] = useState("status_priority");
   const [trades, setTrades] = useState([]);
@@ -2305,21 +2012,6 @@ export default function AdminPage() {
     );
   };
 
-  const handleAvailabilitySaved = (workerId, payload) => {
-    setWorkers((prev) =>
-      prev.map((worker) =>
-        worker.id === workerId
-          ? {
-              ...worker,
-              availability: payload.availability,
-              available_from: payload.available_from,
-              willing_to_travel: payload.willing_to_travel,
-            }
-          : worker
-      )
-    );
-  };
-
   const handleRecruiterSaved = (workerId, recruiterUserId) => {
     setWorkers((prev) =>
       prev.map((worker) =>
@@ -2405,10 +2097,6 @@ export default function AdminPage() {
           ? !w.recruiter_user_id
           : w.recruiter_user_id === recruiterFilter);
 
-      const matchAvailability =
-        !availabilityFilter ||
-        (w.status === "pending" && w.availability === availabilityFilter);
-
       const workerSkillIds =
         w.worker_skills?.map((s) => s.skills?.id).filter(Boolean) || [];
 
@@ -2422,7 +2110,6 @@ export default function AdminPage() {
         matchLocation &&
         matchStatus &&
         matchRecruiter &&
-        matchAvailability &&
         matchSkills
       );
     });
@@ -2449,16 +2136,10 @@ export default function AdminPage() {
     tradeFilter,
     locationFilter,
     statusFilter,
-    availabilityFilter,
     recruiterFilter,
     selectedSkillIds,
     sortBy,
   ]);
-
-  const totalProjects = workers.reduce(
-    (acc, worker) => acc + (worker.worker_projects?.length || 0),
-    0
-  );
 
   const pendingCount = workers.filter((w) => w.status === "pending").length;
   const onboardingCount = workers.filter((w) => w.status === "onboarding").length;
@@ -2467,22 +2148,10 @@ export default function AdminPage() {
   const completedCount = workers.filter((w) => w.status === "completed").length;
   const workingCount = workers.filter((w) => w.status === "working").length;
 
-  const poolCount = pendingCount;
-  const availableCount = workers.filter(
-    (w) => w.status === "pending" && w.availability === "available_soon"
-  ).length;
-  const onProjectCount = workers.filter(
-    (w) => w.status === "pending" && w.availability === "on_project"
-  ).length;
-  const unavailableCount = workers.filter(
-    (w) => w.status === "pending" && w.availability === "unavailable"
-  ).length;
-
   const hasAdvancedFilters =
     !!tradeFilter ||
     !!locationFilter ||
     !!statusFilter ||
-    !!availabilityFilter ||
     !!recruiterFilter ||
     selectedSkillIds.length > 0 ||
     sortBy !== "status_priority";
@@ -2491,7 +2160,6 @@ export default function AdminPage() {
     setTradeFilter("");
     setLocationFilter("");
     setStatusFilter("");
-    setAvailabilityFilter("");
     setRecruiterFilter("");
     setSelectedSkillIds([]);
     setSortBy("status_priority");
@@ -2522,127 +2190,49 @@ export default function AdminPage() {
               gap: 24,
             }}
           >
-            <div style={{ display: "grid", gap: 18 }}>
-              <div
-                className="admin-title-search-row"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "auto minmax(320px, 560px)",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 28,
-                }}
-              >
-                <div
-                  className="admin-kicker"
-                  style={{
-                    display: "inline-flex",
-                    width: "fit-content",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 16px",
-                    borderRadius: 999,
-                    background: "#0f172a",
-                    color: "#ffffff",
-                    fontWeight: 800,
-                    fontSize: 15,
-                  }}
-                >
-                  Universal Talent Source
-                </div>
-
-                <div style={{ position: "relative", width: "100%" }}>
-                  <input
-                    placeholder="Search by name, email, phone or notes"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    style={{
-                      ...inputStyle,
-                      height: 50,
-                      paddingRight: search ? 46 : 14,
-                    }}
-                  />
-
-                  {search ? (
-                    <button
-                      type="button"
-                      onClick={() => setSearch("")}
-                      aria-label="Clear search"
-                      title="Clear search"
-                      style={{
-                        position: "absolute",
-                        right: 10,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        width: 30,
-                        height: 30,
-                        borderRadius: 999,
-                        border: "none",
-                        background: "#f1f5f9",
-                        color: "#334155",
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <X size={16} />
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: 8 }}>
-                <h1
-                  style={{
-                    margin: 0,
-                    fontSize: "clamp(34px, 5vw, 42px)",
-                    lineHeight: 1.08,
-                    letterSpacing: 0,
-                  }}
-                  className="admin-heading"
-                >
-                  Admin Panel
-                </h1>
-
-                <p className="admin-subtitle" style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
-                  Review, search, filter, sort, and manage both workflow status and pending-pool availability.
-                </p>
-              </div>
-            </div>
-
             <div
-              className="stats-grid"
+              className="admin-kicker"
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                gap: 16,
+                display: "inline-flex",
+                width: "fit-content",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 16px",
+                borderRadius: 999,
+                background: "#0f172a",
+                color: "#ffffff",
+                fontWeight: 800,
+                fontSize: 15,
               }}
             >
-              <StatCard
-                icon={<Users size={18} />}
-                label="Total Workers"
-                value={workers.length}
-              />
-              <StatCard
-                icon={<Search size={18} />}
-                label="Filtered Results"
-                value={filtered.length}
-              />
-              <StatCard
-                icon={<FolderKanban size={18} />}
-                label="Projects Logged"
-                value={totalProjects}
-              />
-              <StatCard
-                icon={<ShieldCheck size={18} />}
-                label="Pool"
-                value={poolCount}
-              />
+              Universal Talent Source
+            </div>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: "clamp(34px, 5vw, 42px)",
+                  lineHeight: 1.08,
+                  letterSpacing: 0,
+                }}
+                className="admin-heading"
+              >
+                Admin Panel
+              </h1>
+
+              <p className="admin-subtitle" style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
+                Review, search, filter, sort, and manage workers by workflow status.
+              </p>
             </div>
 
             <div style={{ display: "grid", gap: 12 }}>
-              <div style={{ fontWeight: 800, color: "#0f172a" }}>Workflow Status</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 20 }}>Workflow Status</div>
+                <span style={{ ...pillStyle(true), fontSize: 14 }}>
+                  Total Workers: {workers.length}
+                </span>
+              </div>
               <div className="admin-pill-strip" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <span style={{ ...pillStyle(), ...getStatusStyle("pending") }}>
                   Pending: {pendingCount}
@@ -2665,29 +2255,44 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gap: 12 }}>
-              <div style={{ fontWeight: 800, color: "#0f172a" }}>Pending Pool Availability</div>
-              <div className="admin-pill-strip" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <span
+            <div style={{ position: "relative", width: "100%" }}>
+              <input
+                placeholder="Search by name, email, phone or notes"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  ...inputStyle,
+                  height: 50,
+                  paddingRight: search ? 46 : 14,
+                }}
+              />
+
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label="Clear search"
+                  title="Clear search"
                   style={{
-                    ...pillStyle(),
-                    background: "#dcfce7",
-                    color: "#166534",
-                    border: "1px solid #86efac",
+                    position: "absolute",
+                    right: 10,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 30,
+                    height: 30,
+                    borderRadius: 999,
+                    border: "none",
+                    background: "#f1f5f9",
+                    color: "#334155",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  Pool: {poolCount}
-                </span>
-                <span style={{ ...pillStyle(), ...getAvailabilityStyle("available_soon") }}>
-                  Available: {availableCount}
-                </span>
-                <span style={{ ...pillStyle(), ...getAvailabilityStyle("on_project") }}>
-                  On Project: {onProjectCount}
-                </span>
-                <span style={{ ...pillStyle(), ...getAvailabilityStyle("unavailable") }}>
-                  Unavailable: {unavailableCount}
-                </span>
-              </div>
+                  <X size={16} />
+                </button>
+              ) : null}
             </div>
 
             <div
@@ -2710,25 +2315,30 @@ export default function AdminPage() {
                   flexWrap: "wrap",
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => setFiltersOpen((prev) => !prev)}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    color: "#0f172a",
-                    fontWeight: 900,
-                    fontSize: 18,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: 0,
-                  }}
-                >
-                  {filtersOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  Filters & Sorting
-                </button>
+                <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 900, color: "#0f172a" }}>
+                    Filtered Results: {filtered.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFiltersOpen((prev) => !prev)}
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      color: "#0f172a",
+                      fontWeight: 900,
+                      fontSize: 18,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: 0,
+                    }}
+                  >
+                    {filtersOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    Filters & Sorting
+                  </button>
+                </div>
 
                 {filtersOpen && hasAdvancedFilters ? (
                   <button
@@ -2759,41 +2369,25 @@ export default function AdminPage() {
                     className="filters-grid"
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+                      gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
                       gap: 14,
                     }}
                   >
-                    <select
-                      value={tradeFilter}
-                      onChange={(e) => setTradeFilter(e.target.value)}
-                      style={inputStyle}
-                    >
+                    <select value={tradeFilter} onChange={(e) => setTradeFilter(e.target.value)} style={inputStyle}>
                       <option value="">All Trades</option>
                       {trades.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
+                        <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
 
-                    <select
-                      value={locationFilter}
-                      onChange={(e) => setLocationFilter(e.target.value)}
-                      style={inputStyle}
-                    >
+                    <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} style={inputStyle}>
                       <option value="">All Locations</option>
                       {locations.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name}
-                        </option>
+                        <option key={l.id} value={l.id}>{l.name}</option>
                       ))}
                     </select>
 
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      style={inputStyle}
-                    >
+                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={inputStyle}>
                       <option value="">All Statuses</option>
                       <option value="pending">Pending</option>
                       <option value="onboarding">OnBoarding</option>
@@ -2803,11 +2397,7 @@ export default function AdminPage() {
                       <option value="working">Working</option>
                     </select>
 
-                    <select
-                      value={recruiterFilter}
-                      onChange={(e) => setRecruiterFilter(e.target.value)}
-                      style={inputStyle}
-                    >
+                    <select value={recruiterFilter} onChange={(e) => setRecruiterFilter(e.target.value)} style={inputStyle}>
                       <option value="">All Recruiters</option>
                       <option value="unassigned">Unassigned</option>
                       {recruiters.map((recruiter) => (
@@ -2817,22 +2407,7 @@ export default function AdminPage() {
                       ))}
                     </select>
 
-                    <select
-                      value={availabilityFilter}
-                      onChange={(e) => setAvailabilityFilter(e.target.value)}
-                      style={inputStyle}
-                    >
-                      <option value="">All Pool Availability</option>
-                      <option value="available_soon">Available</option>
-                      <option value="on_project">On Project</option>
-                      <option value="unavailable">Unavailable</option>
-                    </select>
-
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      style={inputStyle}
-                    >
+                    <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={inputStyle}>
                       <option value="status_priority">Sort: Status Priority</option>
                       <option value="newest_registered">Sort: Newest Registered</option>
                       <option value="oldest_registered">Sort: Oldest Registered</option>
@@ -2888,7 +2463,6 @@ export default function AdminPage() {
                     recruiters={recruiters}
                     permissions={permissions}
                     onStatusSaved={handleStatusSaved}
-                    onAvailabilitySaved={handleAvailabilitySaved}
                     onRecruiterSaved={handleRecruiterSaved}
                     onRecruiterNotesSaved={handleRecruiterNotesSaved}
                     onWorkerSaved={handleWorkerSaved}

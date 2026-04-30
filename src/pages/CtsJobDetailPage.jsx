@@ -58,10 +58,13 @@ function PageStyles() {
       .assigned-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; }
       thead th { position: sticky; top: 0; background: #eff6ff; color: #1e3a8a; text-align: left; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; padding: 14px 16px; border-bottom: 1px solid #bfdbfe; white-space: nowrap; }
       tbody td { background: #ffffff; padding: 16px; border-bottom: 1px solid #e2e8f0; vertical-align: top; white-space: nowrap; width: 1%; }
-      .assigned-table .sticky-name-col { position: sticky; left: 0; z-index: 3; min-width: 220px; width: 220px; box-shadow: 10px 0 18px rgba(15, 23, 42, 0.06); }
+      .assigned-table .sticky-name-col { position: sticky; left: 0; z-index: 3; min-width: 150px; width: 150px; max-width: 150px; box-shadow: 10px 0 18px rgba(15, 23, 42, 0.06); white-space: normal; }
       .assigned-table thead .sticky-name-col { z-index: 5; background: #eff6ff; }
       .assigned-table tbody .sticky-name-col { background: #ffffff; }
       .assigned-table tbody tr:hover .sticky-name-col { background: #f8fbff; }
+      .assigned-table .sticky-name-col .inline-field-shell { width: 100%; }
+      .assigned-table .sticky-name-col .inline-read-value { width: 100%; max-width: 126px; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.18; align-items: flex-start; padding-inline: 0; }
+      .assigned-table .sticky-name-col .inline-edit-control { width: 100%; min-width: 116px; max-width: 126px; white-space: normal; }
       tbody td.notes-cell { min-width: 280px; width: 280px; white-space: normal; }
       tbody td.actions-cell { min-width: 150px; width: 150px; }
       tbody tr:hover td { background: #f8fbff; }
