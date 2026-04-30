@@ -30,8 +30,6 @@ import {
   Download,
   Pencil,
   ExternalLink,
-  UserPlus,
-  History,
 } from "lucide-react";
 
 function PageStyles() {
@@ -205,6 +203,122 @@ function PageStyles() {
           min-height: 88px !important;
         }
       }
+
+      @media (max-width: 640px) {
+        body {
+          background: #eff6ff !important;
+        }
+
+        .admin-shell {
+          padding: 10px 10px calc(28px + env(safe-area-inset-bottom)) !important;
+        }
+
+        .admin-panel {
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          gap: 14px !important;
+        }
+
+        .admin-dashboard {
+          gap: 12px !important;
+        }
+
+        .admin-kicker {
+          font-size: 13px !important;
+          padding: 7px 12px !important;
+        }
+
+        .admin-heading {
+          font-size: 30px !important;
+        }
+
+        .admin-subtitle {
+          font-size: 15px !important;
+          line-height: 1.45 !important;
+        }
+
+        .stats-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          gap: 8px !important;
+        }
+
+        .stats-grid > div {
+          padding: 12px !important;
+        }
+
+        .admin-pill-strip {
+          flex-wrap: nowrap !important;
+          overflow-x: auto;
+          padding-bottom: 2px;
+          scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .admin-pill-strip::-webkit-scrollbar {
+          display: none;
+        }
+
+        .admin-pill-strip > span {
+          flex: 0 0 auto;
+        }
+
+        .filters-card {
+          border-radius: 18px !important;
+          padding: 14px !important;
+        }
+
+        .worker-card {
+          border-radius: 14px !important;
+          padding: 14px !important;
+        }
+
+        .worker-meta {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .worker-contact-panel {
+          border-radius: 14px !important;
+        }
+
+        .worker-dates {
+          display: none !important;
+        }
+
+        .worker-card-title-row {
+          grid-template-columns: 1fr !important;
+        }
+
+        .worker-card-actions {
+          justify-content: flex-start !important;
+        }
+      }
+
+      @media (min-width: 951px) {
+        .worker-card {
+          padding: 16px !important;
+          gap: 12px !important;
+        }
+
+        .worker-top {
+          grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr) !important;
+          gap: 14px !important;
+        }
+
+        .worker-meta {
+          gap: 8px !important;
+        }
+
+        .worker-dates {
+          gap: 8px !important;
+        }
+
+        .worker-dates > div {
+          padding: 10px 12px !important;
+          border-radius: 10px !important;
+        }
+      }
     `}</style>
   );
 }
@@ -248,16 +362,102 @@ function pillStyle(dark = false) {
   };
 }
 
-function metricCardStyle() {
-  return {
-    background: "#ffffff",
-    border: "1px solid #dbeafe",
-    borderRadius: 12,
-    padding: 18,
-    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.05)",
-    display: "grid",
-    gap: 8,
-  };
+function Card({ children, className = "", compact = false, style = {} }) {
+  return (
+    <div
+      className={className}
+      style={{
+        background: "#ffffff",
+        border: "1px solid #dbeafe",
+        borderRadius: 12,
+        padding: compact ? 14 : 18,
+        boxShadow: "0 10px 30px rgba(15, 23, 42, 0.05)",
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Pill({ children, dark = false, style = {} }) {
+  return <span style={{ ...pillStyle(dark), ...style }}>{children}</span>;
+}
+
+function Field({ label, children, style = {} }) {
+  return (
+    <div style={{ display: "grid", gap: 7, ...style }}>
+      <label style={{ fontWeight: 800, fontSize: 13, color: "#0f172a" }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function Button({
+  children,
+  onClick,
+  type = "button",
+  disabled = false,
+  tone = "neutral",
+  icon: Icon,
+  iconClassName,
+  title,
+  ariaLabel,
+  style = {},
+  ...buttonProps
+}) {
+  const isDark = tone === "dark";
+  const isDanger = tone === "danger";
+
+  return (
+    <button
+      type={type}
+      title={title}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      disabled={disabled}
+      {...buttonProps}
+      style={{
+        border: isDark
+          ? "none"
+          : isDanger
+          ? "1px solid #fecaca"
+          : "1px solid #cbd5e1",
+        background: disabled ? "#f8fafc" : isDark ? "#0f172a" : "#ffffff",
+        color: disabled ? "#94a3b8" : isDanger ? "#b91c1c" : isDark ? "#ffffff" : "#0f172a",
+        borderRadius: 10,
+        padding: children ? "10px 13px" : 0,
+        fontWeight: 800,
+        cursor: disabled ? "not-allowed" : "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        ...style,
+      }}
+    >
+      {Icon ? <Icon size={16} className={iconClassName} /> : null}
+      {children}
+    </button>
+  );
+}
+
+function IconButton({ icon: Icon, tone = "neutral", ...props }) {
+  return (
+    <Button
+      tone={tone}
+      icon={Icon}
+      style={{
+        width: 34,
+        height: 34,
+        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.05)",
+        ...props.style,
+      }}
+      {...props}
+    />
+  );
 }
 
 function fieldGroupTitleStyle() {
@@ -392,13 +592,13 @@ function formatDate(dateString) {
 
 function StatCard({ icon, label, value }) {
   return (
-    <div style={metricCardStyle()}>
+    <Card compact style={{ display: "grid", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#334155" }}>
         {icon}
         <div style={{ fontWeight: 700 }}>{label}</div>
       </div>
       <div style={{ fontSize: 30, fontWeight: 900, color: "#0f172a" }}>{value}</div>
-    </div>
+    </Card>
   );
 }
 
@@ -406,8 +606,8 @@ function MiniMetric({ label, value }) {
   return (
     <div
       style={{
-        padding: 14,
-        borderRadius: 16,
+        padding: "10px 12px",
+        borderRadius: 10,
         background: "#f8fafc",
         border: "1px solid #e2e8f0",
       }}
@@ -433,9 +633,9 @@ function TagRow({ title, values, icon, emptyLabel }) {
           <span style={{ color: "#64748b" }}>{emptyLabel}</span>
         ) : (
           values.map((value) => (
-            <span key={`${title}-${value}`} style={pillStyle()}>
+            <Pill key={`${title}-${value}`}>
               {value}
-            </span>
+            </Pill>
           ))
         )}
       </div>
@@ -460,25 +660,14 @@ function SkillMultiFilter({ skills, selectedSkillIds, setSelectedSkillIds }) {
         <div style={{ fontWeight: 800, color: "#0f172a" }}>Skills</div>
 
         {selectedSkillIds.length > 0 ? (
-          <button
+          <Button
             type="button"
             onClick={() => setSelectedSkillIds([])}
-            style={{
-              border: "1px solid #cbd5e1",
-              background: "#ffffff",
-              color: "#0f172a",
-              borderRadius: 12,
-              padding: "8px 12px",
-              fontWeight: 700,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-            }}
+            icon={X}
+            style={{ padding: "8px 12px", fontWeight: 700 }}
           >
-            <X size={14} />
             Clear skills
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -702,26 +891,13 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
             </div>
           </div>
 
-          <button
-            type="button"
+          <IconButton
+            icon={X}
             onClick={onClose}
-            aria-label="Close edit worker modal"
+            ariaLabel="Close edit worker modal"
             title="Close"
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 12,
-              border: "1px solid #cbd5e1",
-              background: "#ffffff",
-              color: "#0f172a",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <X size={17} />
-          </button>
+            style={{ width: 38, height: 38 }}
+          />
         </div>
 
         <div
@@ -732,28 +908,23 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
             gap: 14,
           }}
         >
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>Name</label>
+          <Field label="Name">
             <input value={form.name} onChange={(e) => update("name", e.target.value)} style={inputStyle} />
-          </div>
+          </Field>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>Phone</label>
+          <Field label="Phone">
             <input value={form.phone} onChange={(e) => update("phone", e.target.value)} style={inputStyle} />
-          </div>
+          </Field>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>Email</label>
+          <Field label="Email">
             <input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} style={inputStyle} />
-          </div>
+          </Field>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>Street Address</label>
+          <Field label="Street Address">
             <input value={form.address} onChange={(e) => update("address", e.target.value)} style={inputStyle} />
-          </div>
+          </Field>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>ZIP Code</label>
+          <Field label="ZIP Code">
             <input
               inputMode="numeric"
               value={form.zip_code}
@@ -765,15 +936,13 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
                 {zipLookupStatus}
               </div>
             ) : null}
-          </div>
+          </Field>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>City</label>
+          <Field label="City">
             <input value={form.city} onChange={(e) => update("city", e.target.value)} style={inputStyle} />
-          </div>
+          </Field>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>State</label>
+          <Field label="State">
             <input
               value={form.state}
               onChange={(e) => {
@@ -787,10 +956,9 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
               }}
               style={inputStyle}
             />
-          </div>
+          </Field>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>Trade</label>
+          <Field label="Trade">
             <select value={form.trade_id} onChange={(e) => update("trade_id", e.target.value)} style={inputStyle}>
               <option value="">Select trade</option>
               {trades.map((trade) => (
@@ -799,10 +967,9 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
                 </option>
               ))}
             </select>
-          </div>
+          </Field>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>Location</label>
+          <Field label="Location">
             <select value={form.location_id} onChange={(e) => update("location_id", e.target.value)} style={inputStyle}>
               <option value="">Select location</option>
               {locations.map((location) => (
@@ -811,7 +978,7 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
                 </option>
               ))}
             </select>
-          </div>
+          </Field>
 
           {[
             ["total_experience_years", "Total Experience"],
@@ -819,8 +986,7 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
             ["commercial_experience_years", "Commercial"],
             ["residential_experience_years", "Residential"],
           ].map(([field, label]) => (
-            <div key={field} style={{ display: "grid", gap: 8 }}>
-              <label style={{ fontWeight: 800, fontSize: 14 }}>{label}</label>
+            <Field key={field} label={label}>
               <input
                 type="number"
                 min="0"
@@ -828,7 +994,7 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
                 onChange={(e) => update(field, e.target.value)}
                 style={inputStyle}
               />
-            </div>
+            </Field>
           ))}
         </div>
 
@@ -840,15 +1006,13 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
             gap: 14,
           }}
         >
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>Strengths</label>
+          <Field label="Strengths">
             <textarea value={form.strengths} onChange={(e) => update("strengths", e.target.value)} style={textareaStyle} />
-          </div>
+          </Field>
 
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ fontWeight: 800, fontSize: 14 }}>Needs Improvement</label>
+          <Field label="Needs Improvement">
             <textarea value={form.needs_improvement} onChange={(e) => update("needs_improvement", e.target.value)} style={textareaStyle} />
-          </div>
+          </Field>
         </div>
 
         {error ? (
@@ -858,43 +1022,22 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
         ) : null}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
-          <button
-            type="button"
+          <Button
             onClick={onClose}
             disabled={saving}
-            style={{
-              border: "1px solid #cbd5e1",
-              background: "#ffffff",
-              color: "#0f172a",
-              borderRadius: 14,
-              padding: "12px 16px",
-              fontWeight: 800,
-              cursor: saving ? "not-allowed" : "pointer",
-            }}
           >
             Cancel
-          </button>
+          </Button>
 
-          <button
-            type="button"
+          <Button
             onClick={save}
             disabled={saving}
-            style={{
-              border: "none",
-              background: saving ? "#94a3b8" : "#0f172a",
-              color: "#ffffff",
-              borderRadius: 14,
-              padding: "12px 16px",
-              fontWeight: 800,
-              cursor: saving ? "not-allowed" : "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-            }}
+            tone="dark"
+            icon={saving ? Loader2 : null}
+            iconClassName={saving ? "spin" : undefined}
           >
-            {saving ? <Loader2 size={16} className="spin" /> : null}
             {saving ? "Saving..." : "Save Worker"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -1082,6 +1225,7 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
 
       {error ? (
         <div
+          className="worker-contact-panel"
           style={{
             padding: "12px 14px",
             borderRadius: 14,
@@ -1351,15 +1495,12 @@ function WorkerCard({
   const showAvailabilityTag = status === "pending";
 
   return (
-    <div
+    <Card
+      className="worker-card"
+      compact
       style={{
-        background: "#ffffff",
-        padding: 22,
-          borderRadius: 16,
-        border: "1px solid #dbeafe",
-        boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
         display: "grid",
-        gap: 18,
+        gap: 14,
       }}
     >
       <div
@@ -1373,19 +1514,24 @@ function WorkerCard({
       >
         <div style={{ display: "grid", gap: 12 }}>
           <div
+            className="worker-card-title-row"
             style={{
-              display: "flex",
-              alignItems: "center",
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) auto",
               gap: 10,
-              flexWrap: "wrap",
+              alignItems: "start",
             }}
           >
-            <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a" }}>
+            <div style={{ minWidth: 0, fontSize: 24, lineHeight: 1.15, fontWeight: 900, color: "#0f172a" }}>
               {worker.name}
             </div>
 
-            <button
-              type="button"
+            <div
+              className="worker-card-actions"
+              style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}
+            >
+            <IconButton
+              icon={ExternalLink}
               title="Open public profile"
               aria-label="Open public profile"
               onClick={() => {
@@ -1395,82 +1541,39 @@ function WorkerCard({
                 }
                 window.open(`/profile/${worker.public_profile_slug}`, "_blank");
               }}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 12,
-                border: "1px solid #cbd5e1",
-                background: "#ffffff",
-                color: "#0f172a",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
-              }}
-            >
-              <ExternalLink size={17} />
-            </button>
+            />
 
             {canEditWorkers ? (
-              <button
-                type="button"
+              <IconButton
+                icon={Pencil}
                 title="Edit worker"
                 aria-label="Edit worker"
                 onClick={() => setEditOpen(true)}
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  border: "1px solid #cbd5e1",
-                  background: "#ffffff",
-                  color: "#0f172a",
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
-                }}
-              >
-                <Pencil size={17} />
-              </button>
+              />
             ) : null}
 
             {canDeleteWorkers ? (
-              <button
-                type="button"
+              <IconButton
+                icon={Trash2}
+                tone="danger"
                 title="Delete worker"
                 aria-label="Delete worker"
                 onClick={() => onWorkerDeleted(worker)}
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  border: "1px solid #fecaca",
-                  background: "#ffffff",
-                  color: "#b91c1c",
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
-                }}
-              >
-                <Trash2 size={17} />
-              </button>
+              />
             ) : null}
+            </div>
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span style={pillStyle(true)}>
+            <Pill dark>
               <Briefcase size={14} />
               {worker.trades?.name || "No trade"}
-            </span>
+            </Pill>
 
-            <span style={pillStyle()}>
+            <Pill>
               <MapPin size={14} />
               {worker.locations?.name || "No location"}
-            </span>
+            </Pill>
 
             <span
               style={{
@@ -1524,9 +1627,9 @@ function WorkerCard({
             background: "#f8fafc",
             border: "1px solid #e2e8f0",
             borderRadius: 18,
-            padding: 16,
+            padding: 12,
             display: "grid",
-            gap: 10,
+            gap: 9,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
@@ -1650,27 +1753,17 @@ function WorkerCard({
             ) : null}
           </div>
 
-          <button
-            type="button"
+          <Button
             onClick={() => setDetailsOpen((prev) => !prev)}
+            tone={detailsOpen ? "dark" : "neutral"}
+            icon={detailsOpen ? ChevronUp : ChevronDown}
             style={{
-              border: detailsOpen ? "none" : "1px solid #cbd5e1",
-              background: detailsOpen ? "#0f172a" : "#ffffff",
-              color: detailsOpen ? "#ffffff" : "#0f172a",
-              borderRadius: 14,
-              padding: "12px 16px",
-              fontWeight: 800,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
               marginTop: 4,
+              width: "100%",
             }}
           >
-            {detailsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             {detailsOpen ? "Hide Details" : "View Details"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -2093,7 +2186,7 @@ function WorkerCard({
           onSaved={onWorkerSaved}
         />
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -2398,7 +2491,7 @@ export default function AdminPage() {
           background: "linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%)",
         }}
       >
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gap: 24 }}>
+        <div className="admin-dashboard" style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gap: 24 }}>
           <div
             className="admin-panel"
             style={{
@@ -2423,6 +2516,7 @@ export default function AdminPage() {
                 }}
               >
                 <div
+                  className="admin-kicker"
                   style={{
                     display: "inline-flex",
                     width: "fit-content",
@@ -2488,11 +2582,12 @@ export default function AdminPage() {
                     lineHeight: 1.08,
                     letterSpacing: 0,
                   }}
+                  className="admin-heading"
                 >
                   Admin Panel
                 </h1>
 
-                <p style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
+                <p className="admin-subtitle" style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
                   Review, search, filter, sort, and manage both workflow status and pending-pool availability.
                 </p>
               </div>
@@ -2530,7 +2625,7 @@ export default function AdminPage() {
 
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ fontWeight: 800, color: "#0f172a" }}>Workflow Status</div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div className="admin-pill-strip" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <span style={{ ...pillStyle(), ...getStatusStyle("pending") }}>
                   Pending: {pendingCount}
                 </span>
@@ -2554,7 +2649,7 @@ export default function AdminPage() {
 
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ fontWeight: 800, color: "#0f172a" }}>Pending Pool Availability</div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div className="admin-pill-strip" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <span
                   style={{
                     ...pillStyle(),
@@ -2578,6 +2673,7 @@ export default function AdminPage() {
             </div>
 
             <div
+              className="filters-card"
               style={{
                 background: "#f8fbff",
                 border: "1px solid #dbeafe",
@@ -2734,7 +2830,7 @@ export default function AdminPage() {
               ) : null}
             </div>
 
-            <div style={{ display: "grid", gap: 18 }}>
+            <div className="workers-list" style={{ display: "grid", gap: 18 }}>
               {loading ? (
                 <div
                   style={{

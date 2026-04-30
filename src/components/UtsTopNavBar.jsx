@@ -4,12 +4,12 @@ import {
   LayoutDashboard,
   UserPlus,
   History,
-  ClipboardList,
   LogOut,
   Briefcase,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
+import PwaInstallButton from "./PwaInstallButton";
 
 export default function UtsTopNavBar() {
   const navigate = useNavigate();
@@ -75,6 +75,7 @@ export default function UtsTopNavBar() {
           background: linear-gradient(180deg, #1f2c40 0%, #1b2738 100%);
           border-bottom: 1px solid rgba(255,255,255,0.06);
           box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+          padding-top: env(safe-area-inset-top);
         }
 
         .uts-topbar-inner {
@@ -145,7 +146,8 @@ export default function UtsTopNavBar() {
           flex-wrap: wrap;
         }
 
-        .uts-logout-btn {
+        .uts-logout-btn,
+        .uts-install-btn {
           border: 1px solid rgba(255,255,255,0.18);
           background: rgba(255,255,255,0.04);
           color: #ffffff;
@@ -161,6 +163,10 @@ export default function UtsTopNavBar() {
 
         .uts-logout-btn:hover {
           background: rgba(255,255,255,0.1);
+        }
+
+        .uts-install-btn {
+          background: rgba(255,255,255,0.12);
         }
 
         @media (max-width: 1100px) {
@@ -184,20 +190,63 @@ export default function UtsTopNavBar() {
         }
 
         @media (max-width: 640px) {
+          .uts-topbar {
+            position: sticky;
+          }
+
           .uts-topbar-inner {
-            gap: 12px;
-            padding-inline: 16px;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            align-items: center;
+            gap: 10px 12px;
+            min-height: auto;
+            padding: 10px 12px;
           }
 
           .uts-brand img {
-            height: 48px;
+            height: 38px;
+          }
+
+          .uts-nav {
+            grid-column: 1 / -1;
+            grid-row: 2;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 6px;
+            overflow: visible;
+          }
+
+          .uts-topbar-right {
+            grid-column: 2;
+            grid-row: 1;
+            width: auto;
+            justify-content: flex-end;
+            justify-self: end;
+            align-self: center;
+            gap: 6px;
           }
 
           .uts-nav-btn,
-          .uts-logout-btn {
-            font-size: 14px;
+          .uts-logout-btn,
+          .uts-install-btn {
+            min-height: 40px;
+            font-size: 12px;
             white-space: nowrap;
-            padding: 10px 12px;
+            padding: 9px 8px;
+            justify-content: center;
+            border-radius: 10px;
+          }
+
+          .uts-nav-btn {
+            width: 100%;
+            flex-direction: column;
+            gap: 4px;
+            line-height: 1.05;
+          }
+
+          .uts-logout-btn span,
+          .uts-install-btn span {
+            display: none;
           }
         }
       `}</style>
@@ -232,6 +281,8 @@ export default function UtsTopNavBar() {
           )}
 
           <div className="uts-topbar-right">
+            <PwaInstallButton />
+
             {routeFlags.isAdmin && (
               <button
                 type="button"
@@ -239,7 +290,7 @@ export default function UtsTopNavBar() {
                 onClick={handleLogout}
               >
                 <LogOut size={16} />
-                Logout
+                <span>Logout</span>
               </button>
             )}
           </div>

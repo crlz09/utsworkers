@@ -98,7 +98,11 @@ async function validateTurnstile(token: string, remoteIp: string | null) {
   const turnstileSecretKey = Deno.env.get("TURNSTILE_SECRET_KEY")
 
   if (!turnstileSecretKey) {
-    return { success: false, errorCodes: ["turnstile-secret-missing"] }
+    return {
+      success: false,
+      error: "Verification is not configured. Please contact support.",
+      errorCodes: ["turnstile-secret-missing"],
+    }
   }
 
   const body = new URLSearchParams({
@@ -123,12 +127,17 @@ async function validateTurnstile(token: string, remoteIp: string | null) {
   )
 
   if (!response.ok) {
-    return { success: false, errorCodes: ["turnstile-request-failed"] }
+    return {
+      success: false,
+      error: "Verification could not be reached. Please try again.",
+      errorCodes: ["turnstile-request-failed"],
+    }
   }
 
   const result = await response.json()
   return {
     success: !!result.success,
+    error: "Verification failed. Please try again.",
     errorCodes: Array.isArray(result["error-codes"]) ? result["error-codes"] : [],
   }
 }
@@ -268,7 +277,7 @@ Deno.serve(async (req) => {
         payloadSummary,
       })
       return respond(400, {
-        error: "Verification failed. Please try again.",
+        error: captchaValidation.error || "Verification failed. Please try again.",
         errorCodes: captchaValidation.errorCodes,
       })
     }
