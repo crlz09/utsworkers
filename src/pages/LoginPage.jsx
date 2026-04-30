@@ -104,12 +104,15 @@ export default function LoginPage() {
           inset: 0;
           min-height: 100dvh;
           min-height: 100svh;
-          width: 100%;
-          display: grid;
-          place-items: center;
+          width: auto;
+          max-width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           background: radial-gradient(circle at top, rgba(255,255,255,0.08) 0%, rgba(21,40,55,0) 34%), #152837;
           padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
           overflow: auto;
+          overflow-x: hidden;
           overscroll-behavior: none;
           font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
@@ -118,7 +121,9 @@ export default function LoginPage() {
           display: grid;
           gap: 24px;
           justify-items: center;
-          width: min(100%, 390px);
+          width: 100%;
+          max-width: 390px;
+          margin: 0 auto;
         }
 
         .login-logo {
@@ -128,7 +133,7 @@ export default function LoginPage() {
 
         .login-card {
           width: 100%;
-          max-width: min(390px, calc(100vw - 36px));
+          max-width: 100%;
           background: #ffffff;
           border-radius: 20px;
           padding: 30px;
@@ -153,7 +158,8 @@ export default function LoginPage() {
 
           .login-content {
             gap: 18px !important;
-            width: min(100%, 390px) !important;
+            width: 100% !important;
+            max-width: 390px !important;
           }
 
           .login-logo {
@@ -161,7 +167,7 @@ export default function LoginPage() {
           }
 
           .login-card {
-            max-width: min(390px, calc(100vw - 36px)) !important;
+            max-width: 100% !important;
             padding: 22px !important;
             border-radius: 20px !important;
             gap: 16px !important;
@@ -194,7 +200,7 @@ export default function LoginPage() {
 
         @media (max-height: 720px) and (max-width: 640px) {
           .login-page {
-            place-items: start center;
+            align-items: flex-start;
           }
 
           .login-logo {
@@ -210,7 +216,9 @@ export default function LoginPage() {
           display: "grid",
           gap: 28,
           justifyItems: "center",
-          width: "min(100%, 390px)",
+          width: "100%",
+          maxWidth: 390,
+          margin: "0 auto",
         }}
       >
         <img
@@ -228,7 +236,7 @@ export default function LoginPage() {
           className="login-card"
           style={{
             width: "100%",
-            maxWidth: "min(390px, calc(100vw - 36px))",
+            maxWidth: "100%",
             background: "#ffffff",
             borderRadius: 20,
             padding: 34,
