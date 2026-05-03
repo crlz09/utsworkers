@@ -258,7 +258,8 @@ function PageStyles() {
           display: none;
         }
 
-        .admin-pill-strip > span {
+        .admin-pill-strip > span,
+        .admin-pill-strip > button {
           flex: 0 0 auto;
         }
 
@@ -2212,6 +2213,14 @@ export default function AdminPage() {
   const rejectedCount = workers.filter((w) => w.status === "rejected").length;
   const completedCount = workers.filter((w) => w.status === "completed").length;
   const workingCount = workers.filter((w) => w.status === "working").length;
+  const workflowStatusBadges = [
+    { value: "pending", label: "Pending", count: pendingCount },
+    { value: "onboarding", label: "OnBoarding", count: onboardingCount },
+    { value: "hold", label: "Hold", count: holdCount },
+    { value: "rejected", label: "Rejected", count: rejectedCount },
+    { value: "completed", label: "Completed", count: completedCount },
+    { value: "working", label: "Working", count: workingCount },
+  ];
 
   const hasAdvancedFilters =
     !!tradeFilter ||
@@ -2298,25 +2307,55 @@ export default function AdminPage() {
                   Total Workers: {workers.length}
                 </span>
               </div>
-              <div className="admin-pill-strip" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ ...pillStyle(), ...getStatusStyle("pending") }}>
-                  Pending: {pendingCount}
-                </span>
-                <span style={{ ...pillStyle(), ...getStatusStyle("onboarding") }}>
-                  OnBoarding: {onboardingCount}
-                </span>
-                <span style={{ ...pillStyle(), ...getStatusStyle("hold") }}>
-                  Hold: {holdCount}
-                </span>
-                <span style={{ ...pillStyle(), ...getStatusStyle("rejected") }}>
-                  Rejected: {rejectedCount}
-                </span>
-                <span style={{ ...pillStyle(), ...getStatusStyle("completed") }}>
-                  Completed: {completedCount}
-                </span>
-                <span style={{ ...pillStyle(), ...getStatusStyle("working") }}>
-                  Working: {workingCount}
-                </span>
+              <div className="admin-pill-strip" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                {statusFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("")}
+                    title="Clear workflow status filter"
+                    aria-label="Clear workflow status filter"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 999,
+                      border: "1px solid #cbd5e1",
+                      background: "#ffffff",
+                      color: "#0f172a",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      boxShadow: "0 8px 20px rgba(15, 23, 42, 0.08)",
+                    }}
+                  >
+                    <X size={17} strokeWidth={2.6} />
+                  </button>
+                )}
+                {workflowStatusBadges.map((badge) => {
+                  const statusStyle = getStatusStyle(badge.value);
+                  const isSelected = statusFilter === badge.value;
+
+                  return (
+                    <button
+                      key={badge.value}
+                      type="button"
+                      onClick={() => setStatusFilter(badge.value)}
+                      aria-pressed={isSelected}
+                      style={{
+                        ...pillStyle(),
+                        ...statusStyle,
+                        border: isSelected ? "1px solid #0f172a" : statusStyle.border,
+                        background: isSelected ? "#0f172a" : statusStyle.background,
+                        color: isSelected ? "#ffffff" : statusStyle.color,
+                        cursor: "pointer",
+                        boxShadow: isSelected ? "0 10px 24px rgba(15, 23, 42, 0.2)" : "none",
+                        transition: "background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease",
+                      }}
+                    >
+                      {badge.label}: {badge.count}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
