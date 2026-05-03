@@ -20,6 +20,7 @@ import {
   Languages,
   X,
   CalendarDays,
+  DollarSign,
   FileText,
   Upload,
   Paperclip,
@@ -551,6 +552,11 @@ function formatDate(dateString) {
   return date.toLocaleString();
 }
 
+function formatPayValue(value) {
+  const trimmed = String(value || "").trim();
+  return trimmed || "—";
+}
+
 function MiniMetric({ label, value }) {
   return (
     <div
@@ -671,6 +677,8 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
     name: worker.name || "",
     phone: worker.phone || "",
     email: worker.email || "",
+    rate: worker.rate || "",
+    per_diem: worker.per_diem || "",
     address: worker.address || "",
     zip_code: worker.zip_code || "",
     city: worker.city || "",
@@ -759,6 +767,8 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
       name: form.name.trim(),
       phone: form.phone.trim() || null,
       email: form.email.trim() || null,
+      rate: form.rate.trim() || null,
+      per_diem: form.per_diem.trim() || null,
       address: form.address.trim() || null,
       zip_code: form.zip_code.trim() || null,
       city: form.city.trim() || null,
@@ -867,6 +877,14 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
 
           <Field label="Email">
             <input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} style={inputStyle} />
+          </Field>
+
+          <Field label="Rate">
+            <input value={form.rate} onChange={(e) => update("rate", e.target.value)} style={inputStyle} placeholder="$33/hr" />
+          </Field>
+
+          <Field label="Per Diem">
+            <input value={form.per_diem} onChange={(e) => update("per_diem", e.target.value)} style={inputStyle} placeholder="$10/hr" />
           </Field>
 
           <Field label="Street Address">
@@ -1308,6 +1326,8 @@ function WorkerCard({
   );
 
   const workerAddress = formatWorkerAddress(worker);
+  const rateValue = formatPayValue(worker.rate);
+  const perDiemValue = formatPayValue(worker.per_diem);
   const canEditWorkers = !!permissions?.can_edit_workers;
   const canDeleteWorkers = !!permissions?.can_delete_workers;
 
@@ -1537,17 +1557,17 @@ function WorkerCard({
           style={{
             padding: 14,
             borderRadius: 16,
-            background: "#f8fafc",
-            border: "1px solid #e2e8f0",
+            background: "#ffffff",
+            border: "1px solid #dbeafe",
             display: "flex",
             alignItems: "center",
             gap: 10,
           }}
         >
-          <CalendarDays size={16} color="#334155" />
+          <DollarSign size={18} color="#0f172a" />
           <div>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>Registered</div>
-            <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatDate(worker.created_at)}</div>
+            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 800 }}>Rate</div>
+            <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 22, lineHeight: 1.15 }}>{rateValue}</div>
           </div>
         </div>
 
@@ -1555,17 +1575,17 @@ function WorkerCard({
           style={{
             padding: 14,
             borderRadius: 16,
-            background: "#f8fafc",
-            border: "1px solid #e2e8f0",
+            background: "#ffffff",
+            border: "1px solid #dbeafe",
             display: "flex",
             alignItems: "center",
             gap: 10,
           }}
         >
-          <CalendarDays size={16} color="#334155" />
+          <DollarSign size={18} color="#0f172a" />
           <div>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>Status Updated</div>
-            <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatDate(statusUpdatedAt)}</div>
+            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 800 }}>Per Diem</div>
+            <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 22, lineHeight: 1.15 }}>{perDiemValue}</div>
           </div>
         </div>
 
@@ -1590,6 +1610,51 @@ function WorkerCard({
 
       {detailsOpen ? (
         <>
+          <div
+            className="worker-dates"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 16,
+            }}
+          >
+            <div
+              style={{
+                padding: 14,
+                borderRadius: 16,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <CalendarDays size={16} color="#334155" />
+              <div>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>Registered</div>
+                <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatDate(worker.created_at)}</div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: 14,
+                borderRadius: 16,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <CalendarDays size={16} color="#334155" />
+              <div>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>Status Updated</div>
+                <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatDate(statusUpdatedAt)}</div>
+              </div>
+            </div>
+          </div>
+
           <div
             style={{
               padding: 16,

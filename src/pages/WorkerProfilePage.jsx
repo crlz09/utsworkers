@@ -64,6 +64,10 @@ function PageStyles() {
         .profile-title {
           font-size: 40px !important;
         }
+
+        .pay-summary {
+          font-size: 28px !important;
+        }
       }
 
       @media print {
@@ -116,6 +120,13 @@ function PageStyles() {
 
         .profile-top {
           grid-template-columns: 1.3fr 0.9fr !important;
+        }
+
+        .pay-summary {
+          color: #000000 !important;
+          font-size: 30pt !important;
+          line-height: 1.14 !important;
+          padding: 0 0 5mm !important;
         }
 
         .profile-summary {
@@ -321,6 +332,11 @@ function formatWorkerAddress(worker) {
     .join(", ");
 }
 
+function formatPayValue(value) {
+  const trimmed = String(value || "").trim();
+  return trimmed || "-";
+}
+
 function ActionButton({ children, onClick, dark = false, icon: Icon }) {
   return (
     <button
@@ -385,6 +401,8 @@ export default function WorkerProfilePage() {
   const certifications = useMemo(() => worker?.certifications || [], [worker]);
   const languages = useMemo(() => worker?.languages || [], [worker]);
   const workerAddress = formatWorkerAddress(worker);
+  const rateValue = formatPayValue(worker?.rate);
+  const perDiemValue = formatPayValue(worker?.per_diem);
   const recruiterAdminNotes = useMemo(() => {
     if (!worker) return "";
 
@@ -417,6 +435,8 @@ export default function WorkerProfilePage() {
       ["Name", worker.name || ""],
       ["Phone", worker.phone || ""],
       ["Email", worker.email || ""],
+      ["Rate", worker.rate || ""],
+      ["Per Diem", worker.per_diem || ""],
       ["Address", workerAddress || ""],
       ["Trade", worker.trade || ""],
       ["Location", worker.location || ""],
@@ -648,21 +668,38 @@ export default function WorkerProfilePage() {
                 </div>
               </div>
 
-              <div className="print-card" style={cardStyle()}>
-                <div style={{ display: "grid", gap: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
-                    <Phone size={15} />
-                    <span>{worker.phone || "No phone"}</span>
-                  </div>
+              <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+                <div
+                  className="pay-summary"
+                  style={{
+                    color: "#020617",
+                    fontFamily: "Georgia, 'Times New Roman', serif",
+                    fontSize: "clamp(30px, 3.4vw, 42px)",
+                    fontWeight: 700,
+                    lineHeight: 1.18,
+                    padding: "4px 6px 0",
+                  }}
+                >
+                  <div>Rate: {rateValue}</div>
+                  <div>Per diem: {perDiemValue}</div>
+                </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
-                    <Mail size={15} />
-                    <span>{worker.email || "No email"}</span>
-                  </div>
+                <div className="print-card" style={cardStyle()}>
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
+                      <Phone size={15} />
+                      <span>{worker.phone || "No phone"}</span>
+                    </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
-                    <MapPin size={15} />
-                    <span>{workerAddress || "No address"}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
+                      <Mail size={15} />
+                      <span>{worker.email || "No email"}</span>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
+                      <MapPin size={15} />
+                      <span>{workerAddress || "No address"}</span>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -9,6 +9,7 @@ import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import {
   Briefcase,
+  Users,
   Plus,
   Search,
   Loader2,
@@ -17,6 +18,8 @@ import {
   Copy,
   ExternalLink,
   Filter,
+  ChevronDown,
+  ChevronUp,
   MoreVertical,
   X,
   Upload,
@@ -182,6 +185,36 @@ function PageStyles() {
         margin-top: 18px;
       }
 
+      .table-header-controls {
+        display: grid;
+        grid-template-columns: minmax(220px, 1.35fr) repeat(3, minmax(150px, 0.7fr));
+        gap: 10px;
+        align-items: center;
+        flex: 1;
+        min-width: min(100%, 760px);
+      }
+
+      .candidate-header-controls {
+        display: grid;
+        grid-template-columns: minmax(240px, 1fr) minmax(170px, 0.45fr);
+        gap: 10px;
+        align-items: center;
+        flex: 1;
+        min-width: min(100%, 520px);
+      }
+
+      .candidate-header-controls .input,
+      .candidate-header-controls .select {
+        min-height: 46px;
+        border-radius: 13px;
+      }
+
+      .table-header-controls .input,
+      .table-header-controls .select {
+        min-height: 46px;
+        border-radius: 13px;
+      }
+
       .field {
         display: grid;
         gap: 8px;
@@ -226,6 +259,10 @@ function PageStyles() {
         min-width: 1500px;
       }
 
+      .candidates-table {
+        min-width: 980px;
+      }
+
       thead th {
         position: sticky;
         top: 0;
@@ -239,6 +276,31 @@ function PageStyles() {
         letter-spacing: 0.06em;
         padding: 14px 12px;
         border-bottom: 1px solid #bfdbfe;
+      }
+
+      .sort-header-btn {
+        border: none;
+        background: transparent;
+        color: inherit;
+        padding: 0;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font: inherit;
+        font-weight: 900;
+        text-transform: inherit;
+        letter-spacing: inherit;
+      }
+
+      .sort-header-btn:hover {
+        color: #0f172a;
+      }
+
+      .sort-header-icon {
+        width: 15px;
+        height: 15px;
+        flex: 0 0 auto;
       }
 
       tbody td {
@@ -509,6 +571,8 @@ function PageStyles() {
         }
 
         .toolbar-grid,
+        .table-header-controls,
+        .candidate-header-controls,
         .modal-grid {
           grid-template-columns: 1fr 1fr;
         }
@@ -530,6 +594,8 @@ function PageStyles() {
 
         .summary-grid,
         .toolbar-grid,
+        .table-header-controls,
+        .candidate-header-controls,
         .modal-grid {
           grid-template-columns: 1fr;
         }
@@ -614,6 +680,28 @@ function getStatusStyle(status) {
     case "active":
       return { background: "#dbeafe", color: "#1d4ed8", border: "1px solid #93c5fd" };
     case "open":
+    default:
+      return { background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" };
+  }
+}
+
+function getCandidateStatusStyle(status) {
+  switch (status) {
+    case "placed":
+      return { background: "#dcfce7", color: "#166534", border: "1px solid #86efac" };
+    case "submitted":
+      return { background: "#dbeafe", color: "#1d4ed8", border: "1px solid #93c5fd" };
+    case "rejected":
+      return { background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5" };
+    case "on_hold":
+      return { background: "#ffedd5", color: "#9a3412", border: "1px solid #fdba74" };
+    case "interviewed":
+      return { background: "#ede9fe", color: "#5b21b6", border: "1px solid #c4b5fd" };
+    case "interested":
+      return { background: "#ecfccb", color: "#3f6212", border: "1px solid #bef264" };
+    case "contacted":
+      return { background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1" };
+    case "sourced":
     default:
       return { background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" };
   }
@@ -714,6 +802,61 @@ function formatDateOnly(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-US");
+}
+
+function formatDateTime(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-US");
+}
+
+function formatCandidateStatus(status) {
+  return String(status || "sourced")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function compareValues(a, b) {
+  const emptyA = a === null || a === undefined || a === "";
+  const emptyB = b === null || b === undefined || b === "";
+
+  if (emptyA && emptyB) return 0;
+  if (emptyA) return 1;
+  if (emptyB) return -1;
+
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function getTimestamp(value) {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function SortableTh({ children, sortKey, sortConfig, onSort }) {
+  const active = sortConfig.key === sortKey;
+  const Icon = sortConfig.direction === "asc" ? ChevronDown : ChevronUp;
+
+  return (
+    <th>
+      <button
+        className="sort-header-btn"
+        type="button"
+        onClick={() => onSort(sortKey)}
+      >
+        <span>{children}</span>
+        {active ? <Icon className="sort-header-icon" /> : null}
+      </button>
+    </th>
+  );
 }
 
 function parseBoolean(value) {
@@ -1340,13 +1483,20 @@ export default function CtsJobsPage() {
 
   const [jobs, setJobs] = useState([]);
   const [jobCounts, setJobCounts] = useState({});
+  const [jobCandidates, setJobCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [stateFilter, setStateFilter] = useState("");
   const [bdRepFilter, setBdRepFilter] = useState("");
-  const [languageFilter, setLanguageFilter] = useState("");
+  const [candidateSearch, setCandidateSearch] = useState("");
+  const [candidateStatusFilter, setCandidateStatusFilter] = useState("");
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [candidatesOpen, setCandidatesOpen] = useState(true);
+  const [jobsListOpen, setJobsListOpen] = useState(true);
+  const [candidateSort, setCandidateSort] = useState({ key: "updated_at", direction: "desc" });
+  const [jobSort, setJobSort] = useState({ key: "updated_at", direction: "desc" });
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
@@ -1376,15 +1526,35 @@ export default function CtsJobsPage() {
     }
     setOpenMenu(null);
 
-    const [jobsRes, candidatesRes] = await Promise.all([
+    const [jobsRes, candidatesRes, workersRes] = await Promise.all([
       supabase.from("cts_jobs").select("*").order("created_at", { ascending: false }),
-      supabase.from("cts_job_candidates").select("id, cts_job_id"),
+      supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
+      supabase.from("workers").select("id, name, phone, email, public_profile_slug"),
     ]);
 
     if (jobsRes.error) {
       setFeedback({ error: jobsRes.error.message || "Could not load CTS jobs.", success: "" });
       setJobs([]);
       setJobCounts({});
+      setJobCandidates([]);
+      setLoading(false);
+      return;
+    }
+
+    if (candidatesRes.error) {
+      setFeedback({ error: candidatesRes.error.message || "Could not load sourced candidates.", success: "" });
+      setJobs(jobsRes.data || []);
+      setJobCounts({});
+      setJobCandidates([]);
+      setLoading(false);
+      return;
+    }
+
+    if (workersRes.error) {
+      setFeedback({ error: workersRes.error.message || "Could not load worker profile links.", success: "" });
+      setJobs(jobsRes.data || []);
+      setJobCounts({});
+      setJobCandidates([]);
       setLoading(false);
       return;
     }
@@ -1394,8 +1564,19 @@ export default function CtsJobsPage() {
       counts[row.cts_job_id] = (counts[row.cts_job_id] || 0) + 1;
     });
 
-    setJobs(jobsRes.data || []);
+    const jobsData = jobsRes.data || [];
+    const jobsById = new Map(jobsData.map((job) => [job.id, job]));
+    const workersById = new Map((workersRes.data || []).map((worker) => [worker.id, worker]));
+
+    setJobs(jobsData);
     setJobCounts(counts);
+    setJobCandidates(
+      (candidatesRes.data || []).map((candidate) => ({
+        ...candidate,
+        job: jobsById.get(candidate.cts_job_id) || null,
+        worker: workersById.get(candidate.worker_id) || null,
+      }))
+    );
     setSelectedIds(new Set());
     setLoading(false);
   };
@@ -1791,8 +1972,52 @@ export default function CtsJobsPage() {
     await load({ preserveFeedback: true });
   };
 
+  const toggleCandidateSort = (key) => {
+    setCandidateSort((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const toggleJobSort = (key) => {
+    setJobSort((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
   const filteredJobs = useMemo(() => {
     const q = search.trim().toLowerCase();
+
+    const getJobSortValue = (job) => {
+      switch (jobSort.key) {
+        case "qty":
+          return Number(job.qty || 0);
+        case "level_type":
+          return job.level_type || "";
+        case "city":
+          return job.city || "";
+        case "state":
+          return job.state || "";
+        case "start_text":
+          return job.start_text || "";
+        case "details":
+          return job.details || "";
+        case "language_requirement":
+          return job.language_requirement || "";
+        case "bd_rep":
+          return job.bd_rep || "";
+        case "status":
+          return job.status || "";
+        case "priority":
+          return PRIORITY_SORT_ORDER[job.priority] ?? PRIORITY_SORT_ORDER.normal;
+        case "candidates":
+          return Number(jobCounts[job.id] || 0);
+        case "updated_at":
+        default:
+          return getTimestamp(job.updated_at);
+      }
+    };
 
     return jobs
       .filter((job) => {
@@ -1815,33 +2040,86 @@ export default function CtsJobsPage() {
         const matchesStatus = !statusFilter || job.status === statusFilter;
         const matchesState = !stateFilter || String(job.state || "").toLowerCase() === stateFilter.toLowerCase();
         const matchesBdRep = !bdRepFilter || String(job.bd_rep || "").toLowerCase() === bdRepFilter.toLowerCase();
-        const matchesLanguage =
-          !languageFilter ||
-          String(job.language_requirement || "").toLowerCase().includes(languageFilter.toLowerCase());
 
-        return matchesSearch && matchesStatus && matchesState && matchesBdRep && matchesLanguage;
+        return matchesSearch && matchesStatus && matchesState && matchesBdRep;
       })
       .sort((a, b) => {
-        const priorityA = PRIORITY_SORT_ORDER[a.priority] ?? PRIORITY_SORT_ORDER.normal;
-        const priorityB = PRIORITY_SORT_ORDER[b.priority] ?? PRIORITY_SORT_ORDER.normal;
-
-        if (priorityA !== priorityB) {
-          return priorityA - priorityB;
+        const primary = compareValues(getJobSortValue(a), getJobSortValue(b));
+        if (primary !== 0) {
+          return jobSort.direction === "asc" ? primary : -primary;
         }
 
-        const updatedAtA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-        const updatedAtB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-
+        const updatedAtA = getTimestamp(a.updated_at);
+        const updatedAtB = getTimestamp(b.updated_at);
         if (updatedAtA !== updatedAtB) {
           return updatedAtB - updatedAtA;
         }
 
-        const createdAtA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const createdAtB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        const createdAtA = getTimestamp(a.created_at);
+        const createdAtB = getTimestamp(b.created_at);
 
         return createdAtB - createdAtA;
       });
-  }, [jobs, search, statusFilter, stateFilter, bdRepFilter, languageFilter]);
+  }, [jobs, search, statusFilter, stateFilter, bdRepFilter, jobSort, jobCounts]);
+
+  const filteredCandidates = useMemo(() => {
+    const q = candidateSearch.trim().toLowerCase();
+
+    const getCandidateSortValue = (candidate) => {
+      const job = candidate.job || {};
+      const worker = candidate.worker || {};
+
+      switch (candidateSort.key) {
+        case "name":
+          return candidate.name_snapshot || worker.name || "";
+        case "project":
+          return job.level_type || "";
+        case "status":
+          return candidate.candidate_status || "sourced";
+        case "updated_at":
+        default:
+          return getTimestamp(candidate.updated_at || candidate.created_at);
+      }
+    };
+
+    return jobCandidates
+      .filter((candidate) => {
+        const job = candidate.job || {};
+        const worker = candidate.worker || {};
+        const projectLabel = [job.level_type, job.city, job.state].filter(Boolean).join(" ");
+
+        const matchesSearch =
+          !q ||
+          [
+            candidate.name_snapshot,
+            worker.name,
+            candidate.phone_snapshot,
+            worker.phone,
+            worker.email,
+            projectLabel,
+            job.level_type,
+            job.city,
+            job.state,
+            job.job_code,
+          ]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(q));
+
+        const matchesStatus = !candidateStatusFilter || candidate.candidate_status === candidateStatusFilter;
+
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => {
+        const primary = compareValues(getCandidateSortValue(a), getCandidateSortValue(b));
+        if (primary !== 0) {
+          return candidateSort.direction === "asc" ? primary : -primary;
+        }
+
+        const updatedAtA = getTimestamp(a.updated_at || a.created_at);
+        const updatedAtB = getTimestamp(b.updated_at || b.created_at);
+        return updatedAtB - updatedAtA;
+      });
+  }, [jobCandidates, candidateSearch, candidateStatusFilter, candidateSort]);
 
   const summary = useMemo(() => {
     const total = jobs.length;
@@ -1860,6 +2138,11 @@ export default function CtsJobsPage() {
   const distinctBdReps = useMemo(
     () => [...new Set(jobs.map((job) => job.bd_rep).filter(Boolean))].sort(),
     [jobs]
+  );
+
+  const distinctCandidateStatuses = useMemo(
+    () => [...new Set(jobCandidates.map((candidate) => candidate.candidate_status || "sourced"))].sort(),
+    [jobCandidates]
   );
 
   const selectedCount = selectedIds.size;
@@ -1917,6 +2200,10 @@ export default function CtsJobsPage() {
               </div>
 
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button className="btn white" type="button" onClick={() => setSummaryOpen((prev) => !prev)}>
+                  {summaryOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  {summaryOpen ? "Hide Metrics" : "Show Metrics"}
+                </button>
                 <button className="btn white" type="button" onClick={load}>
                   <Filter size={16} />
                   Refresh
@@ -1942,122 +2229,233 @@ export default function CtsJobsPage() {
               </div>
             </div>
 
-            <div className="summary-grid">
-              <div className="metric-card">
-                <div className="metric-label">Total Jobs</div>
-                <div className="metric-value">{summary.total}</div>
+            {summaryOpen ? (
+              <div className="summary-grid">
+                <div className="metric-card">
+                  <div className="metric-label">Total Jobs</div>
+                  <div className="metric-value">{summary.total}</div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-label">Open / Active</div>
+                  <div className="metric-value">{summary.open}</div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-label">Filled</div>
+                  <div className="metric-value">{summary.filled}</div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-label">Total Requested Qty</div>
+                  <div className="metric-value">{summary.totalQty}</div>
+                </div>
               </div>
-              <div className="metric-card">
-                <div className="metric-label">Open / Active</div>
-                <div className="metric-value">{summary.open}</div>
-              </div>
-              <div className="metric-card">
-                <div className="metric-label">Filled</div>
-                <div className="metric-value">{summary.filled}</div>
-              </div>
-              <div className="metric-card">
-                <div className="metric-label">Total Requested Qty</div>
-                <div className="metric-value">{summary.totalQty}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card toolbar-card">
-            <div className="toolbar-top">
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <Search size={18} />
-                <div style={{ fontWeight: 900, fontSize: 20 }}>Search & Filters</div>
-              </div>
-
-              <button
-                className="btn white"
-                type="button"
-                onClick={() => {
-                  setSearch("");
-                  setStatusFilter("");
-                  setStateFilter("");
-                  setBdRepFilter("");
-                  setLanguageFilter("");
-                }}
-              >
-                <X size={16} />
-                Clear Filters
-              </button>
-            </div>
-
-            <div className="toolbar-grid">
-              <div className="field">
-                <label className="field-label">Search</label>
-                <input
-                  className="input"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Level / Type, city, details, BD rep..."
-                />
-              </div>
-
-              <div className="field">
-                <label className="field-label">Status</label>
-                <select className="select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="">All</option>
-                  <option value="open">Open</option>
-                  <option value="active">Active</option>
-                  <option value="on_hold">On Hold</option>
-                  <option value="filled">Filled</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </div>
-
-              <div className="field">
-                <label className="field-label">State</label>
-                <select className="select" value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
-                  <option value="">All</option>
-                  {distinctStates.map((item) => (
-                    <option key={item} value={item}>{item}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="field">
-                <label className="field-label">BD Rep</label>
-                <select className="select" value={bdRepFilter} onChange={(e) => setBdRepFilter(e.target.value)}>
-                  <option value="">All</option>
-                  {distinctBdReps.map((item) => (
-                    <option key={item} value={item}>{item}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="field">
-                <label className="field-label">Language</label>
-                <input
-                  className="input"
-                  value={languageFilter}
-                  onChange={(e) => setLanguageFilter(e.target.value)}
-                  placeholder="English / Spanish / Ratio..."
-                />
-              </div>
-            </div>
-
-            {feedback.error ? (
-              <div style={{ marginTop: 16, color: "#991b1b", fontWeight: 800 }}>{feedback.error}</div>
-            ) : null}
-
-            {feedback.success ? (
-              <div style={{ marginTop: 16, color: "#166534", fontWeight: 800 }}>{feedback.success}</div>
             ) : null}
           </div>
 
           <div className="glass-card table-card">
             <div className="table-top">
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  className="icon-btn"
+                  type="button"
+                  onClick={() => setCandidatesOpen((prev) => !prev)}
+                  title={candidatesOpen ? "Collapse candidates sourced" : "Expand candidates sourced"}
+                  aria-label={candidatesOpen ? "Collapse candidates sourced" : "Expand candidates sourced"}
+                >
+                  {candidatesOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                <Users size={20} />
+                <div style={{ fontWeight: 900, fontSize: 22 }}>
+                  Candidates Sourced ({filteredCandidates.length})
+                </div>
+              </div>
+
+              {candidatesOpen ? (
+                <div className="candidate-header-controls">
+                  <input
+                    className="input"
+                    value={candidateSearch}
+                    onChange={(e) => setCandidateSearch(e.target.value)}
+                    placeholder="Search name, phone, email or project..."
+                    aria-label="Search sourced candidates"
+                  />
+
+                  <select
+                    className="select"
+                    value={candidateStatusFilter}
+                    onChange={(e) => setCandidateStatusFilter(e.target.value)}
+                    aria-label="Filter by candidate status"
+                  >
+                    <option value="">All Candidate Statuses</option>
+                    {distinctCandidateStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {formatCandidateStatus(status)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+            </div>
+
+            {candidatesOpen ? (
+              loading ? (
+                <div className="empty-state" style={{ marginTop: 18 }}>
+                  <Loader2 className="spin" size={18} style={{ marginRight: 8, verticalAlign: "middle" }} />
+                  Loading sourced candidates...
+                </div>
+              ) : filteredCandidates.length === 0 ? (
+                <div className="empty-state" style={{ marginTop: 18 }}>
+                  No sourced candidates found with the current filters.
+                </div>
+              ) : (
+                <div className="table-scroll">
+                  <table className="candidates-table">
+                    <thead>
+                      <tr>
+                        <SortableTh sortKey="name" sortConfig={candidateSort} onSort={toggleCandidateSort}>Name</SortableTh>
+                        <th>Profile</th>
+                        <SortableTh sortKey="project" sortConfig={candidateSort} onSort={toggleCandidateSort}>Project</SortableTh>
+                        <SortableTh sortKey="status" sortConfig={candidateSort} onSort={toggleCandidateSort}>Status</SortableTh>
+                        <SortableTh sortKey="updated_at" sortConfig={candidateSort} onSort={toggleCandidateSort}>Last Modified</SortableTh>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCandidates.map((candidate) => {
+                        const worker = candidate.worker || {};
+                        const job = candidate.job || {};
+                        const candidateName = candidate.name_snapshot || worker.name || "—";
+                        const projectName = job.level_type || "Unlinked project";
+                        const projectLocation = [job.city, job.state].filter(Boolean).join(", ");
+                        const profileSlug = worker.public_profile_slug;
+
+                        return (
+                          <tr key={candidate.id}>
+                            <td>
+                              <div style={{ fontWeight: 900, color: "#0f172a" }}>{candidateName}</div>
+                              <div style={{ marginTop: 5, color: "#64748b", fontSize: 13 }}>
+                                {candidate.phone_snapshot || worker.phone || "No phone"}
+                                {worker.email ? ` • ${worker.email}` : ""}
+                              </div>
+                            </td>
+                            <td>
+                              <button
+                                className="actions-trigger"
+                                type="button"
+                                disabled={!profileSlug}
+                                onClick={() => profileSlug && window.open(`/profile/${profileSlug}`, "_blank")}
+                                title={profileSlug ? "Open worker profile" : "No public profile available"}
+                                aria-label="Open worker profile"
+                              >
+                                <ExternalLink size={18} />
+                              </button>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                onClick={() => job.id && navigate(`/cts-jobs/${job.id}`)}
+                                style={{
+                                  border: "none",
+                                  background: "transparent",
+                                  color: "#0f172a",
+                                  cursor: job.id ? "pointer" : "default",
+                                  padding: 0,
+                                  textAlign: "left",
+                                  fontWeight: 900,
+                                }}
+                              >
+                                {projectName}
+                              </button>
+                              {projectLocation ? (
+                                <div style={{ marginTop: 5, color: "#64748b", fontSize: 13 }}>
+                                  {projectLocation}
+                                </div>
+                              ) : null}
+                            </td>
+                            <td>
+                              <span className="status-pill" style={getCandidateStatusStyle(candidate.candidate_status)}>
+                                {formatCandidateStatus(candidate.candidate_status)}
+                              </span>
+                            </td>
+                            <td>{formatDateTime(candidate.updated_at || candidate.created_at)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : null}
+          </div>
+
+          <div className="glass-card table-card">
+            <div className="table-top">
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  className="icon-btn"
+                  type="button"
+                  onClick={() => setJobsListOpen((prev) => !prev)}
+                  title={jobsListOpen ? "Collapse CTS job list" : "Expand CTS job list"}
+                  aria-label={jobsListOpen ? "Collapse CTS job list" : "Expand CTS job list"}
+                >
+                  {jobsListOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
                 <Briefcase size={20} />
                 <div style={{ fontWeight: 900, fontSize: 22 }}>
                   CTS Job List ({filteredJobs.length})
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {jobsListOpen ? (
+                <div className="table-header-controls">
+                <input
+                  className="input"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search jobs..."
+                  aria-label="Search CTS jobs"
+                />
+
+                <select
+                  className="select"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  aria-label="Filter by status"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="open">Open</option>
+                  <option value="active">Active</option>
+                  <option value="on_hold">On Hold</option>
+                  <option value="filled">Filled</option>
+                  <option value="closed">Closed</option>
+                </select>
+
+                <select
+                  className="select"
+                  value={stateFilter}
+                  onChange={(e) => setStateFilter(e.target.value)}
+                  aria-label="Filter by state"
+                >
+                  <option value="">All States</option>
+                  {distinctStates.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+
+                <select
+                  className="select"
+                  value={bdRepFilter}
+                  onChange={(e) => setBdRepFilter(e.target.value)}
+                  aria-label="Filter by BD Rep"
+                >
+                  <option value="">All BD Reps</option>
+                  {distinctBdReps.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </div>
+              ) : null}
+
+              {jobsListOpen ? (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {selectedCount > 0 && (
                   <button className="btn danger" type="button" onClick={deleteSelectedJobs}>
                     <Trash2 size={16} />
@@ -2065,9 +2463,20 @@ export default function CtsJobsPage() {
                   </button>
                 )}
               </div>
+              ) : null}
             </div>
 
-            {loading ? (
+            {jobsListOpen ? (
+              <>
+                {feedback.error ? (
+                  <div style={{ marginTop: 16, color: "#991b1b", fontWeight: 800 }}>{feedback.error}</div>
+                ) : null}
+
+                {feedback.success ? (
+                  <div style={{ marginTop: 16, color: "#166534", fontWeight: 800 }}>{feedback.success}</div>
+                ) : null}
+
+                {loading ? (
               <div className="empty-state" style={{ marginTop: 18 }}>
                 <Loader2 className="spin" size={18} style={{ marginRight: 8, verticalAlign: "middle" }} />
                 Loading CTS jobs...
@@ -2091,18 +2500,18 @@ export default function CtsJobsPage() {
                           {allFilteredSelected ? <CheckSquare size={18} /> : <Square size={18} />}
                         </button>
                       </th>
-                      <th>Qty</th>
-                      <th>Level / Type</th>
-                      <th>City</th>
-                      <th>State</th>
-                      <th>Start</th>
-                      <th>Details</th>
-                      <th>Language</th>
-                      <th>BD Rep</th>
-                      <th>Modification Date</th>
-                      <th>Status</th>
-                      <th>Priority</th>
-                      <th>Candidates</th>
+                      <SortableTh sortKey="qty" sortConfig={jobSort} onSort={toggleJobSort}>Qty</SortableTh>
+                      <SortableTh sortKey="level_type" sortConfig={jobSort} onSort={toggleJobSort}>Level / Type</SortableTh>
+                      <SortableTh sortKey="city" sortConfig={jobSort} onSort={toggleJobSort}>City</SortableTh>
+                      <SortableTh sortKey="state" sortConfig={jobSort} onSort={toggleJobSort}>State</SortableTh>
+                      <SortableTh sortKey="start_text" sortConfig={jobSort} onSort={toggleJobSort}>Start</SortableTh>
+                      <SortableTh sortKey="details" sortConfig={jobSort} onSort={toggleJobSort}>Details</SortableTh>
+                      <SortableTh sortKey="language_requirement" sortConfig={jobSort} onSort={toggleJobSort}>Language</SortableTh>
+                      <SortableTh sortKey="bd_rep" sortConfig={jobSort} onSort={toggleJobSort}>BD Rep</SortableTh>
+                      <SortableTh sortKey="updated_at" sortConfig={jobSort} onSort={toggleJobSort}>Modification Date</SortableTh>
+                      <SortableTh sortKey="status" sortConfig={jobSort} onSort={toggleJobSort}>Status</SortableTh>
+                      <SortableTh sortKey="priority" sortConfig={jobSort} onSort={toggleJobSort}>Priority</SortableTh>
+                      <SortableTh sortKey="candidates" sortConfig={jobSort} onSort={toggleJobSort}>Candidates</SortableTh>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -2201,7 +2610,9 @@ export default function CtsJobsPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+                )}
+              </>
+            ) : null}
           </div>
         </div>
       </div>
