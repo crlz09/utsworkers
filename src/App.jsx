@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import ProtectedRoute from "./components/ProtectedRoute";
+import { AdminRoute, ClientRoute } from "./components/AccessRoute";
 
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
@@ -10,6 +10,8 @@ const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
 const WorkerProfilePage = lazy(() => import("./pages/WorkerProfilePage"));
 const CtsJobsPage = lazy(() => import("./pages/CtsJobsPage"));
 const CtsJobDetailPage = lazy(() => import("./pages/CtsJobDetailPage"));
+const ClientCtsJobsPage = lazy(() => import("./pages/ClientCtsJobsPage"));
+const ClientCtsJobDetailPage = lazy(() => import("./pages/ClientCtsJobDetailPage"));
 
 function RouteFallback() {
   return (
@@ -40,42 +42,58 @@ export default function App() {
         <Route
           path="/interviews/new"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <InterviewMiniApp />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
         <Route
           path="/interviews"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <InterviewsPage />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
         <Route path="/profile/:slug" element={<WorkerProfilePage />} />
         <Route
+          path="/client/cts-jobs"
+          element={
+            <ClientRoute>
+              <ClientCtsJobsPage />
+            </ClientRoute>
+          }
+        />
+        <Route
+          path="/client/cts-jobs/:jobId"
+          element={
+            <ClientRoute>
+              <ClientCtsJobDetailPage />
+            </ClientRoute>
+          }
+        />
+        <Route
           path="/cts-jobs"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <CtsJobsPage />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
         <Route
           path="/cts-jobs/:jobId"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <CtsJobDetailPage />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
         <Route
           path="/admin"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <AdminPage />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
       </Routes>

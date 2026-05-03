@@ -58,7 +58,10 @@ function PageStyles() {
       .assigned-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; }
       thead th { position: sticky; top: 0; background: #eff6ff; color: #1e3a8a; text-align: left; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; padding: 14px 16px; border-bottom: 1px solid #bfdbfe; white-space: nowrap; }
       tbody td { background: #ffffff; padding: 16px; border-bottom: 1px solid #e2e8f0; vertical-align: top; white-space: nowrap; width: 1%; }
-      .assigned-table .sticky-name-col { position: sticky; left: 0; z-index: 3; min-width: 150px; width: 150px; max-width: 150px; box-shadow: 10px 0 18px rgba(15, 23, 42, 0.06); white-space: normal; }
+      .assigned-table .sticky-profile-col { position: sticky; left: 0; z-index: 4; min-width: 58px; width: 58px; max-width: 58px; background: #ffffff; box-shadow: 10px 0 18px rgba(15, 23, 42, 0.04); }
+      .assigned-table thead .sticky-profile-col { z-index: 6; background: #eff6ff; }
+      .assigned-table tbody tr:hover .sticky-profile-col { background: #f8fbff; }
+      .assigned-table .sticky-name-col { position: sticky; left: 58px; z-index: 3; min-width: 150px; width: 150px; max-width: 150px; box-shadow: 10px 0 18px rgba(15, 23, 42, 0.06); white-space: normal; }
       .assigned-table thead .sticky-name-col { z-index: 5; background: #eff6ff; }
       .assigned-table tbody .sticky-name-col { background: #ffffff; }
       .assigned-table tbody tr:hover .sticky-name-col { background: #f8fbff; }
@@ -400,8 +403,28 @@ export default function CtsJobDetailPage() {
     if (!jobRes.data) { setFeedback({ error: "CTS job not found.", success: "" }); setLoading(false); return; }
     if (candidatesRes.error) { setFeedback({ error: candidatesRes.error.message || "Could not load assigned candidates.", success: "" }); setLoading(false); return; }
 
+    const candidateRows = candidatesRes.data || [];
+    const workerIds = [...new Set(candidateRows.map((row) => row.worker_id).filter(Boolean))];
+    let workersById = new Map();
+
+    if (workerIds.length > 0) {
+      const { data: workerRows, error: workersError } = await supabase
+        .from("workers")
+        .select("id, public_profile_slug")
+        .in("id", workerIds);
+
+      if (!workersError) {
+        workersById = new Map((workerRows || []).map((worker) => [worker.id, worker]));
+      }
+    }
+
     setJob(jobRes.data);
-    setJobCandidates(candidatesRes.data || []);
+    setJobCandidates(
+      candidateRows.map((candidate) => ({
+        ...candidate,
+        public_profile_slug: workersById.get(candidate.worker_id)?.public_profile_slug || "",
+      }))
+    );
     setLoading(false);
   }, [jobId]);
 
@@ -654,12 +677,24 @@ export default function CtsJobDetailPage() {
                 <table className="assigned-table">
                   <thead>
                     <tr>
-                      <th className="sticky-name-col">Name</th><th>Phone</th><th>Class</th><th>Local / Travelers</th><th>Location</th><th>English</th><th>On System (CTS)</th><th>Rate</th><th>Per Diem</th><th>Stage</th><th>Notes</th><th>Actions</th>
+                      <th className="sticky-profile-col">Profile</th><th className="sticky-name-col">Name</th><th>Phone</th><th>Class</th><th>Local / Travelers</th><th>Location</th><th>English</th><th>On System (CTS)</th><th>Rate</th><th>Per Diem</th><th>Stage</th><th>Notes</th><th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredCandidates.map((row) => (
                       <tr key={row.id}>
+                        <td className="sticky-profile-col">
+                          <button
+                            className="icon-btn"
+                            type="button"
+                            disabled={!row.public_profile_slug}
+                            title={row.public_profile_slug ? "Open public profile" : "No public profile available"}
+                            onClick={() => row.public_profile_slug && window.open(`/profile/${row.public_profile_slug}`, "_blank")}
+                            style={{ width: 38, height: 38, padding: 0 }}
+                          >
+                            <ExternalLink size={16} />
+                          </button>
+                        </td>
                         <td className="sticky-name-col"><InlineEditableField row={row} field="name_snapshot" value={row.name_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:name_snapshot`]} /></td>
                         <td><InlineEditableField row={row} field="phone_snapshot" value={row.phone_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:phone_snapshot`]} /></td>
                         <td><InlineEditableField row={row} field="class_snapshot" value={row.class_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:class_snapshot`]} /></td>

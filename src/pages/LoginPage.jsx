@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { getCurrentUserAccess } from "../lib/userAccess";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -20,7 +21,10 @@ export default function LoginPage() {
       } = await supabase.auth.getSession();
 
       if (session) {
-        navigate("/admin", { replace: true });
+        const access = await getCurrentUserAccess();
+        navigate(access.isClient && !access.isAdmin ? "/client/cts-jobs" : "/admin", {
+          replace: true,
+        });
         return;
       }
 
@@ -47,7 +51,10 @@ export default function LoginPage() {
     }
 
     setLoading(false);
-    navigate("/admin", { replace: true });
+    const access = await getCurrentUserAccess();
+    navigate(access.isClient && !access.isAdmin ? "/client/cts-jobs" : "/admin", {
+      replace: true,
+    });
   };
 
   const inputWrapperStyle = {
@@ -274,7 +281,7 @@ export default function LoginPage() {
                 color: "#0f172a",
               }}
             >
-              Admin Login
+              Portal Login
             </h1>
 
             <p
@@ -286,7 +293,7 @@ export default function LoginPage() {
                 lineHeight: 1.6,
               }}
             >
-              Sign in to access the admin dashboard.
+              Sign in to access your dashboard.
             </p>
           </div>
 
