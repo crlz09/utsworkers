@@ -3,6 +3,7 @@ import {
   Briefcase,
   ChevronDown,
   ChevronUp,
+  Clock3,
   ExternalLink,
   Loader2,
   Users,
@@ -98,6 +99,29 @@ function PageStyles() {
         margin: 10px 0 0 0;
         color: #475569;
         font-size: 16px;
+      }
+
+      .hero-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      .client-action-btn {
+        border: 1px solid #0f172a;
+        background: #0f172a;
+        color: #ffffff;
+        border-radius: 14px;
+        min-height: 46px;
+        padding: 12px 16px;
+        font-weight: 900;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
       }
 
       .table-top {
@@ -587,10 +611,18 @@ export default function ClientCtsJobsPage() {
       <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%)" }}>
         <div className="client-shell">
           <div className="glass-card hero-card">
-            <h1 className="hero-title">CTS Jobs Dashboard</h1>
-            <p className="hero-subtitle">
-              Read-only view of sourced candidates and current CTS job orders.
-            </p>
+            <div className="hero-top">
+              <div>
+                <h1 className="hero-title">CTS Jobs Dashboard</h1>
+                <p className="hero-subtitle">
+                  Read-only view of sourced candidates and current CTS job orders.
+                </p>
+              </div>
+              <button className="client-action-btn" type="button" onClick={() => navigate("/client/hours")}>
+                <Clock3 size={16} />
+                Hours Entry
+              </button>
+            </div>
           </div>
 
           {error ? (

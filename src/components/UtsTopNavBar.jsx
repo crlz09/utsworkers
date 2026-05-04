@@ -6,6 +6,7 @@ import {
   History,
   LogOut,
   Briefcase,
+  Clock3,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
@@ -20,6 +21,7 @@ export default function UtsTopNavBar() {
     isRegister: location.pathname.startsWith("/register"),
     isInterviews: location.pathname.startsWith("/interviews"),
     isCtsJobs: location.pathname.startsWith("/cts-jobs"),
+    isHours: location.pathname.startsWith("/hours"),
   };
 
   const navItems = [
@@ -48,6 +50,12 @@ export default function UtsTopNavBar() {
       path: "/cts-jobs",
       icon: Briefcase,
       match: (pathname) => pathname.startsWith("/cts-jobs"),
+    },
+    {
+      label: "Hours",
+      path: "/hours",
+      icon: Clock3,
+      match: (pathname) => pathname.startsWith("/hours"),
     },
   ];
 
@@ -211,7 +219,7 @@ export default function UtsTopNavBar() {
             grid-column: 1 / -1;
             grid-row: 2;
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 6px;
             overflow: visible;
           }
