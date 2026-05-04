@@ -16,7 +16,7 @@ import {
 import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
-import utsLogo from "../assets/uts-logo.png";
+import UtsClientTopBar from "../components/UtsClientTopBar";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const FIRST_ASSIGNMENT_WEEK = "2026-04-06";
@@ -471,18 +471,6 @@ function compareClass(adminValue, clientValue) {
   return "match-warn";
 }
 
-function ClientTopBar() {
-  return (
-    <div className="client-topbar">
-      <div className="client-topbar-inner">
-        <a className="client-logo" href="https://www.universaltalentsource.com" target="_blank" rel="noreferrer">
-          <img src={utsLogo} alt="UTS" />
-        </a>
-      </div>
-    </div>
-  );
-}
-
 function HoursTable({
   assignments,
   days,
@@ -890,7 +878,7 @@ export default function HoursTrackerPage({ mode = "admin" }) {
     });
   };
 
-  const renderTopBar = () => (isAdmin ? <UtsTopNavBar /> : <ClientTopBar />);
+  const renderTopBar = () => (isAdmin ? <UtsTopNavBar /> : <UtsClientTopBar />);
 
   return (
     <>

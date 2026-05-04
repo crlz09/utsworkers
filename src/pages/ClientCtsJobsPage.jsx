@@ -11,7 +11,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import GoToTopButton from "../components/GoToTopButton";
-import utsLogo from "../assets/uts-logo.png";
+import UtsClientTopBar from "../components/UtsClientTopBar";
 
 function PageStyles() {
   return (
@@ -594,19 +594,7 @@ export default function ClientCtsJobsPage() {
   return (
     <>
       <PageStyles />
-      <div className="client-topbar">
-        <div className="client-topbar-inner">
-          <a
-            className="client-logo"
-            href="https://www.universaltalentsource.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Universal Talent Source"
-          >
-            <img src={utsLogo} alt="UTS" />
-          </a>
-        </div>
-      </div>
+      <UtsClientTopBar />
 
       <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%)" }}>
         <div className="client-shell">
