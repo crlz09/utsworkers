@@ -27,6 +27,7 @@ import {
   CheckSquare,
   Square,
   AlertTriangle,
+  Printer,
 } from "lucide-react";
 
 const LAST_IMPORT_BATCH_STORAGE_KEY = "uts_last_cts_jobs_import_batch_id";
@@ -196,11 +197,11 @@ function PageStyles() {
 
       .candidate-header-controls {
         display: grid;
-        grid-template-columns: minmax(240px, 1fr) minmax(170px, 0.45fr);
+        grid-template-columns: minmax(240px, 1fr) minmax(170px, 0.45fr) auto;
         gap: 10px;
         align-items: center;
         flex: 1;
-        min-width: min(100%, 520px);
+        min-width: min(100%, 680px);
       }
 
       .candidate-header-controls .input,
@@ -815,6 +816,15 @@ function formatCandidateStatus(status) {
   return String(status || "sourced")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function compareValues(a, b) {
@@ -2183,6 +2193,185 @@ export default function CtsJobsPage() {
     navigate(`/cts-jobs/${jobId}`);
   };
 
+  const printSourcedCandidates = () => {
+    const printWindow = window.open("", "uts-candidates-sourced-print", "width=1200,height=800");
+    if (!printWindow) {
+      setFeedback({
+        error: "Pop-up blocked. Please allow pop-ups for this site and try printing again.",
+        success: "",
+      });
+      return;
+    }
+
+    const printedAt = new Date().toLocaleString("en-US");
+    const activeFilters = [
+      candidateSearch.trim() ? `Search: ${candidateSearch.trim()}` : "",
+      candidateStatusFilter ? `Status: ${formatCandidateStatus(candidateStatusFilter)}` : "",
+      `Sort: ${String(candidateSort.key).replace(/_/g, " ")} ${candidateSort.direction.toUpperCase()}`,
+    ].filter(Boolean);
+
+    const rows = filteredCandidates
+      .map((candidate) => {
+        const worker = candidate.worker || {};
+        const job = candidate.job || {};
+        const candidateName = candidate.name_snapshot || worker.name || "—";
+        const phone = candidate.phone_snapshot || worker.phone || "—";
+        const email = worker.email || "—";
+        const projectName = job.level_type || "Unlinked project";
+        const projectLocation = [job.city, job.state].filter(Boolean).join(", ") || "—";
+        const profileUrl = worker.public_profile_slug
+          ? `${window.location.origin}/profile/${worker.public_profile_slug}`
+          : "—";
+
+        return `
+          <tr>
+            <td>
+              <strong>${escapeHtml(candidateName)}</strong>
+              <div class="muted">${escapeHtml(phone)}</div>
+              <div class="muted">${escapeHtml(email)}</div>
+            </td>
+            <td>
+              <strong>${escapeHtml(projectName)}</strong>
+              <div class="muted">${escapeHtml(projectLocation)}</div>
+            </td>
+            <td>${escapeHtml(formatCandidateStatus(candidate.candidate_status))}</td>
+            <td>${escapeHtml(formatDateTime(candidate.updated_at || candidate.created_at))}</td>
+            <td class="profile-cell">${escapeHtml(profileUrl)}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const printMarkup = `
+      <!doctype html>
+      <html>
+        <head>
+          <title>Candidates Sourced</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              padding: 32px;
+              color: #0f172a;
+              font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              background: #ffffff;
+            }
+            .kicker {
+              display: inline-flex;
+              width: fit-content;
+              padding: 8px 14px;
+              border-radius: 999px;
+              background: #0f172a;
+              color: #ffffff;
+              font-weight: 900;
+              margin-bottom: 18px;
+            }
+            h1 {
+              margin: 0;
+              font-size: 34px;
+              line-height: 1.05;
+            }
+            .meta {
+              margin-top: 10px;
+              color: #475569;
+              font-weight: 700;
+            }
+            .filters {
+              margin: 18px 0 22px;
+              display: flex;
+              gap: 8px;
+              flex-wrap: wrap;
+            }
+            .filter-pill {
+              border: 1px solid #cbd5e1;
+              background: #f8fafc;
+              border-radius: 999px;
+              padding: 7px 10px;
+              color: #334155;
+              font-size: 12px;
+              font-weight: 800;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+            }
+            th {
+              text-align: left;
+              color: #1e3a8a;
+              background: #eff6ff;
+              border-bottom: 1px solid #bfdbfe;
+              padding: 11px 10px;
+              font-size: 11px;
+              text-transform: uppercase;
+              letter-spacing: 0.06em;
+            }
+            td {
+              border-bottom: 1px solid #e2e8f0;
+              padding: 12px 10px;
+              vertical-align: top;
+              font-size: 12px;
+              overflow-wrap: anywhere;
+            }
+            .muted {
+              margin-top: 4px;
+              color: #64748b;
+            }
+            .profile-cell {
+              font-size: 10px;
+              color: #475569;
+            }
+            @media print {
+              body { padding: 18px; }
+              .no-print { display: none; }
+              tr { break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="kicker">Universal Talent Source</div>
+          <h1>Candidates Sourced</h1>
+          <div class="meta">${filteredCandidates.length} results · Printed ${escapeHtml(printedAt)}</div>
+          <div class="filters">
+            ${
+              activeFilters.length
+                ? activeFilters.map((item) => `<span class="filter-pill">${escapeHtml(item)}</span>`).join("")
+                : '<span class="filter-pill">No filters applied</span>'
+            }
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 26%;">Name</th>
+                <th style="width: 24%;">Project</th>
+                <th style="width: 14%;">Status</th>
+                <th style="width: 17%;">Last Modified</th>
+                <th style="width: 19%;">Profile</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(printMarkup);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+
+    setTimeout(() => {
+      if (!printWindow.closed) {
+        printWindow.focus();
+        printWindow.print();
+      }
+    }, 250);
+  };
+
   return (
     <>
       <PageStyles />
@@ -2292,6 +2481,17 @@ export default function CtsJobsPage() {
                       </option>
                     ))}
                   </select>
+
+                  <button
+                    className="btn white"
+                    type="button"
+                    onClick={printSourcedCandidates}
+                    disabled={filteredCandidates.length === 0}
+                    title="Print current sourced candidates results"
+                  >
+                    <Printer size={16} />
+                    Print Results
+                  </button>
                 </div>
               ) : null}
             </div>
