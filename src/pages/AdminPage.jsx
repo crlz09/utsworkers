@@ -558,6 +558,10 @@ function formatPayValue(value) {
   return trimmed || "—";
 }
 
+function isWorkerUnreviewed(worker) {
+  return !worker.admin_reviewed_at;
+}
+
 function MiniMetric({ label, value }) {
   return (
     <div
@@ -1294,6 +1298,7 @@ function WorkerCard({
   onWorkerSaved,
   onWorkerDeleted,
   onDocumentsChanged,
+  onWorkerReviewed,
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
@@ -1331,6 +1336,22 @@ function WorkerCard({
   const perDiemValue = formatPayValue(worker.per_diem);
   const canEditWorkers = !!permissions?.can_edit_workers;
   const canDeleteWorkers = !!permissions?.can_delete_workers;
+  const isUnreviewed = isWorkerUnreviewed(worker);
+
+  const markWorkerReviewed = async () => {
+    if (!canEditWorkers || !isUnreviewed) return;
+
+    const reviewedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from("workers")
+      .update({ admin_reviewed_at: reviewedAt })
+      .eq("id", worker.id)
+      .is("admin_reviewed_at", null);
+
+    if (!error) {
+      onWorkerReviewed(worker.id, reviewedAt);
+    }
+  };
 
   const saveRecruiterOwner = async (newRecruiterUserId) => {
     if (!canEditWorkers) return;
@@ -1436,8 +1457,27 @@ function WorkerCard({
               alignItems: "start",
             }}
           >
-            <div style={{ minWidth: 0, fontSize: 24, lineHeight: 1.15, fontWeight: 900, color: "#0f172a" }}>
-              {worker.name}
+            <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 24, lineHeight: 1.15, fontWeight: 900, color: "#0f172a" }}>
+                {worker.name}
+              </span>
+              {isUnreviewed ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    borderRadius: 999,
+                    padding: "5px 9px",
+                    background: "#dcfce7",
+                    color: "#166534",
+                    border: "1px solid #86efac",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  New
+                </span>
+              ) : null}
             </div>
 
             <div
@@ -1533,7 +1573,10 @@ function WorkerCard({
           </div>
 
           <Button
-            onClick={() => setDetailsOpen((prev) => !prev)}
+            onClick={() => {
+              setDetailsOpen((prev) => !prev);
+              void markWorkerReviewed();
+            }}
             tone={detailsOpen ? "dark" : "neutral"}
             icon={detailsOpen ? ChevronUp : ChevronDown}
             style={{
@@ -1973,6 +2016,7 @@ export default function AdminPage() {
   const [tradeFilter, setTradeFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [reviewFilter, setReviewFilter] = useState("");
   const [selectedSkillIds, setSelectedSkillIds] = useState([]);
   const [sortBy, setSortBy] = useState("status_priority");
   const [trades, setTrades] = useState([]);
@@ -2105,6 +2149,19 @@ export default function AdminPage() {
     );
   };
 
+  const handleWorkerReviewed = (workerId, reviewedAt) => {
+    setWorkers((prev) =>
+      prev.map((worker) =>
+        worker.id === workerId
+          ? {
+              ...worker,
+              admin_reviewed_at: reviewedAt,
+            }
+          : worker
+      )
+    );
+  };
+
   const handleWorkerSaved = (updatedWorker) => {
     setWorkers((prev) =>
       prev.map((worker) => (worker.id === updatedWorker.id ? updatedWorker : worker))
@@ -2157,6 +2214,7 @@ export default function AdminPage() {
       const matchTrade = !tradeFilter || w.trade_id === tradeFilter;
       const matchLocation = !locationFilter || w.location_id === locationFilter;
       const matchStatus = !statusFilter || w.status === statusFilter;
+      const matchReview = reviewFilter !== "unreviewed" || isWorkerUnreviewed(w);
       const matchRecruiter =
         !recruiterFilter ||
         (recruiterFilter === "unassigned"
@@ -2175,6 +2233,7 @@ export default function AdminPage() {
         matchTrade &&
         matchLocation &&
         matchStatus &&
+        matchReview &&
         matchRecruiter &&
         matchSkills
       );
@@ -2202,6 +2261,7 @@ export default function AdminPage() {
     tradeFilter,
     locationFilter,
     statusFilter,
+    reviewFilter,
     recruiterFilter,
     selectedSkillIds,
     sortBy,
@@ -2213,6 +2273,7 @@ export default function AdminPage() {
   const rejectedCount = workers.filter((w) => w.status === "rejected").length;
   const completedCount = workers.filter((w) => w.status === "completed").length;
   const workingCount = workers.filter((w) => w.status === "working").length;
+  const unreviewedCount = workers.filter(isWorkerUnreviewed).length;
   const workflowStatusBadges = [
     { value: "pending", label: "Pending", count: pendingCount },
     { value: "onboarding", label: "OnBoarding", count: onboardingCount },
@@ -2226,6 +2287,7 @@ export default function AdminPage() {
     !!tradeFilter ||
     !!locationFilter ||
     !!statusFilter ||
+    !!reviewFilter ||
     !!recruiterFilter ||
     selectedSkillIds.length > 0 ||
     sortBy !== "status_priority";
@@ -2234,6 +2296,7 @@ export default function AdminPage() {
     setTradeFilter("");
     setLocationFilter("");
     setStatusFilter("");
+    setReviewFilter("");
     setRecruiterFilter("");
     setSelectedSkillIds([]);
     setSortBy("status_priority");
@@ -2303,9 +2366,27 @@ export default function AdminPage() {
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 20 }}>Workflow Status</div>
-                <span style={{ ...pillStyle(true), fontSize: 14 }}>
-                  Total Workers: {workers.length}
-                </span>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() => setReviewFilter((prev) => (prev === "unreviewed" ? "" : "unreviewed"))}
+                    aria-pressed={reviewFilter === "unreviewed"}
+                    title="Filter unreviewed workers"
+                    style={{
+                      ...pillStyle(),
+                      border: reviewFilter === "unreviewed" ? "1px solid #0f172a" : "1px solid #86efac",
+                      background: reviewFilter === "unreviewed" ? "#0f172a" : "#dcfce7",
+                      color: reviewFilter === "unreviewed" ? "#ffffff" : "#166534",
+                      cursor: "pointer",
+                      boxShadow: reviewFilter === "unreviewed" ? "0 10px 24px rgba(15, 23, 42, 0.2)" : "none",
+                    }}
+                  >
+                    New / Unreviewed: {unreviewedCount}
+                  </button>
+                  <span style={{ ...pillStyle(true), fontSize: 14 }}>
+                    Total Workers: {workers.length}
+                  </span>
+                </div>
               </div>
               <div className="admin-pill-strip" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 {statusFilter && (
@@ -2473,7 +2554,7 @@ export default function AdminPage() {
                     className="filters-grid"
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+                      gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
                       gap: 14,
                     }}
                   >
@@ -2499,6 +2580,11 @@ export default function AdminPage() {
                       <option value="rejected">Rejected</option>
                       <option value="completed">Completed</option>
                       <option value="working">Working</option>
+                    </select>
+
+                    <select value={reviewFilter} onChange={(e) => setReviewFilter(e.target.value)} style={inputStyle}>
+                      <option value="">All Reviews</option>
+                      <option value="unreviewed">New / Unreviewed</option>
                     </select>
 
                     <select value={recruiterFilter} onChange={(e) => setRecruiterFilter(e.target.value)} style={inputStyle}>
@@ -2572,6 +2658,7 @@ export default function AdminPage() {
                     onWorkerSaved={handleWorkerSaved}
                     onWorkerDeleted={handleWorkerDeleted}
                     onDocumentsChanged={() => reloadWorkerDocuments(w.id)}
+                    onWorkerReviewed={handleWorkerReviewed}
                   />
                 ))
               )}

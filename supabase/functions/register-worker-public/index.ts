@@ -10,6 +10,8 @@ const corsHeaders = {
 
 const RATE_LIMIT_WINDOW_MINUTES = 15
 const RATE_LIMIT_MAX_ATTEMPTS = 5
+const DEFAULT_APP_BASE_URL = "https://www.uts.services"
+const DEFAULT_NOTIFICATION_FROM = "Universal Talent Source <onboarding@resend.dev>"
 
 const respond = (status: number, payload: Record<string, unknown>) =>
   new Response(JSON.stringify(payload), {
@@ -63,6 +65,31 @@ const summarizePayload = (payload: Record<string, unknown>) => ({
     : 0,
   projects_count: Array.isArray(payload.projects) ? payload.projects.length : 0,
 })
+
+const formatAddress = (worker: Record<string, unknown>) =>
+  [
+    toOptionalString(worker.address),
+    toOptionalString(worker.city),
+    toOptionalString(worker.state),
+    toOptionalString(worker.zip_code),
+  ]
+    .filter(Boolean)
+    .join(", ")
+
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;")
+
+const renderEmailRow = (label: string, value: unknown) => `
+  <tr>
+    <td style="padding:10px 0;color:#64748b;font-weight:700;width:150px;">${escapeHtml(label)}</td>
+    <td style="padding:10px 0;color:#0f172a;font-weight:800;">${escapeHtml(value || "—")}</td>
+  </tr>
+`
 
 const toProjectPayload = (value: unknown) => {
   if (!Array.isArray(value)) return []
@@ -199,6 +226,123 @@ async function isRateLimited(
   }
 
   return (count || 0) >= RATE_LIMIT_MAX_ATTEMPTS
+}
+
+async function sendNewWorkerNotification(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  workerId: string | null,
+) {
+  const resendApiKey = Deno.env.get("RESEND_API_KEY")
+  const notifyTo = Deno.env.get("WORKER_NOTIFICATION_TO")
+  const notifyFrom = Deno.env.get("WORKER_NOTIFICATION_FROM") || DEFAULT_NOTIFICATION_FROM
+  const appBaseUrl = (Deno.env.get("APP_BASE_URL") || DEFAULT_APP_BASE_URL).replace(/\/$/, "")
+
+  if (!resendApiKey || !notifyTo || !workerId) {
+    console.warn("Worker notification skipped: missing RESEND_API_KEY, WORKER_NOTIFICATION_TO, or workerId.")
+    return
+  }
+
+  const { data: worker, error } = await supabaseAdmin
+    .from("workers")
+    .select(`
+      id,
+      name,
+      phone,
+      email,
+      address,
+      zip_code,
+      city,
+      state,
+      total_experience_years,
+      commercial_experience_years,
+      industrial_experience_years,
+      residential_experience_years,
+      public_profile_slug,
+      created_at,
+      trades(name),
+      locations(name)
+    `)
+    .eq("id", workerId)
+    .maybeSingle()
+
+  if (error || !worker) {
+    console.error("Failed to load worker for notification", error)
+    return
+  }
+
+  const workerRecord = worker as Record<string, unknown>
+  const trade = (workerRecord.trades as { name?: string } | null)?.name || "—"
+  const location = (workerRecord.locations as { name?: string } | null)?.name || "—"
+  const profileSlug = toOptionalString(workerRecord.public_profile_slug)
+  const profileUrl = profileSlug ? `${appBaseUrl}/profile/${profileSlug}` : ""
+  const adminUrl = `${appBaseUrl}/admin`
+  const workerName = toRequiredString(workerRecord.name) || "New worker"
+
+  const html = `
+    <div style="margin:0;padding:0;background:#f8fafc;color:#0f172a;font-family:Inter,Arial,sans-serif;">
+      <div style="max-width:680px;margin:0 auto;padding:28px;">
+        <div style="display:inline-block;background:#0f172a;color:#ffffff;border-radius:999px;padding:8px 14px;font-weight:900;margin-bottom:18px;">
+          Universal Talent Source
+        </div>
+        <div style="background:#ffffff;border:1px solid #dbeafe;border-radius:22px;padding:26px;box-shadow:0 14px 36px rgba(15,23,42,0.08);">
+          <h1 style="margin:0 0 8px;font-size:30px;line-height:1.1;color:#0f172a;">New worker registered</h1>
+          <p style="margin:0 0 22px;color:#475569;font-size:16px;">A new public registration was submitted and saved in the admin dashboard.</p>
+          <table style="width:100%;border-collapse:collapse;">
+            ${renderEmailRow("Name", workerName)}
+            ${renderEmailRow("Trade", trade)}
+            ${renderEmailRow("Location", location)}
+            ${renderEmailRow("Phone", workerRecord.phone)}
+            ${renderEmailRow("Email", workerRecord.email)}
+            ${renderEmailRow("Address", formatAddress(workerRecord))}
+            ${renderEmailRow("Experience", `${workerRecord.total_experience_years ?? 0} yrs total`)}
+          </table>
+          <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
+            <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;border-radius:14px;padding:13px 16px;font-weight:900;">Open Admin</a>
+            ${
+              profileUrl
+                ? `<a href="${escapeHtml(profileUrl)}" style="display:inline-block;background:#ffffff;color:#0f172a;text-decoration:none;border:1px solid #cbd5e1;border-radius:14px;padding:13px 16px;font-weight:900;">Open Profile</a>`
+                : ""
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+
+  const text = [
+    "New worker registered",
+    "",
+    `Name: ${workerName}`,
+    `Trade: ${trade}`,
+    `Location: ${location}`,
+    `Phone: ${workerRecord.phone || "—"}`,
+    `Email: ${workerRecord.email || "—"}`,
+    `Address: ${formatAddress(workerRecord) || "—"}`,
+    `Total experience: ${workerRecord.total_experience_years ?? 0} yrs`,
+    "",
+    `Admin: ${adminUrl}`,
+    profileUrl ? `Profile: ${profileUrl}` : "",
+  ].filter(Boolean).join("\n")
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: notifyFrom,
+      to: notifyTo.split(",").map((item) => item.trim()).filter(Boolean),
+      subject: `New worker registered: ${workerName}`,
+      html,
+      text,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    console.error("Resend notification failed", response.status, errorBody)
+  }
 }
 
 Deno.serve(async (req) => {
@@ -355,6 +499,12 @@ Deno.serve(async (req) => {
       workerId: typeof data === "string" ? data : null,
       payloadSummary,
     })
+
+    try {
+      await sendNewWorkerNotification(supabaseAdmin, typeof data === "string" ? data : null)
+    } catch (notificationError) {
+      console.error("New worker notification failed", notificationError)
+    }
 
     return respond(200, { workerId: data })
   } catch (error) {
