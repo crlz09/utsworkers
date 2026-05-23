@@ -16,6 +16,8 @@ import {
   ExternalLink,
   FileSpreadsheet,
   StickyNote,
+  MessageCircle,
+  Share2,
 } from "lucide-react";
 
 function PageStyles() {
@@ -337,22 +339,24 @@ function formatPayValue(value) {
   return trimmed || "-";
 }
 
-function ActionButton({ children, onClick, dark = false, icon: Icon }) {
+function ActionButton({ children, onClick, dark = false, icon: Icon, disabled = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       style={{
         border: dark ? "none" : "1px solid #cbd5e1",
-        background: dark ? "#0f172a" : "#ffffff",
-        color: dark ? "#ffffff" : "#0f172a",
+        background: disabled ? "#f1f5f9" : dark ? "#0f172a" : "#ffffff",
+        color: disabled ? "#94a3b8" : dark ? "#ffffff" : "#0f172a",
         borderRadius: 10,
         padding: "12px 16px",
         fontWeight: 800,
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
         display: "inline-flex",
         alignItems: "center",
         gap: 8,
+        opacity: disabled ? 0.72 : 1,
       }}
     >
       {Icon ? <Icon size={16} /> : null}
@@ -401,6 +405,8 @@ export default function WorkerProfilePage() {
   const certifications = useMemo(() => worker?.certifications || [], [worker]);
   const languages = useMemo(() => worker?.languages || [], [worker]);
   const workerAddress = formatWorkerAddress(worker);
+  const profileUrl = typeof window !== "undefined" ? window.location.href : "";
+  const cleanPhone = worker?.phone ? String(worker.phone).replace(/[^\d+]/g, "") : "";
   const rateValue = formatPayValue(worker?.rate);
   const perDiemValue = formatPayValue(worker?.per_diem);
   const recruiterAdminNotes = useMemo(() => {
@@ -428,8 +434,6 @@ export default function WorkerProfilePage() {
 
   const exportCsv = () => {
     if (!worker) return;
-
-    const profileUrl = window.location.href;
 
     const rows = [
       ["Name", worker.name || ""],
@@ -471,12 +475,45 @@ export default function WorkerProfilePage() {
 
   const copyProfileUrl = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(profileUrl);
       setCopiedProfileUrl(true);
       window.setTimeout(() => setCopiedProfileUrl(false), 1800);
     } catch {
       setCopiedProfileUrl(false);
     }
+  };
+
+  const shareProfile = async () => {
+    if (!worker) return;
+
+    const shareData = {
+      title: `${worker.name || "Worker"} Profile`,
+      text: `Universal Talent Source worker profile for ${worker.name || "this worker"}.`,
+      url: profileUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+
+      await copyProfileUrl();
+    } catch {
+      // Native share throws when users cancel. Keep the profile page quiet.
+    }
+  };
+
+  const callWorker = () => {
+    if (cleanPhone) window.location.href = `tel:${cleanPhone}`;
+  };
+
+  const textWorker = () => {
+    if (cleanPhone) window.location.href = `sms:${cleanPhone}`;
+  };
+
+  const emailWorker = () => {
+    if (worker?.email) window.location.href = `mailto:${worker.email}`;
   };
 
   if (loading) {
@@ -591,7 +628,7 @@ export default function WorkerProfilePage() {
                 </h1>
 
                 <p style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
-                  Public read-only profile.
+                  Share-ready public profile for quick client review.
                 </p>
               </div>
 
@@ -601,6 +638,10 @@ export default function WorkerProfilePage() {
               >
                 <ActionButton onClick={exportCsv} icon={FileSpreadsheet}>
                   Export CSV
+                </ActionButton>
+
+                <ActionButton onClick={shareProfile} icon={Share2}>
+                  Share
                 </ActionButton>
 
                 <ActionButton onClick={copyProfileUrl} icon={copiedProfileUrl ? Check : Copy}>
@@ -699,6 +740,26 @@ export default function WorkerProfilePage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
                       <MapPin size={15} />
                       <span>{workerAddress || "No address"}</span>
+                    </div>
+
+                    <div
+                      className="no-print"
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                        gap: 8,
+                        paddingTop: 4,
+                      }}
+                    >
+                      <ActionButton onClick={callWorker} icon={Phone} disabled={!cleanPhone}>
+                        Call
+                      </ActionButton>
+                      <ActionButton onClick={textWorker} icon={MessageCircle} disabled={!cleanPhone}>
+                        Text
+                      </ActionButton>
+                      <ActionButton onClick={emailWorker} icon={Mail} disabled={!worker.email}>
+                        Email
+                      </ActionButton>
                     </div>
                   </div>
                 </div>
@@ -846,7 +907,7 @@ export default function WorkerProfilePage() {
               </div>
 
               <div style={{ color: "#475569", wordBreak: "break-all" }}>
-                {window.location.href}
+                {profileUrl}
               </div>
             </div>
           </div>

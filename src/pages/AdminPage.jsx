@@ -28,6 +28,9 @@ import {
   Download,
   Pencil,
   ExternalLink,
+  Copy,
+  MessageCircle,
+  AlertTriangle,
 } from "lucide-react";
 
 function PageStyles() {
@@ -560,6 +563,29 @@ function formatPayValue(value) {
 
 function isWorkerUnreviewed(worker) {
   return !worker.admin_reviewed_at;
+}
+
+function getWorkerQualityIssues(worker) {
+  const issues = [];
+
+  if (!String(worker.rate || "").trim()) issues.push("Missing rate");
+  if (!String(worker.per_diem || "").trim()) issues.push("Missing per diem");
+  if (!String(worker.phone || "").trim()) issues.push("Missing phone");
+  if (!String(worker.email || "").trim()) issues.push("Missing email");
+  if (!formatWorkerAddress(worker)) issues.push("Missing address");
+  if (!String(worker.public_profile_slug || "").trim()) issues.push("No profile link");
+
+  return issues;
+}
+
+function getEndOfCurrentWeek() {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = day === 0 ? 0 : 7 - day;
+  const end = new Date(today);
+  end.setDate(today.getDate() + diff);
+  end.setHours(23, 59, 59, 999);
+  return end;
 }
 
 function MiniMetric({ label, value }) {
@@ -1303,6 +1329,7 @@ function WorkerCard({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [copiedProfile, setCopiedProfile] = useState(false);
 
   const [recruiterUserId, setRecruiterUserId] = useState(worker.recruiter_user_id || "");
   const [savingRecruiter, setSavingRecruiter] = useState(false);
@@ -1337,6 +1364,28 @@ function WorkerCard({
   const canEditWorkers = !!permissions?.can_edit_workers;
   const canDeleteWorkers = !!permissions?.can_delete_workers;
   const isUnreviewed = isWorkerUnreviewed(worker);
+  const qualityIssues = getWorkerQualityIssues(worker);
+  const profileUrl = worker.public_profile_slug
+    ? `${window.location.origin}/profile/${worker.public_profile_slug}`
+    : "";
+  const phoneHref = worker.phone ? `tel:${String(worker.phone).replace(/[^\d+]/g, "")}` : "";
+  const smsHref = worker.phone ? `sms:${String(worker.phone).replace(/[^\d+]/g, "")}` : "";
+  const emailHref = worker.email ? `mailto:${worker.email}` : "";
+
+  const copyProfileLink = async () => {
+    if (!profileUrl) {
+      alert("This worker does not have a public profile slug yet.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(profileUrl);
+      setCopiedProfile(true);
+      window.setTimeout(() => setCopiedProfile(false), 1600);
+    } catch {
+      window.prompt("Copy profile link", profileUrl);
+    }
+  };
 
   const markWorkerReviewed = async () => {
     if (!canEditWorkers || !isUnreviewed) return;
@@ -1531,6 +1580,31 @@ function WorkerCard({
 
           </div>
 
+          {qualityIssues.length > 0 ? (
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              {qualityIssues.map((issue) => (
+                <span
+                  key={issue}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    borderRadius: 999,
+                    padding: "6px 9px",
+                    background: "#ffedd5",
+                    color: "#9a3412",
+                    border: "1px solid #fdba74",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  <AlertTriangle size={12} />
+                  {issue}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
           <div
             className="worker-meta"
             style={{
@@ -1570,6 +1644,37 @@ function WorkerCard({
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569" }}>
             <MapPin size={15} />
             <span>{workerAddress || "No address"}</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>
+            <IconButton
+              icon={Phone}
+              title="Call worker"
+              aria-label="Call worker"
+              disabled={!phoneHref}
+              onClick={() => phoneHref && (window.location.href = phoneHref)}
+            />
+            <IconButton
+              icon={MessageCircle}
+              title="Text worker"
+              aria-label="Text worker"
+              disabled={!smsHref}
+              onClick={() => smsHref && (window.location.href = smsHref)}
+            />
+            <IconButton
+              icon={Mail}
+              title="Email worker"
+              aria-label="Email worker"
+              disabled={!emailHref}
+              onClick={() => emailHref && (window.location.href = emailHref)}
+            />
+            <IconButton
+              icon={copiedProfile ? ShieldCheck : Copy}
+              title={copiedProfile ? "Profile link copied" : "Copy profile link"}
+              aria-label="Copy profile link"
+              disabled={!profileUrl}
+              onClick={copyProfileLink}
+            />
           </div>
 
           <Button
@@ -2017,6 +2122,7 @@ export default function AdminPage() {
   const [locationFilter, setLocationFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [reviewFilter, setReviewFilter] = useState("");
+  const [savedView, setSavedView] = useState("");
   const [selectedSkillIds, setSelectedSkillIds] = useState([]);
   const [sortBy, setSortBy] = useState("status_priority");
   const [trades, setTrades] = useState([]);
@@ -2215,6 +2321,22 @@ export default function AdminPage() {
       const matchLocation = !locationFilter || w.location_id === locationFilter;
       const matchStatus = !statusFilter || w.status === statusFilter;
       const matchReview = reviewFilter !== "unreviewed" || isWorkerUnreviewed(w);
+      const matchSavedView = (() => {
+        if (!savedView) return true;
+        if (savedView === "unreviewed") return isWorkerUnreviewed(w);
+        if (savedView === "pending_electricians") {
+          return w.status === "pending" && String(w.trades?.name || "").toLowerCase().includes("electric");
+        }
+        if (savedView === "available_this_week") {
+          if (w.availability === "available_soon") return true;
+          if (!w.available_from) return false;
+          const availableFrom = new Date(w.available_from);
+          return !Number.isNaN(availableFrom.getTime()) && availableFrom <= getEndOfCurrentWeek();
+        }
+        if (savedView === "no_rate") return !String(w.rate || "").trim();
+        if (savedView === "missing_contact") return !String(w.phone || "").trim() || !String(w.email || "").trim();
+        return true;
+      })();
       const matchRecruiter =
         !recruiterFilter ||
         (recruiterFilter === "unassigned"
@@ -2234,6 +2356,7 @@ export default function AdminPage() {
         matchLocation &&
         matchStatus &&
         matchReview &&
+        matchSavedView &&
         matchRecruiter &&
         matchSkills
       );
@@ -2262,6 +2385,7 @@ export default function AdminPage() {
     locationFilter,
     statusFilter,
     reviewFilter,
+    savedView,
     recruiterFilter,
     selectedSkillIds,
     sortBy,
@@ -2288,6 +2412,7 @@ export default function AdminPage() {
     !!locationFilter ||
     !!statusFilter ||
     !!reviewFilter ||
+    !!savedView ||
     !!recruiterFilter ||
     selectedSkillIds.length > 0 ||
     sortBy !== "status_priority";
@@ -2297,9 +2422,30 @@ export default function AdminPage() {
     setLocationFilter("");
     setStatusFilter("");
     setReviewFilter("");
+    setSavedView("");
     setRecruiterFilter("");
     setSelectedSkillIds([]);
     setSortBy("status_priority");
+  };
+
+  const savedViews = [
+    { value: "unreviewed", label: "New / Unreviewed" },
+    { value: "pending_electricians", label: "Pending Electricians" },
+    { value: "available_this_week", label: "Available This Week" },
+    { value: "no_rate", label: "No Rate" },
+    { value: "missing_contact", label: "Missing Phone/Email" },
+  ];
+
+  const applySavedView = (view) => {
+    const nextView = savedView === view ? "" : view;
+    setSavedView(nextView);
+    setTradeFilter("");
+    setLocationFilter("");
+    setStatusFilter("");
+    setReviewFilter("");
+    setRecruiterFilter("");
+    setSelectedSkillIds([]);
+    setSortBy(nextView ? "newest_registered" : "status_priority");
   };
 
   return (
@@ -2434,6 +2580,34 @@ export default function AdminPage() {
                       }}
                     >
                       {badge.label}: {badge.count}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 18 }}>Saved Views</div>
+              <div className="admin-pill-strip" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                {savedViews.map((view) => {
+                  const isSelected = savedView === view.value;
+
+                  return (
+                    <button
+                      key={view.value}
+                      type="button"
+                      onClick={() => applySavedView(view.value)}
+                      aria-pressed={isSelected}
+                      style={{
+                        ...pillStyle(),
+                        border: isSelected ? "1px solid #0f172a" : "1px solid #cbd5e1",
+                        background: isSelected ? "#0f172a" : "#ffffff",
+                        color: isSelected ? "#ffffff" : "#0f172a",
+                        cursor: "pointer",
+                        boxShadow: isSelected ? "0 10px 24px rgba(15, 23, 42, 0.18)" : "none",
+                      }}
+                    >
+                      {view.label}
                     </button>
                   );
                 })}
