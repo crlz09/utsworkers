@@ -284,11 +284,73 @@ function Field({ label, children }) {
   );
 }
 
+function FieldError({ children }) {
+  if (!children) return null;
+
+  return (
+    <div style={{ color: "#b91c1c", fontSize: 13, fontWeight: 700 }}>
+      {children}
+    </div>
+  );
+}
+
 function buildFullName(firstName, lastName) {
   return [firstName, lastName]
     .map((part) => String(part || "").trim())
     .filter(Boolean)
     .join(" ");
+}
+
+function normalizePhoneDigits(value) {
+  const digitsOnly = String(value || "").replace(/\D/g, "");
+  return digitsOnly.length === 11 && digitsOnly.startsWith("1")
+    ? digitsOnly.slice(1)
+    : digitsOnly;
+}
+
+function formatPhoneInput(value) {
+  const digits = normalizePhoneDigits(value).slice(0, 10);
+
+  if (!digits) return "";
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function getRegistrationFieldErrors(form) {
+  const errors = {};
+  const email = form.email.trim();
+  const phoneDigits = normalizePhoneDigits(form.phone);
+  const zip = normalizeZipCode(form.zip_code);
+
+  if (!form.first_name.trim()) errors.first_name = "Enter your first name.";
+  if (!form.last_name.trim()) errors.last_name = "Enter your last name.";
+
+  if (!form.phone.trim()) {
+    errors.phone = "Enter your phone number.";
+  } else if (phoneDigits.length !== 10) {
+    errors.phone = "Enter a valid 10-digit US phone number.";
+  }
+
+  if (!email) {
+    errors.email = "Enter your email address.";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = "Enter a valid email address, for example name@email.com.";
+  }
+
+  if (!form.address.trim()) errors.address = "Enter your street address.";
+
+  if (!zip) {
+    errors.zip_code = "Enter your ZIP code.";
+  } else if (zip.length !== 5) {
+    errors.zip_code = "Enter a valid 5-digit ZIP code.";
+  }
+
+  if (!form.location_id) errors.location_id = "Select your state/location.";
+  if (!form.trade_id) errors.trade_id = "Select your trade.";
+
+  return errors;
 }
 
 function TagPicker({ label, options, selected, setSelected, placeholder }) {
@@ -671,6 +733,7 @@ export default function RegisterPage() {
   const [bootLoading, setBootLoading] = useState(true);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [company, setCompany] = useState("");
@@ -713,6 +776,12 @@ export default function RegisterPage() {
 
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   const handleZipChange = (value) => {
@@ -773,6 +842,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setFieldErrors({});
     setSuccess(false);
 
     if (!supabase) {
@@ -784,22 +854,11 @@ export default function RegisterPage() {
 
     const fullName = buildFullName(form.first_name, form.last_name);
 
-    if (
-      !form.first_name.trim() ||
-      !form.last_name.trim() ||
-      !form.phone.trim() ||
-      !form.email.trim() ||
-      !form.address.trim() ||
-      !form.zip_code.trim() ||
-      !form.trade_id ||
-      !form.location_id
-    ) {
-      setError("Please complete First Name, Last Name, Phone, Email, Address, ZIP Code, Trade, and Location.");
-      return;
-    }
+    const nextFieldErrors = getRegistrationFieldErrors(form);
 
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      setError("Please enter a valid email address.");
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      setError("Please review the highlighted fields before submitting.");
       return;
     }
 
@@ -846,6 +905,13 @@ export default function RegisterPage() {
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        if (result.field) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            [result.field]: result.error || "Please review this field.",
+          }));
+        }
+
         throw new Error(
           result.error || "Something went wrong while saving the worker profile."
         );
@@ -948,7 +1014,7 @@ export default function RegisterPage() {
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} style={{ display: "grid", gap: 26 }}>
+              <form noValidate onSubmit={handleSubmit} style={{ display: "grid", gap: 26 }}>
                 <div aria-hidden="true" style={honeypotStyle()}>
                   <label htmlFor="company-field">Company</label>
                   <input
@@ -979,6 +1045,7 @@ export default function RegisterPage() {
                       placeholder="Carlos"
                       style={inputStyle()}
                     />
+                    <FieldError>{fieldErrors.first_name}</FieldError>
                   </Field>
 
                   <Field label="Last Name">
@@ -990,6 +1057,7 @@ export default function RegisterPage() {
                       placeholder="Molina"
                       style={inputStyle()}
                     />
+                    <FieldError>{fieldErrors.last_name}</FieldError>
                   </Field>
 
                   <Field label="Phone">
@@ -997,10 +1065,11 @@ export default function RegisterPage() {
                       required
                       autoComplete="tel"
                       value={form.phone}
-                      onChange={(e) => handleChange("phone", e.target.value)}
+                      onChange={(e) => handleChange("phone", formatPhoneInput(e.target.value))}
                       placeholder="(317) 555-1234"
                       style={inputStyle()}
                     />
+                    <FieldError>{fieldErrors.phone}</FieldError>
                   </Field>
 
                   <Field label="Email">
@@ -1013,6 +1082,7 @@ export default function RegisterPage() {
                       placeholder="carlos@email.com"
                       style={inputStyle()}
                     />
+                    <FieldError>{fieldErrors.email}</FieldError>
                   </Field>
 
                   <Field label="Street Address">
@@ -1024,6 +1094,7 @@ export default function RegisterPage() {
                       placeholder="123 Main St"
                       style={inputStyle()}
                     />
+                    <FieldError>{fieldErrors.address}</FieldError>
                   </Field>
 
                   <Field label="ZIP Code">
@@ -1041,6 +1112,7 @@ export default function RegisterPage() {
                         {zipLookupStatus}
                       </div>
                     ) : null}
+                    <FieldError>{fieldErrors.zip_code}</FieldError>
                   </Field>
 
                   <Field label="City">
@@ -1082,6 +1154,7 @@ export default function RegisterPage() {
                         </option>
                       ))}
                     </select>
+                    <FieldError>{fieldErrors.location_id}</FieldError>
                   </Field>
 
                   <Field label="Trade">
@@ -1097,6 +1170,7 @@ export default function RegisterPage() {
                         </option>
                       ))}
                     </select>
+                    <FieldError>{fieldErrors.trade_id}</FieldError>
                   </Field>
 
                   <Field label="Total Experience in Trade (Years)">

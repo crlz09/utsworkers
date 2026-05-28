@@ -367,6 +367,48 @@ async function sendNewWorkerNotification(
   }
 }
 
+async function findExistingWorkerContact(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  email: string | null,
+  phone: string | null,
+) {
+  if (email) {
+    const { data, error } = await supabaseAdmin
+      .from("workers")
+      .select("id")
+      .eq("email", email)
+      .limit(1)
+
+    if (error) throw error
+    if (data && data.length > 0) {
+      return {
+        field: "email",
+        reason: "duplicate_worker_email",
+        error: "This email address is already registered.",
+      }
+    }
+  }
+
+  if (phone) {
+    const { data, error } = await supabaseAdmin
+      .from("workers")
+      .select("id")
+      .eq("phone", phone)
+      .limit(1)
+
+    if (error) throw error
+    if (data && data.length > 0) {
+      return {
+        field: "phone",
+        reason: "duplicate_worker_phone",
+        error: "This phone number is already registered.",
+      }
+    }
+  }
+
+  return null
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
@@ -509,6 +551,27 @@ Deno.serve(async (req) => {
       return respond(400, { error: "Please enter a valid email address." })
     }
 
+    const existingContact = await findExistingWorkerContact(
+      supabaseAdmin,
+      rpcPayload.p_email,
+      rpcPayload.p_phone,
+    )
+
+    if (existingContact) {
+      await logAttempt(supabaseAdmin, {
+        ipAddress: remoteIp,
+        userAgent,
+        outcome: "blocked",
+        reason: existingContact.reason,
+        payloadSummary,
+      })
+
+      return respond(409, {
+        error: existingContact.error,
+        field: existingContact.field,
+      })
+    }
+
     const { data, error } = await supabaseAdmin.rpc("register_worker_public", rpcPayload)
 
     if (error) {
@@ -525,10 +588,21 @@ Deno.serve(async (req) => {
         reason: isDuplicateContact ? "duplicate_worker_contact" : error.message || "rpc_failed",
         payloadSummary,
       })
+      const duplicateField = String(error.message || "").includes("workers_email_unique_normalized_idx")
+        ? "email"
+        : String(error.message || "").includes("workers_phone_unique_normalized_idx")
+        ? "phone"
+        : undefined
+
       return respond(400, {
-        error: isDuplicateContact
+        error: duplicateField === "email"
+          ? "This email address is already registered."
+          : duplicateField === "phone"
+          ? "This phone number is already registered."
+          : isDuplicateContact
           ? "A worker with this email or phone number already exists."
           : error.message || "Something went wrong while saving the worker profile.",
+        field: duplicateField,
       })
     }
 

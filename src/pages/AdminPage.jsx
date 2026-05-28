@@ -561,6 +561,23 @@ function formatPayValue(value) {
   return trimmed || "—";
 }
 
+function normalizePhoneDigits(value) {
+  const digitsOnly = String(value || "").replace(/\D/g, "");
+  return digitsOnly.length === 11 && digitsOnly.startsWith("1")
+    ? digitsOnly.slice(1)
+    : digitsOnly;
+}
+
+function formatPhoneInput(value) {
+  const digits = normalizePhoneDigits(value).slice(0, 10);
+
+  if (!digits) return "";
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 function isWorkerUnreviewed(worker) {
   return !worker.admin_reviewed_at;
 }
@@ -792,6 +809,11 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
       return;
     }
 
+    if (form.phone && normalizePhoneDigits(form.phone).length !== 10) {
+      setError("Please enter a valid 10-digit US phone number.");
+      return;
+    }
+
     setSaving(true);
 
     const payload = {
@@ -831,7 +853,17 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
       .single();
 
     if (error) {
-      setError(error.message || "Could not update worker.");
+      const message = String(error.message || "");
+      const isDuplicateEmail = message.includes("workers_email_unique_normalized_idx");
+      const isDuplicatePhone = message.includes("workers_phone_unique_normalized_idx");
+
+      setError(
+        isDuplicateEmail
+          ? "This email address is already registered."
+          : isDuplicatePhone
+          ? "This phone number is already registered."
+          : message || "Could not update worker."
+      );
       setSaving(false);
       return;
     }
@@ -903,7 +935,12 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
           </Field>
 
           <Field label="Phone">
-            <input value={form.phone} onChange={(e) => update("phone", e.target.value)} style={inputStyle} />
+            <input
+              value={form.phone}
+              onChange={(e) => update("phone", formatPhoneInput(e.target.value))}
+              placeholder="(317) 555-1234"
+              style={inputStyle}
+            />
           </Field>
 
           <Field label="Email">
