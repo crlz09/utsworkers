@@ -26,6 +26,28 @@ const toOptionalString = (value: unknown) => {
 
 const toRequiredString = (value: unknown) => String(value ?? "").trim()
 
+const normalizeEmail = (value: unknown) => {
+  const trimmed = String(value ?? "").trim().toLowerCase()
+  return trimmed || null
+}
+
+const normalizePhone = (value: unknown) => {
+  const raw = String(value ?? "").trim()
+  const digitsOnly = raw.replace(/\D/g, "")
+  const digits = digitsOnly.length === 11 && digitsOnly.startsWith("1")
+    ? digitsOnly.slice(1)
+    : digitsOnly
+
+  if (!digits || digits.length !== 10) return null
+
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
+const buildFullName = (firstName: unknown, lastName: unknown) =>
+  [toRequiredString(firstName), toRequiredString(lastName)]
+    .filter(Boolean)
+    .join(" ")
+
 const toNumberValue = (value: unknown) => {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? parsed : 0
@@ -50,7 +72,7 @@ const getRemoteIp = (req: Request) => {
 }
 
 const summarizePayload = (payload: Record<string, unknown>) => ({
-  name: toRequiredString(payload.name),
+  name: toRequiredString(payload.name) || buildFullName(payload.first_name, payload.last_name),
   email: toOptionalString(payload.email),
   address: toOptionalString(payload.address),
   zip_code: toOptionalString(payload.zip_code),
@@ -426,10 +448,12 @@ Deno.serve(async (req) => {
       })
     }
 
+    const submittedName = toRequiredString(payload.name) || buildFullName(payload.first_name, payload.last_name)
+
     const rpcPayload = {
-      p_name: toRequiredString(payload.name),
-      p_phone: toOptionalString(payload.phone),
-      p_email: toOptionalString(payload.email),
+      p_name: submittedName,
+      p_phone: normalizePhone(payload.phone),
+      p_email: normalizeEmail(payload.email),
       p_address: toOptionalString(payload.address),
       p_zip_code: toOptionalString(payload.zip_code),
       p_city: toOptionalString(payload.city),
@@ -450,7 +474,15 @@ Deno.serve(async (req) => {
       p_projects: toProjectPayload(payload.projects),
     }
 
-    if (!rpcPayload.p_name || !rpcPayload.p_trade_id || !rpcPayload.p_location_id) {
+    if (
+      !rpcPayload.p_name ||
+      !rpcPayload.p_phone ||
+      !rpcPayload.p_email ||
+      !rpcPayload.p_address ||
+      !rpcPayload.p_zip_code ||
+      !rpcPayload.p_trade_id ||
+      !rpcPayload.p_location_id
+    ) {
       await logAttempt(supabaseAdmin, {
         ipAddress: remoteIp,
         userAgent,
@@ -458,7 +490,9 @@ Deno.serve(async (req) => {
         reason: "required_fields_missing",
         payloadSummary,
       })
-      return respond(400, { error: "Please complete Name, Trade, and Location." })
+      return respond(400, {
+        error: "Please complete Name, Phone, Email, Address, ZIP Code, Trade, and Location.",
+      })
     }
 
     if (
@@ -479,15 +513,22 @@ Deno.serve(async (req) => {
 
     if (error) {
       console.error("register_worker_public failed", error)
+      const isDuplicateContact =
+        error.code === "23505" ||
+        String(error.message || "").includes("workers_email_unique_normalized_idx") ||
+        String(error.message || "").includes("workers_phone_unique_normalized_idx")
+
       await logAttempt(supabaseAdmin, {
         ipAddress: remoteIp,
         userAgent,
         outcome: "blocked",
-        reason: error.message || "rpc_failed",
+        reason: isDuplicateContact ? "duplicate_worker_contact" : error.message || "rpc_failed",
         payloadSummary,
       })
       return respond(400, {
-        error: error.message || "Something went wrong while saving the worker profile.",
+        error: isDuplicateContact
+          ? "A worker with this email or phone number already exists."
+          : error.message || "Something went wrong while saving the worker profile.",
       })
     }
 

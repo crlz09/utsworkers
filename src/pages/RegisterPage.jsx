@@ -38,7 +38,8 @@ const starterLanguages = [
 ];
 
 const initialForm = {
-  name: "",
+  first_name: "",
+  last_name: "",
   phone: "",
   email: "",
   address: "",
@@ -281,6 +282,13 @@ function Field({ label, children }) {
       {children}
     </div>
   );
+}
+
+function buildFullName(firstName, lastName) {
+  return [firstName, lastName]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(" ");
 }
 
 function TagPicker({ label, options, selected, setSelected, placeholder }) {
@@ -774,8 +782,19 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!form.name.trim() || !form.trade_id || !form.location_id) {
-      setError("Please complete Name, Trade, and Location.");
+    const fullName = buildFullName(form.first_name, form.last_name);
+
+    if (
+      !form.first_name.trim() ||
+      !form.last_name.trim() ||
+      !form.phone.trim() ||
+      !form.email.trim() ||
+      !form.address.trim() ||
+      !form.zip_code.trim() ||
+      !form.trade_id ||
+      !form.location_id
+    ) {
+      setError("Please complete First Name, Last Name, Phone, Email, Address, ZIP Code, Trade, and Location.");
       return;
     }
 
@@ -808,6 +827,7 @@ export default function RegisterPage() {
           },
           body: JSON.stringify({
             ...form,
+            name: fullName,
             languages,
             selectedSkillIds,
             selectedCertificationIds,
@@ -950,17 +970,32 @@ export default function RegisterPage() {
                     gap: 18,
                   }}
                 >
-                  <Field label="Name">
+                  <Field label="First Name">
                     <input
-                      value={form.name}
-                      onChange={(e) => handleChange("name", e.target.value)}
-                      placeholder="Name and Last name"
+                      required
+                      autoComplete="given-name"
+                      value={form.first_name}
+                      onChange={(e) => handleChange("first_name", e.target.value)}
+                      placeholder="Carlos"
+                      style={inputStyle()}
+                    />
+                  </Field>
+
+                  <Field label="Last Name">
+                    <input
+                      required
+                      autoComplete="family-name"
+                      value={form.last_name}
+                      onChange={(e) => handleChange("last_name", e.target.value)}
+                      placeholder="Molina"
                       style={inputStyle()}
                     />
                   </Field>
 
                   <Field label="Phone">
                     <input
+                      required
+                      autoComplete="tel"
                       value={form.phone}
                       onChange={(e) => handleChange("phone", e.target.value)}
                       placeholder="(317) 555-1234"
@@ -971,6 +1006,8 @@ export default function RegisterPage() {
                   <Field label="Email">
                     <input
                       type="email"
+                      required
+                      autoComplete="email"
                       value={form.email}
                       onChange={(e) => handleChange("email", e.target.value)}
                       placeholder="carlos@email.com"
@@ -980,6 +1017,8 @@ export default function RegisterPage() {
 
                   <Field label="Street Address">
                     <input
+                      required
+                      autoComplete="street-address"
                       value={form.address}
                       onChange={(e) => handleChange("address", e.target.value)}
                       placeholder="123 Main St"
@@ -989,7 +1028,9 @@ export default function RegisterPage() {
 
                   <Field label="ZIP Code">
                     <input
+                      required
                       inputMode="numeric"
+                      autoComplete="postal-code"
                       value={form.zip_code}
                       onChange={(e) => handleZipChange(e.target.value)}
                       placeholder="46204"
