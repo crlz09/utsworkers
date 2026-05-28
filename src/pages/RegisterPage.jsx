@@ -1141,7 +1141,7 @@ export default function RegisterPage() {
                     />
                   </Field>
 
-                  <Field label="Location">
+                  <Field label="Current Location">
                     <select
                       value={form.location_id}
                       onChange={(e) => handleChange("location_id", e.target.value)}

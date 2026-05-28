@@ -595,16 +595,6 @@ function getWorkerQualityIssues(worker) {
   return issues;
 }
 
-function getEndOfCurrentWeek() {
-  const today = new Date();
-  const day = today.getDay();
-  const diff = day === 0 ? 0 : 7 - day;
-  const end = new Date(today);
-  end.setDate(today.getDate() + diff);
-  end.setHours(23, 59, 59, 999);
-  return end;
-}
-
 function MiniMetric({ label, value }) {
   return (
     <div
@@ -2159,7 +2149,7 @@ export default function AdminPage() {
   const [locationFilter, setLocationFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [reviewFilter, setReviewFilter] = useState("");
-  const [savedView, setSavedView] = useState("");
+  const [contactIssueFilter, setContactIssueFilter] = useState(false);
   const [selectedSkillIds, setSelectedSkillIds] = useState([]);
   const [sortBy, setSortBy] = useState("status_priority");
   const [trades, setTrades] = useState([]);
@@ -2358,22 +2348,10 @@ export default function AdminPage() {
       const matchLocation = !locationFilter || w.location_id === locationFilter;
       const matchStatus = !statusFilter || w.status === statusFilter;
       const matchReview = reviewFilter !== "unreviewed" || isWorkerUnreviewed(w);
-      const matchSavedView = (() => {
-        if (!savedView) return true;
-        if (savedView === "unreviewed") return isWorkerUnreviewed(w);
-        if (savedView === "pending_electricians") {
-          return w.status === "pending" && String(w.trades?.name || "").toLowerCase().includes("electric");
-        }
-        if (savedView === "available_this_week") {
-          if (w.availability === "available_soon") return true;
-          if (!w.available_from) return false;
-          const availableFrom = new Date(w.available_from);
-          return !Number.isNaN(availableFrom.getTime()) && availableFrom <= getEndOfCurrentWeek();
-        }
-        if (savedView === "no_rate") return !String(w.rate || "").trim();
-        if (savedView === "missing_contact") return !String(w.phone || "").trim() || !String(w.email || "").trim();
-        return true;
-      })();
+      const matchContactIssue =
+        !contactIssueFilter ||
+        !String(w.phone || "").trim() ||
+        !String(w.email || "").trim();
       const matchRecruiter =
         !recruiterFilter ||
         (recruiterFilter === "unassigned"
@@ -2393,7 +2371,7 @@ export default function AdminPage() {
         matchLocation &&
         matchStatus &&
         matchReview &&
-        matchSavedView &&
+        matchContactIssue &&
         matchRecruiter &&
         matchSkills
       );
@@ -2422,7 +2400,7 @@ export default function AdminPage() {
     locationFilter,
     statusFilter,
     reviewFilter,
-    savedView,
+    contactIssueFilter,
     recruiterFilter,
     selectedSkillIds,
     sortBy,
@@ -2435,6 +2413,9 @@ export default function AdminPage() {
   const completedCount = workers.filter((w) => w.status === "completed").length;
   const workingCount = workers.filter((w) => w.status === "working").length;
   const unreviewedCount = workers.filter(isWorkerUnreviewed).length;
+  const missingPhoneEmailCount = workers.filter(
+    (w) => !String(w.phone || "").trim() || !String(w.email || "").trim()
+  ).length;
   const workflowStatusBadges = [
     { value: "pending", label: "Pending", count: pendingCount },
     { value: "onboarding", label: "OnBoarding", count: onboardingCount },
@@ -2449,7 +2430,7 @@ export default function AdminPage() {
     !!locationFilter ||
     !!statusFilter ||
     !!reviewFilter ||
-    !!savedView ||
+    contactIssueFilter ||
     !!recruiterFilter ||
     selectedSkillIds.length > 0 ||
     sortBy !== "status_priority";
@@ -2459,30 +2440,10 @@ export default function AdminPage() {
     setLocationFilter("");
     setStatusFilter("");
     setReviewFilter("");
-    setSavedView("");
+    setContactIssueFilter(false);
     setRecruiterFilter("");
     setSelectedSkillIds([]);
     setSortBy("status_priority");
-  };
-
-  const savedViews = [
-    { value: "unreviewed", label: "New / Unreviewed" },
-    { value: "pending_electricians", label: "Pending Electricians" },
-    { value: "available_this_week", label: "Available This Week" },
-    { value: "no_rate", label: "No Rate" },
-    { value: "missing_contact", label: "Missing Phone/Email" },
-  ];
-
-  const applySavedView = (view) => {
-    const nextView = savedView === view ? "" : view;
-    setSavedView(nextView);
-    setTradeFilter("");
-    setLocationFilter("");
-    setStatusFilter("");
-    setReviewFilter("");
-    setRecruiterFilter("");
-    setSelectedSkillIds([]);
-    setSortBy(nextView ? "newest_registered" : "status_priority");
   };
 
   return (
@@ -2566,6 +2527,29 @@ export default function AdminPage() {
                   >
                     New / Unreviewed: {unreviewedCount}
                   </button>
+                  {missingPhoneEmailCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setContactIssueFilter((prev) => !prev)}
+                      aria-pressed={contactIssueFilter}
+                      title="Filter workers missing phone or email"
+                      style={{
+                        ...pillStyle(),
+                        border: contactIssueFilter ? "1px solid #0f172a" : "1px solid #fdba74",
+                        background: contactIssueFilter ? "#0f172a" : "#ffedd5",
+                        color: contactIssueFilter ? "#ffffff" : "#9a3412",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 7,
+                        cursor: "pointer",
+                        boxShadow: contactIssueFilter ? "0 10px 24px rgba(15, 23, 42, 0.2)" : "none",
+                        transition: "background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease",
+                      }}
+                    >
+                      <AlertTriangle size={15} strokeWidth={2.7} />
+                      Missing Phone/Email: {missingPhoneEmailCount}
+                    </button>
+                  ) : null}
                   <span style={{ ...pillStyle(true), fontSize: 14 }}>
                     Total Workers: {workers.length}
                   </span>
@@ -2623,39 +2607,18 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gap: 10 }}>
-              <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 18 }}>Saved Views</div>
-              <div className="admin-pill-strip" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                {savedViews.map((view) => {
-                  const isSelected = savedView === view.value;
-
-                  return (
-                    <button
-                      key={view.value}
-                      type="button"
-                      onClick={() => applySavedView(view.value)}
-                      aria-pressed={isSelected}
-                      style={{
-                        ...pillStyle(),
-                        border: isSelected ? "1px solid #0f172a" : "1px solid #cbd5e1",
-                        background: isSelected ? "#0f172a" : "#ffffff",
-                        color: isSelected ? "#ffffff" : "#0f172a",
-                        cursor: "pointer",
-                        boxShadow: isSelected ? "0 10px 24px rgba(15, 23, 42, 0.18)" : "none",
-                      }}
-                    >
-                      {view.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             <div style={{ position: "relative", width: "100%" }}>
               <input
                 placeholder="Search by name, email, phone or notes"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setSearch("");
+                    e.currentTarget.blur();
+                  }
+                }}
                 style={{
                   ...inputStyle,
                   height: 50,

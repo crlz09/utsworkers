@@ -1,0 +1,2 @@
+-- The admin merge tool was removed from the UI.
+-- This migration version is kept only to preserve applied Supabase migration history.
