@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import {
   findLocationIdByState,
+  getFullStateName,
   lookupUsZipCode,
   normalizeZipCode,
 } from "../lib/addressLookup";
@@ -12,10 +13,11 @@ import {
   Loader2,
   ShieldCheck,
   Wrench,
-  X,
   Plus,
   Trash2,
   FolderKanban,
+  Globe2,
+  ChevronDown,
 } from "lucide-react";
 import { motion as Motion } from "framer-motion";
 
@@ -28,14 +30,253 @@ const supabase =
     ? createClient(supabaseUrl, supabaseAnonKey)
     : null;
 
-const starterLanguages = [
-  "English",
-  "Spanish",
-  "Portuguese",
-  "French",
-  "German",
-  "Arabic",
+const languageOptions = ["English", "Spanish"];
+const experienceFields = [
+  "total_experience_years",
+  "commercial_experience_years",
+  "industrial_experience_years",
+  "residential_experience_years",
 ];
+const registrationStepFields = [
+  {
+    fields: ["first_name", "last_name", "phone", "email", "address", "zip_code", "city", "state"],
+  },
+  {
+    fields: [
+      "trade_id",
+      "total_experience_years",
+      "commercial_experience_years",
+      "industrial_experience_years",
+      "residential_experience_years",
+    ],
+  },
+  {
+    fields: [],
+  },
+];
+
+const copy = {
+  en: {
+    localeLabel: "English",
+    toggleLabel: "Switch form language",
+    stepLabel: "Step",
+    title: "Worker Registration Portal",
+    subtitle: "Complete the form below to register",
+    steps: [
+      {
+        title: "Personal Info",
+        description: "Name, phone, email, and current address.",
+      },
+      {
+        title: "Experience & Projects",
+        description: "Trade, experience years, and project history.",
+      },
+      {
+        title: "Skills",
+        description: "Strengths, skills, certifications, and languages.",
+      },
+    ],
+    labels: {
+      firstName: "First Name",
+      lastName: "Last Name",
+      phone: "Phone",
+      email: "Email",
+      address: "Street Address",
+      zip: "ZIP Code",
+      city: "City",
+      state: "State",
+      trade: "Trade",
+      totalExperience: "Total Experience in Trade (Years)",
+      commercialExperience: "Commercial Experience (Years)",
+      industrialExperience: "Industrial Experience (Years)",
+      residentialExperience: "Residential Experience (Years)",
+      projectHistory: "Project History",
+      projectHelp: "Add one or more job experiences for this worker.",
+      addProject: "Add Project",
+      project: "Project",
+      projectName: "Project Name",
+      projectLocation: "Project Location",
+      duration: "Duration",
+      description: "Description",
+      remove: "Remove",
+      strengths: "Strengths",
+      needsImprovement: "Needs Improvement",
+      languages: "Languages",
+      englishLevel: "English level",
+      skills: "Skills",
+      certifications: "Certifications",
+      verification: "Verification",
+      verificationHelp: "Complete the security check before submitting the public registration form.",
+    },
+    placeholders: {
+      firstName: "Enter first name",
+      lastName: "Enter last name",
+      phone: "Enter phone number",
+      email: "Enter email address",
+      address: "Street address",
+      zip: "5-digit ZIP",
+      city: "City",
+      state: "State",
+      trade: "Select a trade",
+      projectName: "Amazon IND2 Outbound",
+      projectLocation: "Indianapolis, IN",
+      duration: "8 months",
+      projectDescription: "Describe what you did on this project...",
+      strengths: "Leadership, troubleshooting, blueprint reading...",
+      needsImprovement: "Documentation, advanced PLC diagnostics...",
+    },
+    messages: {
+      noItemsSelected: "No items selected yet.",
+      noSkills: "No skills found in your catalog yet.",
+      noCertifications: "No certifications found in your catalog yet.",
+      success: "Worker registered successfully.",
+      continueError: "Please review the highlighted fields before continuing.",
+      submitError: "Please review the highlighted fields before submitting.",
+      missingSupabase: "Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file.",
+      missingTurnstile: "Turnstile is not configured. Please contact support.",
+      completeVerification: "Please complete the verification challenge.",
+      saveError: "Something went wrong while saving the worker profile.",
+      zipLooking: "Looking up ZIP...",
+      zipFilled: "City and state filled from ZIP.",
+      zipNotFound: "ZIP not found.",
+      zipLookupFailed: "Could not look up ZIP.",
+      fieldErrors: {
+        first_name: "Enter your first name.",
+        last_name: "Enter your last name.",
+        phoneRequired: "Enter your phone number.",
+        phoneInvalid: "Enter a valid 10-digit US phone number.",
+        emailRequired: "Enter your email address.",
+        emailInvalid: "Enter a valid email address, for example name@email.com.",
+        address: "Enter your street address.",
+        zipRequired: "Enter your ZIP code.",
+        zipInvalid: "Enter a valid 5-digit ZIP code.",
+        city: "Enter your city.",
+        stateRequired: "Enter your state.",
+        stateInvalid: "Enter a valid state so we can match your current location.",
+        trade_id: "Select your trade.",
+        experience: "Enter a whole number from 0 to 30.",
+        totalExperienceMismatch: "Total experience must equal commercial + industrial + residential.",
+      },
+    },
+    actions: {
+      continue: "Continue",
+      back: "Back",
+      register: "Register Worker",
+      saving: "Saving...",
+      clear: "Clear Form",
+    },
+  },
+  es: {
+    localeLabel: "Español",
+    toggleLabel: "Cambiar idioma del formulario",
+    stepLabel: "Paso",
+    title: "Portal de Registro de Workers",
+    subtitle: "Completa el formulario para registrarte",
+    steps: [
+      {
+        title: "Información Personal",
+        description: "Nombre, teléfono, correo y dirección actual.",
+      },
+      {
+        title: "Experiencia y Proyectos",
+        description: "Oficio, años de experiencia e historial de proyectos.",
+      },
+      {
+        title: "Habilidades",
+        description: "Fortalezas, habilidades, certificaciones e idiomas.",
+      },
+    ],
+    labels: {
+      firstName: "Nombre",
+      lastName: "Apellido",
+      phone: "Teléfono",
+      email: "Correo",
+      address: "Dirección",
+      zip: "Código ZIP",
+      city: "Ciudad",
+      state: "Estado",
+      trade: "Oficio",
+      totalExperience: "Experiencia Total en el Oficio (Años)",
+      commercialExperience: "Experiencia Comercial (Años)",
+      industrialExperience: "Experiencia Industrial (Años)",
+      residentialExperience: "Experiencia Residencial (Años)",
+      projectHistory: "Historial de Proyectos",
+      projectHelp: "Agrega una o más experiencias laborales para este worker.",
+      addProject: "Agregar Proyecto",
+      project: "Proyecto",
+      projectName: "Nombre del Proyecto",
+      projectLocation: "Ubicación del Proyecto",
+      duration: "Duración",
+      description: "Descripción",
+      remove: "Eliminar",
+      strengths: "Fortalezas",
+      needsImprovement: "Áreas de Mejora",
+      languages: "Idiomas",
+      englishLevel: "Nivel de inglés",
+      skills: "Habilidades",
+      certifications: "Certificaciones",
+      verification: "Verificación",
+      verificationHelp: "Completa la verificación de seguridad antes de enviar el formulario.",
+    },
+    placeholders: {
+      firstName: "Ingresa tu nombre",
+      lastName: "Ingresa tu apellido",
+      phone: "Ingresa tu teléfono",
+      email: "Ingresa tu correo",
+      address: "Dirección completa",
+      zip: "ZIP de 5 dígitos",
+      city: "Ciudad",
+      state: "Estado",
+      trade: "Selecciona un oficio",
+      projectName: "Amazon IND2 Outbound",
+      projectLocation: "Indianapolis, IN",
+      duration: "8 meses",
+      projectDescription: "Describe qué hiciste en este proyecto...",
+      strengths: "Liderazgo, troubleshooting, lectura de planos...",
+      needsImprovement: "Documentación, diagnósticos PLC avanzados...",
+    },
+    messages: {
+      noItemsSelected: "Aún no hay elementos seleccionados.",
+      noSkills: "Todavía no hay habilidades en el catálogo.",
+      noCertifications: "Todavía no hay certificaciones en el catálogo.",
+      success: "Worker registrado correctamente.",
+      continueError: "Revisa los campos marcados antes de continuar.",
+      submitError: "Revisa los campos marcados antes de enviar.",
+      missingSupabase: "Supabase no está configurado. Agrega VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en tu archivo .env.local.",
+      missingTurnstile: "Turnstile no está configurado. Contacta a soporte.",
+      completeVerification: "Completa la verificación de seguridad.",
+      saveError: "Ocurrió un problema guardando el perfil del worker.",
+      zipLooking: "Buscando ZIP...",
+      zipFilled: "Ciudad y estado completados desde el ZIP.",
+      zipNotFound: "ZIP no encontrado.",
+      zipLookupFailed: "No se pudo buscar el ZIP.",
+      fieldErrors: {
+        first_name: "Ingresa tu nombre.",
+        last_name: "Ingresa tu apellido.",
+        phoneRequired: "Ingresa tu número de teléfono.",
+        phoneInvalid: "Ingresa un teléfono válido de 10 dígitos.",
+        emailRequired: "Ingresa tu correo.",
+        emailInvalid: "Ingresa un correo válido, por ejemplo nombre@email.com.",
+        address: "Ingresa tu dirección.",
+        zipRequired: "Ingresa tu código ZIP.",
+        zipInvalid: "Ingresa un ZIP válido de 5 dígitos.",
+        city: "Ingresa tu ciudad.",
+        stateRequired: "Ingresa tu estado.",
+        stateInvalid: "Ingresa un estado válido para identificar tu ubicación actual.",
+        trade_id: "Selecciona tu oficio.",
+        experience: "Ingresa un número entero del 0 al 30.",
+        totalExperienceMismatch: "La experiencia total debe ser igual a comercial + industrial + residencial.",
+      },
+    },
+    actions: {
+      continue: "Continuar",
+      back: "Atrás",
+      register: "Registrar Worker",
+      saving: "Guardando...",
+      clear: "Limpiar Formulario",
+    },
+  },
+};
 
 const initialForm = {
   first_name: "",
@@ -97,7 +338,7 @@ function loadTurnstileScript() {
   return turnstileScriptPromise;
 }
 
-function TurnstileField({ siteKey, onVerify, resetKey }) {
+function TurnstileField({ siteKey, onVerify, resetKey, language = "en" }) {
   const containerRef = useRef(null);
   const widgetIdRef = useRef(null);
   const [loadError, setLoadError] = useState("");
@@ -116,6 +357,7 @@ function TurnstileField({ siteKey, onVerify, resetKey }) {
         widgetIdRef.current = turnstile.render(containerRef.current, {
           sitekey: siteKey,
           theme: "light",
+          language,
           callback: (token) => onVerify(token),
           "expired-callback": () => onVerify(""),
           "error-callback": () => onVerify(""),
@@ -135,7 +377,7 @@ function TurnstileField({ siteKey, onVerify, resetKey }) {
         widgetIdRef.current = null;
       }
     };
-  }, [siteKey, onVerify]);
+  }, [siteKey, onVerify, language]);
 
   useEffect(() => {
     if (widgetIdRef.current !== null && window.turnstile) {
@@ -198,11 +440,33 @@ function PageStyles() {
       }
 
       input::placeholder, textarea::placeholder {
-        color: #94a3b8;
+        color: #cbd5e1;
+        opacity: 1;
       }
 
       .spin {
         animation: spin 1s linear infinite;
+      }
+
+      .personal-info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px 22px;
+        align-items: start;
+      }
+
+      .experience-top-grid {
+        display: grid;
+        grid-template-columns: minmax(320px, 1.35fr) minmax(180px, 0.65fr);
+        gap: 18px;
+        align-items: start;
+      }
+
+      .experience-mini-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(130px, 190px));
+        gap: 18px;
+        align-items: start;
       }
 
       @keyframes spin {
@@ -212,8 +476,12 @@ function PageStyles() {
 
       @media (max-width: 920px) {
         .two-col,
+        .personal-info-grid,
         .tag-grid,
-        .project-grid {
+        .project-grid,
+        .experience-top-grid,
+        .experience-mini-grid,
+        .stepper-grid {
           grid-template-columns: 1fr !important;
         }
 
@@ -273,11 +541,16 @@ function textareaStyle(minHeight = 120) {
   };
 }
 
-function Field({ label, children }) {
+function Field({ label, children, required = false }) {
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <label style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
         {label}
+        {required ? (
+          <span aria-label="required" style={{ color: "#dc2626", marginLeft: 4 }}>
+            *
+          </span>
+        ) : null}
       </label>
       {children}
     </div>
@@ -290,6 +563,53 @@ function FieldError({ children }) {
   return (
     <div style={{ color: "#b91c1c", fontSize: 13, fontWeight: 700 }}>
       {children}
+    </div>
+  );
+}
+
+function Stepper({ steps, currentStep, setCurrentStep, stepLabel = "Step" }) {
+  return (
+    <div
+      className="stepper-grid"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        gap: 12,
+      }}
+    >
+      {steps.map((step, index) => {
+        const active = index === currentStep;
+        const complete = index < currentStep;
+
+        return (
+          <button
+            key={step.title}
+            type="button"
+            onClick={() => setCurrentStep(index)}
+            aria-current={active ? "step" : undefined}
+            style={{
+              textAlign: "left",
+              borderRadius: 16,
+              border: active ? "1px solid #0f172a" : "1px solid #dbeafe",
+              background: active ? "#0f172a" : complete ? "#eff6ff" : "#ffffff",
+              color: active ? "#ffffff" : "#0f172a",
+              padding: 14,
+              cursor: "pointer",
+              display: "grid",
+              gap: 6,
+              minHeight: 102,
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 900, opacity: active ? 0.9 : 0.7 }}>
+              {stepLabel} {index + 1}
+            </span>
+            <strong style={{ fontSize: 16 }}>{step.title}</strong>
+            <span style={{ fontSize: 13, lineHeight: 1.35, color: active ? "#dbeafe" : "#64748b" }}>
+              {step.description}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -318,163 +638,167 @@ function formatPhoneInput(value) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
-function getRegistrationFieldErrors(form) {
+function getRegistrationFieldErrors(form, text = copy.en) {
   const errors = {};
+  const fieldText = text.messages.fieldErrors;
   const email = form.email.trim();
   const phoneDigits = normalizePhoneDigits(form.phone);
   const zip = normalizeZipCode(form.zip_code);
 
-  if (!form.first_name.trim()) errors.first_name = "Enter your first name.";
-  if (!form.last_name.trim()) errors.last_name = "Enter your last name.";
+  if (!form.first_name.trim()) errors.first_name = fieldText.first_name;
+  if (!form.last_name.trim()) errors.last_name = fieldText.last_name;
 
   if (!form.phone.trim()) {
-    errors.phone = "Enter your phone number.";
+    errors.phone = fieldText.phoneRequired;
   } else if (phoneDigits.length !== 10) {
-    errors.phone = "Enter a valid 10-digit US phone number.";
+    errors.phone = fieldText.phoneInvalid;
   }
 
   if (!email) {
-    errors.email = "Enter your email address.";
+    errors.email = fieldText.emailRequired;
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.email = "Enter a valid email address, for example name@email.com.";
+    errors.email = fieldText.emailInvalid;
   }
 
-  if (!form.address.trim()) errors.address = "Enter your street address.";
+  if (!form.address.trim()) errors.address = fieldText.address;
 
   if (!zip) {
-    errors.zip_code = "Enter your ZIP code.";
+    errors.zip_code = fieldText.zipRequired;
   } else if (zip.length !== 5) {
-    errors.zip_code = "Enter a valid 5-digit ZIP code.";
+    errors.zip_code = fieldText.zipInvalid;
   }
 
-  if (!form.location_id) errors.location_id = "Select your state/location.";
-  if (!form.trade_id) errors.trade_id = "Select your trade.";
+  if (!form.city.trim()) errors.city = fieldText.city;
+  if (!form.state.trim()) {
+    errors.state = fieldText.stateRequired;
+  } else if (!form.location_id) {
+    errors.state = fieldText.stateInvalid;
+  }
+  if (!form.trade_id) errors.trade_id = fieldText.trade_id;
+
+  experienceFields.forEach((field) => {
+    if (!String(form[field] || "").trim()) return;
+    const value = Number(form[field]);
+    if (!Number.isInteger(value) || value < 0 || value > 30) {
+      errors[field] = fieldText.experience;
+    }
+  });
+
+  const totalExperience = Number(form.total_experience_years || 0);
+  const experienceBreakdown =
+    Number(form.commercial_experience_years || 0) +
+    Number(form.industrial_experience_years || 0) +
+    Number(form.residential_experience_years || 0);
+
+  if (
+    experienceFields.every((field) => !errors[field]) &&
+    totalExperience !== experienceBreakdown
+  ) {
+    errors.total_experience_years = fieldText.totalExperienceMismatch;
+  }
 
   return errors;
 }
 
-function TagPicker({ label, options, selected, setSelected, placeholder }) {
-  const [customValue, setCustomValue] = useState("");
+function normalizeExperienceInput(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 2);
+  if (!digits) return "";
+  return String(Math.min(Number(digits), 30));
+}
 
-  const sortedOptions = useMemo(
-    () => [...options].sort((a, b) => a.localeCompare(b)),
-    [options]
-  );
+function normalizePercentInput(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 3);
+  if (!digits) return "";
+  return String(Math.min(Math.max(Number(digits), 1), 100));
+}
 
-  const available = useMemo(
-    () => sortedOptions.filter((item) => !selected.includes(item)),
-    [sortedOptions, selected]
-  );
+function LanguagePicker({ selected, setSelected, englishProficiency, setEnglishProficiency, text }) {
+  const toggleLanguage = (language) => {
+    if (selected.includes(language)) {
+      setSelected(selected.filter((item) => item !== language));
+      return;
+    }
 
-  const addItem = (value) => {
-    const trimmed = value.trim();
-    if (!trimmed || selected.includes(trimmed)) return;
-    setSelected([...selected, trimmed]);
+    setSelected([...selected, language]);
+    if (language === "English" && !englishProficiency) {
+      setEnglishProficiency("50");
+    }
   };
 
-  const removeItem = (value) => {
-    setSelected(selected.filter((item) => item !== value));
-  };
+  const englishSelected = selected.includes("English");
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
       <label style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
-        {label}
+        {text.labels.languages}
       </label>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, minHeight: 18 }}>
-        {selected.length === 0 ? (
-          <span style={{ color: "#64748b", fontSize: 14 }}>
-            No items selected yet.
-          </span>
-        ) : (
-          selected.map((item) => (
-            <span
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {languageOptions.map((item) => {
+          const active = selected.includes(item);
+
+          return (
+            <button
               key={item}
+              type="button"
+              onClick={() => toggleLanguage(item)}
               style={{
+                border: active ? "1px solid #0f172a" : "1px solid #cbd5e1",
+                background: active ? "#0f172a" : "#fff",
+                borderRadius: 999,
+                minHeight: 44,
+                padding: "9px 14px",
+                cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
-                padding: "8px 12px",
-                borderRadius: 999,
-                background: "#dbeafe",
-                color: "#0f172a",
-                fontSize: 14,
-                fontWeight: 600,
+                color: active ? "#ffffff" : "#0f172a",
+                fontWeight: 700,
+                fontSize: 15,
               }}
             >
+              {active ? <CheckCircle2 size={14} /> : <Plus size={14} />}
               {item}
-              <button
-                type="button"
-                onClick={() => removeItem(item)}
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  display: "flex",
-                  alignItems: "center",
-                  cursor: "pointer",
-                  padding: 0,
-                  color: "#334155",
-                }}
-                aria-label={`Remove ${item}`}
-              >
-                <X size={14} />
-              </button>
-            </span>
-          ))
-        )}
+            </button>
+          );
+        })}
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {available.map((item) => (
-          <button
-            key={item}
-            type="button"
-            onClick={() => addItem(item)}
-            style={{
-              border: "1px solid #cbd5e1",
-              background: "#fff",
-              borderRadius: 999,
-              padding: "8px 12px",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              color: "#0f172a",
-            }}
-          >
-            <Plus size={14} />
-            {item}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          value={customValue}
-          onChange={(e) => setCustomValue(e.target.value)}
-          placeholder={placeholder}
-          style={inputStyle()}
-        />
-        <button
-          type="button"
-          onClick={() => {
-            addItem(customValue);
-            setCustomValue("");
-          }}
+      {englishSelected ? (
+        <div
           style={{
-            border: "none",
-            background: "#0f172a",
-            color: "white",
-            borderRadius: 14,
-            padding: "0 16px",
-            cursor: "pointer",
-            fontWeight: 700,
+            display: "grid",
+            gap: 8,
+            padding: 12,
+            borderRadius: 16,
+            border: "1px solid #dbeafe",
+            background: "#f8fbff",
           }}
         >
-          Add
-        </button>
-      </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+            <span style={{ color: "#334155", fontWeight: 800 }}>{text.labels.englishLevel}</span>
+            <strong style={{ color: "#0f172a" }}>{englishProficiency || 50}%</strong>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max="100"
+            value={englishProficiency || "50"}
+            onChange={(e) => setEnglishProficiency(e.target.value)}
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              inputMode="numeric"
+              maxLength={3}
+              value={englishProficiency || ""}
+              onChange={(e) => setEnglishProficiency(normalizePercentInput(e.target.value))}
+              placeholder="50"
+              style={{ ...inputStyle(), height: 42, width: 86, padding: "8px 12px" }}
+            />
+            <span style={{ color: "#64748b", fontSize: 13, fontWeight: 700 }}>1-100%</span>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -547,7 +871,7 @@ function CatalogPicker({
   );
 }
 
-function ProjectHistoryEditor({ projects, setProjects }) {
+function ProjectHistoryEditor({ projects, setProjects, text }) {
   const updateProject = (index, field, value) => {
     const next = [...projects];
     next[index] = { ...next[index], [field]: value };
@@ -588,11 +912,11 @@ function ProjectHistoryEditor({ projects, setProjects }) {
           >
             <FolderKanban size={16} color="#334155" />
             <div style={{ fontWeight: 800, color: "#0f172a" }}>
-              Project History
+              {text.labels.projectHistory}
             </div>
           </div>
           <div style={{ color: "#64748b", fontSize: 14 }}>
-            Add one or more job experiences for this worker.
+            {text.labels.projectHelp}
           </div>
         </div>
 
@@ -613,7 +937,7 @@ function ProjectHistoryEditor({ projects, setProjects }) {
           }}
         >
           <Plus size={16} />
-          Add Project
+          {text.labels.addProject}
         </button>
       </div>
 
@@ -640,7 +964,7 @@ function ProjectHistoryEditor({ projects, setProjects }) {
               }}
             >
               <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                Project #{index + 1}
+                {text.labels.project} #{index + 1}
               </div>
 
               <button
@@ -660,7 +984,7 @@ function ProjectHistoryEditor({ projects, setProjects }) {
                 }}
               >
                 <Trash2 size={15} />
-                Remove
+                {text.labels.remove}
               </button>
             </div>
 
@@ -668,47 +992,47 @@ function ProjectHistoryEditor({ projects, setProjects }) {
               className="project-grid"
               style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
             >
-              <Field label="Project Name">
+              <Field label={text.labels.projectName}>
                 <input
                   value={project.project_name}
                   onChange={(e) =>
                     updateProject(index, "project_name", e.target.value)
                   }
-                  placeholder="Amazon IND2 Outbound"
+                  placeholder={text.placeholders.projectName}
                   style={inputStyle()}
                 />
               </Field>
 
-              <Field label="Project Location">
+              <Field label={text.labels.projectLocation}>
                 <input
                   value={project.project_location}
                   onChange={(e) =>
                     updateProject(index, "project_location", e.target.value)
                   }
-                  placeholder="Indianapolis, IN"
+                  placeholder={text.placeholders.projectLocation}
                   style={inputStyle()}
                 />
               </Field>
 
-              <Field label="Duration">
+              <Field label={text.labels.duration}>
                 <input
                   value={project.project_duration}
                   onChange={(e) =>
                     updateProject(index, "project_duration", e.target.value)
                   }
-                  placeholder="8 months"
+                  placeholder={text.placeholders.duration}
                   style={inputStyle()}
                 />
               </Field>
             </div>
 
-            <Field label="Description">
+            <Field label={text.labels.description}>
               <textarea
                 value={project.project_description}
                 onChange={(e) =>
                   updateProject(index, "project_description", e.target.value)
                 }
-                placeholder="Describe what you did on this project..."
+                placeholder={text.placeholders.projectDescription}
                 style={textareaStyle(110)}
               />
             </Field>
@@ -720,9 +1044,12 @@ function ProjectHistoryEditor({ projects, setProjects }) {
 }
 
 export default function RegisterPage() {
+  const [locale, setLocale] = useState("en");
   const [form, setForm] = useState(initialForm);
   const [projects, setProjects] = useState([emptyProject()]);
+  const [currentStep, setCurrentStep] = useState(0);
   const [languages, setLanguages] = useState([]);
+  const [englishProficiency, setEnglishProficiency] = useState("50");
   const [tradeOptions, setTradeOptions] = useState([]);
   const [locationOptions, setLocationOptions] = useState([]);
   const [skillOptions, setSkillOptions] = useState([]);
@@ -738,6 +1065,11 @@ export default function RegisterPage() {
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [company, setCompany] = useState("");
   const [zipLookupStatus, setZipLookupStatus] = useState("");
+  const text = copy[locale];
+  const registrationSteps = text.steps.map((step, index) => ({
+    ...step,
+    fields: registrationStepFields[index].fields,
+  }));
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -784,10 +1116,14 @@ export default function RegisterPage() {
     });
   };
 
+  const handleExperienceChange = (field, value) => {
+    handleChange(field, normalizeExperienceInput(value));
+  };
+
   const handleZipChange = (value) => {
     const zip = normalizeZipCode(value);
     handleChange("zip_code", zip);
-    setZipLookupStatus(zip.length === 5 ? "Looking up ZIP..." : "");
+    setZipLookupStatus(zip.length === 5 ? text.messages.zipLooking : "");
   };
 
   useEffect(() => {
@@ -804,7 +1140,7 @@ export default function RegisterPage() {
         if (!active) return;
 
         if (!result) {
-          setZipLookupStatus("ZIP not found.");
+          setZipLookupStatus(text.messages.zipNotFound);
           return;
         }
 
@@ -815,9 +1151,16 @@ export default function RegisterPage() {
           state: result.state || prev.state,
           location_id: locationId || prev.location_id,
         }));
-        setZipLookupStatus("City and state filled from ZIP.");
+        setFieldErrors((prev) => {
+          const next = { ...prev };
+          delete next.city;
+          delete next.state;
+          delete next.location_id;
+          return next;
+        });
+        setZipLookupStatus(text.messages.zipFilled);
       } catch {
-        if (active) setZipLookupStatus("Could not look up ZIP.");
+        if (active) setZipLookupStatus(text.messages.zipLookupFailed);
       }
     }, 350);
 
@@ -825,12 +1168,14 @@ export default function RegisterPage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [form.zip_code, locationOptions]);
+  }, [form.zip_code, locationOptions, text.messages.zipFilled, text.messages.zipLookupFailed, text.messages.zipNotFound]);
 
   const resetForm = () => {
     setForm(initialForm);
     setProjects([emptyProject()]);
+    setCurrentStep(0);
     setLanguages([]);
+    setEnglishProficiency("50");
     setSelectedSkillIds([]);
     setSelectedCertificationIds([]);
     setTurnstileToken("");
@@ -839,36 +1184,63 @@ export default function RegisterPage() {
     setZipLookupStatus("");
   };
 
+  const validateCurrentStep = () => {
+    const allErrors = getRegistrationFieldErrors(form, text);
+    const fields = registrationSteps[currentStep].fields;
+    const stepErrors = Object.fromEntries(
+      Object.entries(allErrors).filter(([field]) => fields.includes(field))
+    );
+
+    setFieldErrors(stepErrors);
+    if (Object.keys(stepErrors).length > 0) {
+      setError(text.messages.continueError);
+      return false;
+    }
+
+    setError("");
+    return true;
+  };
+
+  const goToNextStep = () => {
+    if (!validateCurrentStep()) return;
+    setCurrentStep((prev) => Math.min(prev + 1, registrationSteps.length - 1));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (currentStep < registrationSteps.length - 1) {
+      goToNextStep();
+      return;
+    }
+
     setError("");
     setFieldErrors({});
     setSuccess(false);
 
     if (!supabase) {
-      setError(
-        "Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file."
-      );
+      setError(text.messages.missingSupabase);
       return;
     }
 
     const fullName = buildFullName(form.first_name, form.last_name);
 
-    const nextFieldErrors = getRegistrationFieldErrors(form);
+    const nextFieldErrors = getRegistrationFieldErrors(form, text);
 
     if (Object.keys(nextFieldErrors).length > 0) {
       setFieldErrors(nextFieldErrors);
-      setError("Please review the highlighted fields before submitting.");
+      setError(text.messages.submitError);
       return;
     }
 
     if (!turnstileSiteKey) {
-      setError("Turnstile is not configured. Please contact support.");
+      setError(text.messages.missingTurnstile);
       return;
     }
 
     if (!turnstileToken) {
-      setError("Please complete the verification challenge.");
+      setError(text.messages.completeVerification);
       return;
     }
 
@@ -888,6 +1260,9 @@ export default function RegisterPage() {
             ...form,
             name: fullName,
             languages,
+            languageProficiencies: languages.includes("English")
+              ? { English: Number(englishProficiency || 50) }
+              : {},
             selectedSkillIds,
             selectedCertificationIds,
             projects: projects.map((project) => ({
@@ -913,7 +1288,7 @@ export default function RegisterPage() {
         }
 
         throw new Error(
-          result.error || "Something went wrong while saving the worker profile."
+          result.error || text.messages.saveError
         );
       }
 
@@ -923,7 +1298,7 @@ export default function RegisterPage() {
       setSuccess(true);
     } catch (err) {
       setError(
-        err.message || "Something went wrong while saving the worker profile."
+        err.message || text.messages.saveError
       );
       setTurnstileToken("");
       setTurnstileResetKey((prev) => prev + 1);
@@ -934,7 +1309,35 @@ export default function RegisterPage() {
 
   return (
     <>
-      <UtsTopNavBar />
+      <UtsTopNavBar
+        rightSlot={
+          <button
+            type="button"
+            className="uts-topbar-action register-language-btn"
+            onClick={() => {
+              setLocale((prev) => (prev === "en" ? "es" : "en"));
+              setTurnstileToken("");
+              setTurnstileResetKey((prev) => prev + 1);
+            }}
+            title={text.toggleLabel}
+            aria-label={text.toggleLabel}
+            style={{
+              minHeight: 46,
+              borderRadius: 999,
+              padding: "8px 14px",
+              border: "1px solid rgba(255,255,255,0.28)",
+              background: "#0f172a",
+              color: "#ffffff",
+              boxShadow: "0 10px 24px rgba(15, 23, 42, 0.22)",
+              gap: 10,
+            }}
+          >
+            <Globe2 size={22} strokeWidth={1.9} />
+            <span style={{ fontSize: 16, lineHeight: 1 }}>{text.localeLabel}</span>
+            <ChevronDown size={18} strokeWidth={2.4} />
+          </button>
+        }
+      />
       <PageStyles />
 
       <div
@@ -996,7 +1399,7 @@ export default function RegisterPage() {
                     letterSpacing: 0,
                   }}
                 >
-                  Worker Registration Portal
+                  {text.title}
                 </h1>
 
                 <p
@@ -1009,8 +1412,7 @@ export default function RegisterPage() {
                     maxWidth: 760,
                   }}
                 >
-                  Complete the form below to register a new worker profile into
-                  the UTS talent pool.
+                  {text.subtitle}
                 </p>
               </div>
 
@@ -1028,83 +1430,84 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <div
-                  className="two-col"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 18,
-                  }}
-                >
-                  <Field label="First Name">
+                <Stepper
+                  steps={registrationSteps}
+                  currentStep={currentStep}
+                  setCurrentStep={setCurrentStep}
+                  stepLabel={text.stepLabel}
+                />
+
+                {currentStep === 0 ? (
+                <div className="personal-info-grid">
+                  <Field label={text.labels.firstName} required>
                     <input
                       required
                       autoComplete="given-name"
                       value={form.first_name}
                       onChange={(e) => handleChange("first_name", e.target.value)}
-                      placeholder="Carlos"
+                      placeholder={text.placeholders.firstName}
                       style={inputStyle()}
                     />
                     <FieldError>{fieldErrors.first_name}</FieldError>
                   </Field>
 
-                  <Field label="Last Name">
+                  <Field label={text.labels.lastName} required>
                     <input
                       required
                       autoComplete="family-name"
                       value={form.last_name}
                       onChange={(e) => handleChange("last_name", e.target.value)}
-                      placeholder="Molina"
+                      placeholder={text.placeholders.lastName}
                       style={inputStyle()}
                     />
                     <FieldError>{fieldErrors.last_name}</FieldError>
                   </Field>
 
-                  <Field label="Phone">
+                  <Field label={text.labels.phone} required>
                     <input
                       required
                       autoComplete="tel"
                       value={form.phone}
                       onChange={(e) => handleChange("phone", formatPhoneInput(e.target.value))}
-                      placeholder="(317) 555-1234"
+                      placeholder={text.placeholders.phone}
                       style={inputStyle()}
                     />
                     <FieldError>{fieldErrors.phone}</FieldError>
                   </Field>
 
-                  <Field label="Email">
+                  <Field label={text.labels.email} required>
                     <input
                       type="email"
                       required
                       autoComplete="email"
                       value={form.email}
                       onChange={(e) => handleChange("email", e.target.value)}
-                      placeholder="carlos@email.com"
+                      placeholder={text.placeholders.email}
                       style={inputStyle()}
                     />
                     <FieldError>{fieldErrors.email}</FieldError>
                   </Field>
 
-                  <Field label="Street Address">
+                  <Field label={text.labels.address} required>
                     <input
                       required
                       autoComplete="street-address"
                       value={form.address}
                       onChange={(e) => handleChange("address", e.target.value)}
-                      placeholder="123 Main St"
+                      placeholder={text.placeholders.address}
                       style={inputStyle()}
                     />
                     <FieldError>{fieldErrors.address}</FieldError>
                   </Field>
 
-                  <Field label="ZIP Code">
+                  <Field label={text.labels.zip} required>
                     <input
                       required
                       inputMode="numeric"
                       autoComplete="postal-code"
                       value={form.zip_code}
                       onChange={(e) => handleZipChange(e.target.value)}
-                      placeholder="46204"
+                      placeholder={text.placeholders.zip}
                       style={inputStyle()}
                     />
                     {zipLookupStatus ? (
@@ -1115,55 +1518,53 @@ export default function RegisterPage() {
                     <FieldError>{fieldErrors.zip_code}</FieldError>
                   </Field>
 
-                  <Field label="City">
+                  <Field label={text.labels.city} required>
                     <input
                       value={form.city}
                       onChange={(e) => handleChange("city", e.target.value)}
-                      placeholder="Indianapolis"
+                      placeholder={text.placeholders.city}
                       style={inputStyle()}
                     />
+                    <FieldError>{fieldErrors.city}</FieldError>
                   </Field>
 
-                  <Field label="State">
+                  <Field label={text.labels.state} required>
                     <input
                       value={form.state}
                       onChange={(e) => {
-                        const state = e.target.value;
+                        const state = getFullStateName(e.target.value);
                         const locationId = findLocationIdByState(locationOptions, state);
                         setForm((prev) => ({
                           ...prev,
                           state,
-                          location_id: locationId || prev.location_id,
+                          location_id: locationId || "",
                         }));
+                        setFieldErrors((prev) => {
+                          if (!prev.state) return prev;
+                          const next = { ...prev };
+                          delete next.state;
+                          return next;
+                        });
                       }}
-                      placeholder="Indiana"
+                      placeholder={text.placeholders.state}
                       style={inputStyle()}
                     />
+                    <FieldError>{fieldErrors.state}</FieldError>
                   </Field>
 
-                  <Field label="Current Location">
-                    <select
-                      value={form.location_id}
-                      onChange={(e) => handleChange("location_id", e.target.value)}
-                      style={inputStyle()}
-                    >
-                      <option value="">Select a location</option>
-                      {locationOptions.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                    <FieldError>{fieldErrors.location_id}</FieldError>
-                  </Field>
+                </div>
+                ) : null}
 
-                  <Field label="Trade">
+                {currentStep === 1 ? (
+                <>
+                <div className="experience-top-grid">
+                  <Field label={text.labels.trade} required>
                     <select
                       value={form.trade_id}
                       onChange={(e) => handleChange("trade_id", e.target.value)}
                       style={inputStyle()}
                     >
-                      <option value="">Select a trade</option>
+                      <option value="">{text.placeholders.trade}</option>
                       {tradeOptions.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.name}
@@ -1173,67 +1574,73 @@ export default function RegisterPage() {
                     <FieldError>{fieldErrors.trade_id}</FieldError>
                   </Field>
 
-                  <Field label="Total Experience in Trade (Years)">
+                  <Field label={text.labels.totalExperience}>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.5"
+                      inputMode="numeric"
+                      maxLength={2}
                       value={form.total_experience_years}
                       onChange={(e) =>
-                        handleChange("total_experience_years", e.target.value)
+                        handleExperienceChange("total_experience_years", e.target.value)
                       }
                       placeholder="8"
-                      style={inputStyle()}
+                      style={{ ...inputStyle(), maxWidth: 220 }}
                     />
+                    <FieldError>{fieldErrors.total_experience_years}</FieldError>
                   </Field>
+                </div>
 
-                  <Field label="Commercial Experience (Years)">
+                <div className="experience-mini-grid">
+                  <Field label={text.labels.commercialExperience}>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.5"
+                      inputMode="numeric"
+                      maxLength={2}
                       value={form.commercial_experience_years}
                       onChange={(e) =>
-                        handleChange("commercial_experience_years", e.target.value)
+                        handleExperienceChange("commercial_experience_years", e.target.value)
                       }
                       placeholder="4"
                       style={inputStyle()}
                     />
+                    <FieldError>{fieldErrors.commercial_experience_years}</FieldError>
                   </Field>
 
-                  <Field label="Industrial Experience (Years)">
+                  <Field label={text.labels.industrialExperience}>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.5"
+                      inputMode="numeric"
+                      maxLength={2}
                       value={form.industrial_experience_years}
                       onChange={(e) =>
-                        handleChange("industrial_experience_years", e.target.value)
+                        handleExperienceChange("industrial_experience_years", e.target.value)
                       }
                       placeholder="6"
                       style={inputStyle()}
                     />
+                    <FieldError>{fieldErrors.industrial_experience_years}</FieldError>
+                  </Field>
+
+                  <Field label={text.labels.residentialExperience}>
+                    <input
+                      inputMode="numeric"
+                      maxLength={2}
+                      value={form.residential_experience_years}
+                      onChange={(e) =>
+                        handleExperienceChange("residential_experience_years", e.target.value)
+                      }
+                      placeholder="2"
+                      style={inputStyle()}
+                    />
+                    <FieldError>{fieldErrors.residential_experience_years}</FieldError>
                   </Field>
                 </div>
 
-                <Field label="Residential Experience (Years)">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={form.residential_experience_years}
-                    onChange={(e) =>
-                      handleChange("residential_experience_years", e.target.value)
-                    }
-                    placeholder="2"
-                    style={inputStyle()}
-                  />
-                </Field>
-
                 <div style={{ height: 1, background: "#e2e8f0" }} />
 
-                <ProjectHistoryEditor projects={projects} setProjects={setProjects} />
+                <ProjectHistoryEditor projects={projects} setProjects={setProjects} text={text} />
+                </>
+                ) : null}
 
+                {currentStep === 2 ? (
+                <>
                 <div
                   className="two-col"
                   style={{
@@ -1242,22 +1649,22 @@ export default function RegisterPage() {
                     gap: 18,
                   }}
                 >
-                  <Field label="Strengths">
+                  <Field label={text.labels.strengths}>
                     <textarea
                       value={form.strengths}
                       onChange={(e) => handleChange("strengths", e.target.value)}
-                      placeholder="Leadership, troubleshooting, blueprint reading..."
+                      placeholder={text.placeholders.strengths}
                       style={textareaStyle(120)}
                     />
                   </Field>
 
-                  <Field label="Needs Improvement">
+                  <Field label={text.labels.needsImprovement}>
                     <textarea
                       value={form.needs_improvement}
                       onChange={(e) =>
                         handleChange("needs_improvement", e.target.value)
                       }
-                      placeholder="Documentation, advanced PLC diagnostics..."
+                      placeholder={text.placeholders.needsImprovement}
                       style={textareaStyle(120)}
                     />
                   </Field>
@@ -1273,31 +1680,31 @@ export default function RegisterPage() {
                     gap: 22,
                   }}
                 >
-                  <TagPicker
-                    label="Languages"
-                    options={starterLanguages}
+                  <LanguagePicker
                     selected={languages}
                     setSelected={setLanguages}
-                    placeholder="Add a language"
+                    englishProficiency={englishProficiency}
+                    setEnglishProficiency={setEnglishProficiency}
+                    text={text}
                   />
 
                   <CatalogPicker
-                    label="Skills"
+                    label={text.labels.skills}
                     icon={<Wrench size={16} color="#334155" />}
                     items={skillOptions}
                     selectedIds={selectedSkillIds}
                     setSelectedIds={setSelectedSkillIds}
-                    emptyText="No skills found in your catalog yet."
+                    emptyText={text.messages.noSkills}
                   />
                 </div>
 
                 <CatalogPicker
-                  label="Certifications"
+                  label={text.labels.certifications}
                   icon={<ShieldCheck size={16} color="#334155" />}
                   items={certificationOptions}
                   selectedIds={selectedCertificationIds}
                   setSelectedIds={setSelectedCertificationIds}
-                  emptyText="No certifications found in your catalog yet."
+                  emptyText={text.messages.noCertifications}
                 />
 
                 <div
@@ -1311,18 +1718,21 @@ export default function RegisterPage() {
                   }}
                 >
                   <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                    Verification
+                    {text.labels.verification}
                   </div>
                   <div style={{ color: "#475569", fontSize: 14 }}>
-                    Complete the security check before submitting the public registration form.
+                    {text.labels.verificationHelp}
                   </div>
 
                   <TurnstileField
                     siteKey={turnstileSiteKey}
                     onVerify={setTurnstileToken}
                     resetKey={turnstileResetKey}
+                    language={locale}
                   />
                 </div>
+                </>
+                ) : null}
 
                 {error ? (
                   <div
@@ -1354,32 +1764,75 @@ export default function RegisterPage() {
                     }}
                   >
                     <CheckCircle2 size={18} />
-                    Worker registered successfully.
+                    {text.messages.success}
                   </div>
                 ) : null}
 
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <button
-                    type="submit"
-                    disabled={loading || bootLoading}
-                    style={{
-                      border: "none",
-                      background:
-                        loading || bootLoading ? "#94a3b8" : "#0f172a",
-                      color: "#ffffff",
-                      borderRadius: 14,
-                      padding: "13px 18px",
-                      fontWeight: 800,
-                      cursor:
-                        loading || bootLoading ? "not-allowed" : "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    {loading ? <Loader2 size={16} className="spin" /> : null}
-                    {loading ? "Saving..." : "Register Worker"}
-                  </button>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    {currentStep > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentStep((prev) => Math.max(prev - 1, 0));
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        disabled={loading}
+                        style={{
+                          border: "1px solid #cbd5e1",
+                          background: "#ffffff",
+                          color: "#0f172a",
+                          borderRadius: 14,
+                          padding: "13px 18px",
+                          fontWeight: 800,
+                          cursor: loading ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {text.actions.back}
+                      </button>
+                    ) : null}
+
+                    {currentStep < registrationSteps.length - 1 ? (
+                      <button
+                        type="button"
+                        onClick={goToNextStep}
+                        disabled={loading || bootLoading}
+                        style={{
+                          border: "none",
+                          background: loading || bootLoading ? "#94a3b8" : "#0f172a",
+                          color: "#ffffff",
+                          borderRadius: 14,
+                          padding: "13px 18px",
+                          fontWeight: 800,
+                          cursor: loading || bootLoading ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {text.actions.continue}
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        disabled={loading || bootLoading}
+                        style={{
+                          border: "none",
+                          background:
+                            loading || bootLoading ? "#94a3b8" : "#0f172a",
+                          color: "#ffffff",
+                          borderRadius: 14,
+                          padding: "13px 18px",
+                          fontWeight: 800,
+                          cursor:
+                            loading || bootLoading ? "not-allowed" : "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        {loading ? <Loader2 size={16} className="spin" /> : null}
+                        {loading ? text.actions.saving : text.actions.register}
+                      </button>
+                    )}
+                  </div>
 
                   <button
                     type="button"
@@ -1395,7 +1848,7 @@ export default function RegisterPage() {
                       cursor: "pointer",
                     }}
                   >
-                    Clear Form
+                    {text.actions.clear}
                   </button>
                 </div>
               </form>

@@ -834,7 +834,7 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
         *,
         trades(name),
         locations(name),
-        worker_languages(language_name),
+        worker_languages(language_name, proficiency_percent),
         worker_projects(*),
         worker_skills(skills(id, name)),
         worker_certifications(certifications(name)),
@@ -1379,7 +1379,13 @@ function WorkerCard({
     worker.worker_certifications?.map((c) => c.certifications?.name).filter(Boolean) || [];
 
   const languages =
-    worker.worker_languages?.map((l) => l.language_name).filter(Boolean) || [];
+    worker.worker_languages
+      ?.map((l) =>
+        l.language_name === "English" && l.proficiency_percent
+          ? `${l.language_name} (${l.proficiency_percent}%)`
+          : l.language_name
+      )
+      .filter(Boolean) || [];
 
   const projects = [...(worker.worker_projects || [])].sort(
     (a, b) => (a.sort_order || 0) - (b.sort_order || 0)
@@ -2190,7 +2196,7 @@ export default function AdminPage() {
           *,
           trades(name),
           locations(name),
-          worker_languages(language_name),
+          worker_languages(language_name, proficiency_percent),
           worker_projects(*),
           worker_skills(skills(id, name)),
           worker_certifications(certifications(name)),

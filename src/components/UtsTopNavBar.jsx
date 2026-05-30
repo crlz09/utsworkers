@@ -12,7 +12,7 @@ import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
 import PwaInstallButton from "./PwaInstallButton";
 
-export default function UtsTopNavBar() {
+export default function UtsTopNavBar({ rightSlot = null }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -155,7 +155,8 @@ export default function UtsTopNavBar() {
         }
 
         .uts-logout-btn,
-        .uts-install-btn {
+        .uts-install-btn,
+        .uts-topbar-action {
           border: 1px solid rgba(255,255,255,0.18);
           background: rgba(255,255,255,0.04);
           color: #ffffff;
@@ -177,6 +178,18 @@ export default function UtsTopNavBar() {
           background: rgba(255,255,255,0.12);
         }
 
+        .uts-topbar.register-topbar .uts-topbar-inner {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .uts-topbar.register-topbar .uts-topbar-right {
+          width: auto;
+          margin-left: auto;
+          justify-content: flex-end;
+        }
+
         @media (max-width: 1100px) {
           .uts-topbar-inner {
             align-items: flex-start;
@@ -194,6 +207,17 @@ export default function UtsTopNavBar() {
           .uts-topbar-right {
             width: 100%;
             justify-content: flex-start;
+          }
+
+          .uts-topbar.register-topbar .uts-topbar-inner {
+            align-items: center;
+            flex-direction: row;
+          }
+
+          .uts-topbar.register-topbar .uts-topbar-right {
+            width: auto;
+            margin-left: auto;
+            justify-content: flex-end;
           }
         }
 
@@ -236,7 +260,8 @@ export default function UtsTopNavBar() {
 
           .uts-nav-btn,
           .uts-logout-btn,
-          .uts-install-btn {
+          .uts-install-btn,
+          .uts-topbar-action {
             min-height: 40px;
             font-size: 12px;
             white-space: nowrap;
@@ -253,13 +278,18 @@ export default function UtsTopNavBar() {
           }
 
           .uts-logout-btn span,
-          .uts-install-btn span {
+          .uts-install-btn span,
+          .uts-topbar-action span {
             display: none;
+          }
+
+          .uts-topbar-action.register-language-btn span {
+            display: inline;
           }
         }
       `}</style>
 
-      <div className="uts-topbar">
+      <div className={`uts-topbar ${routeFlags.isRegister ? "register-topbar" : ""}`}>
         <div className="uts-topbar-inner">
           <div className="uts-brand" onClick={() => navigate("/admin")}>
             <img src={utsLogo} alt="UTS" />
@@ -289,6 +319,7 @@ export default function UtsTopNavBar() {
           )}
 
           <div className="uts-topbar-right">
+            {rightSlot}
             <PwaInstallButton />
 
             {routeFlags.isAdmin && (

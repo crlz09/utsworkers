@@ -48,10 +48,25 @@ const buildFullName = (firstName: unknown, lastName: unknown) =>
     .filter(Boolean)
     .join(" ")
 
-const toNumberValue = (value: unknown) => {
+const toExperienceYears = (value: unknown) => {
   const parsed = Number(value ?? 0)
-  return Number.isFinite(parsed) ? parsed : 0
-  }
+  if (!Number.isFinite(parsed)) return 0
+  return Math.min(Math.max(Math.trunc(parsed), 0), 30)
+}
+
+const toLanguageProficiencies = (value: unknown) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .map(([language, percent]) => {
+        const parsed = Number(percent)
+        if (!Number.isFinite(parsed)) return null
+        return [language.trim(), Math.min(Math.max(Math.trunc(parsed), 1), 100)]
+      })
+      .filter((entry): entry is [string, number] => Boolean(entry?.[0]))
+  )
+}
 
 const toStringArray = (value: unknown) =>
   Array.isArray(value)
@@ -502,10 +517,10 @@ Deno.serve(async (req) => {
       p_state: toOptionalString(payload.state),
       p_location_id: toRequiredString(payload.location_id),
       p_trade_id: toRequiredString(payload.trade_id),
-      p_total_experience_years: toNumberValue(payload.total_experience_years),
-      p_commercial_experience_years: toNumberValue(payload.commercial_experience_years),
-      p_industrial_experience_years: toNumberValue(payload.industrial_experience_years),
-      p_residential_experience_years: toNumberValue(payload.residential_experience_years),
+      p_total_experience_years: toExperienceYears(payload.total_experience_years),
+      p_commercial_experience_years: toExperienceYears(payload.commercial_experience_years),
+      p_industrial_experience_years: toExperienceYears(payload.industrial_experience_years),
+      p_residential_experience_years: toExperienceYears(payload.residential_experience_years),
       p_strengths: toOptionalString(payload.strengths),
       p_needs_improvement: toOptionalString(payload.needs_improvement),
       p_available_from: null,
@@ -514,6 +529,7 @@ Deno.serve(async (req) => {
       p_skill_ids: Array.isArray(payload.selectedSkillIds) ? payload.selectedSkillIds : [],
       p_certification_ids: Array.isArray(payload.selectedCertificationIds) ? payload.selectedCertificationIds : [],
       p_projects: toProjectPayload(payload.projects),
+      p_language_proficiencies: toLanguageProficiencies(payload.languageProficiencies),
     }
 
     if (
