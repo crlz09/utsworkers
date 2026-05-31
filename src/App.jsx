@@ -4,6 +4,7 @@ import { AdminRoute, ClientRoute } from "./components/AccessRoute";
 
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
+const AdminNotificationsPage = lazy(() => import("./pages/AdminNotificationsPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const InterviewMiniApp = lazy(() => import("./pages/InterviewMiniApp"));
 const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
@@ -110,6 +111,14 @@ export default function App() {
           element={
             <AdminRoute>
               <AdminPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/notifications"
+          element={
+            <AdminRoute>
+              <AdminNotificationsPage />
             </AdminRoute>
           }
         />

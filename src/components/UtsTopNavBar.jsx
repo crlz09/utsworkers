@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -7,10 +7,12 @@ import {
   LogOut,
   Briefcase,
   Clock3,
+  Bell,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
 import PwaInstallButton from "./PwaInstallButton";
+import { loadAdminNotificationCount } from "../lib/adminNotifications";
 
 export default function UtsTopNavBar({ rightSlot = null }) {
   const navigate = useNavigate();
@@ -18,11 +20,35 @@ export default function UtsTopNavBar({ rightSlot = null }) {
 
   const routeFlags = {
     isAdmin: location.pathname === "/admin",
+    isAdminArea: location.pathname.startsWith("/admin"),
     isRegister: location.pathname.startsWith("/register"),
     isInterviews: location.pathname.startsWith("/interviews"),
     isCtsJobs: location.pathname.startsWith("/cts-jobs"),
     isHours: location.pathname.startsWith("/hours"),
   };
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCount = async () => {
+      if (routeFlags.isRegister) return;
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) return;
+        const count = await loadAdminNotificationCount(supabase);
+        if (active) setNotificationCount(count);
+      } catch {
+        if (active) setNotificationCount(0);
+      }
+    };
+
+    void loadCount();
+
+    return () => {
+      active = false;
+    };
+  }, [location.pathname, routeFlags.isRegister]);
 
   const navItems = [
     {
@@ -123,6 +149,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         }
 
         .uts-nav-btn {
+          position: relative;
           border: none;
           background: transparent;
           color: rgba(255,255,255,0.82);
@@ -147,11 +174,41 @@ export default function UtsTopNavBar({ rightSlot = null }) {
           color: #ffffff;
         }
 
+        .uts-nav-badge {
+          min-width: 20px;
+          height: 20px;
+          pointer-events: none;
+          border-radius: 999px;
+          padding: 0 6px;
+          background: #ef4444;
+          color: #ffffff;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 950;
+          line-height: 1;
+        }
+
         .uts-topbar-right {
           display: flex;
           align-items: center;
           gap: 10px;
           flex-wrap: wrap;
+        }
+
+        .uts-alert-btn {
+          position: relative;
+          min-width: 46px;
+          justify-content: center;
+          padding: 11px 13px;
+        }
+
+        .uts-alert-btn .uts-nav-badge {
+          position: absolute;
+          top: -7px;
+          right: -7px;
+          box-shadow: 0 0 0 2px #1f2c40;
         }
 
         .uts-logout-btn,
@@ -206,7 +263,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
 
           .uts-topbar-right {
             width: 100%;
-            justify-content: flex-start;
+            justify-content: flex-end;
           }
 
           .uts-topbar.register-topbar .uts-topbar-inner {
@@ -277,10 +334,26 @@ export default function UtsTopNavBar({ rightSlot = null }) {
             line-height: 1.05;
           }
 
+          .uts-nav-badge {
+            position: absolute;
+            top: 4px;
+            right: 6px;
+            min-width: 17px;
+            height: 17px;
+            font-size: 10px;
+            padding: 0 5px;
+          }
+
           .uts-logout-btn span,
           .uts-install-btn span,
           .uts-topbar-action span {
             display: none;
+          }
+
+          .uts-alert-btn .uts-nav-badge {
+            display: inline-flex;
+            top: -5px;
+            right: -5px;
           }
 
           .uts-topbar-action.register-language-btn span {
@@ -322,16 +395,33 @@ export default function UtsTopNavBar({ rightSlot = null }) {
             {rightSlot}
             <PwaInstallButton />
 
-            {routeFlags.isAdmin && (
-              <button
-                type="button"
-                className="uts-logout-btn"
-                onClick={handleLogout}
-              >
-                <LogOut size={16} />
-                <span>Logout</span>
-              </button>
-            )}
+            {routeFlags.isAdminArea ? (
+              <>
+                <button
+                  type="button"
+                  className="uts-logout-btn uts-alert-btn"
+                  onClick={() => navigate("/admin/notifications")}
+                  title="Notifications"
+                  aria-label={`Notifications${notificationCount > 0 ? `, ${notificationCount} pending` : ""}`}
+                >
+                  <Bell size={16} />
+                  {notificationCount > 0 ? (
+                    <span className="uts-nav-badge">
+                      {notificationCount > 99 ? "99+" : notificationCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                <button
+                  type="button"
+                  className="uts-logout-btn"
+                  onClick={handleLogout}
+                >
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
       </div>

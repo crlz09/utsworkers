@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
@@ -472,12 +473,6 @@ function fieldGroupTitleStyle() {
 
 function getStatusStyle(status) {
   switch (status) {
-    case "onboarding":
-      return {
-        background: "#e0f2fe",
-        color: "#0c4a6e",
-        border: "1px solid #7dd3fc",
-      };
     case "hold":
       return {
         background: "#ffedd5",
@@ -502,20 +497,17 @@ function getStatusStyle(status) {
         color: "#166534",
         border: "1px solid #86efac",
       };
-    case "pending":
     default:
       return {
-        background: "#fef3c7",
-        color: "#92400e",
-        border: "1px solid #fcd34d",
+        background: "#ede9fe",
+        color: "#5b21b6",
+        border: "1px solid #c4b5fd",
       };
   }
 }
 
 function formatStatus(status) {
   switch (status) {
-    case "onboarding":
-      return "OnBoarding";
     case "hold":
       return "Hold";
     case "rejected":
@@ -524,29 +516,30 @@ function formatStatus(status) {
       return "Completed";
     case "working":
       return "Working";
-    case "pending":
     default:
-      return "Pending";
+      return "Completed";
   }
 }
 
 function statusPriority(status) {
   switch (status) {
-    case "pending":
-      return 1;
-    case "onboarding":
-      return 2;
     case "working":
-      return 3;
+      return 1;
     case "hold":
-      return 4;
+      return 2;
     case "completed":
-      return 5;
+      return 3;
     case "rejected":
-      return 6;
+      return 4;
     default:
       return 99;
   }
+}
+
+function getSyncedWorkerStatus(worker, placedWorkerIds) {
+  if (placedWorkerIds.has(worker.id)) return "working";
+  if (["pending", "onboarding", "working"].includes(worker.status)) return "completed";
+  return worker.status || "completed";
 }
 
 function formatDate(dateString) {
@@ -1362,7 +1355,7 @@ function WorkerCard({
   const [savingRecruiter, setSavingRecruiter] = useState(false);
   const [recruiterError, setRecruiterError] = useState("");
 
-  const [status, setStatus] = useState(worker.status || "pending");
+  const [status, setStatus] = useState(worker.status || "completed");
   const [savingStatus, setSavingStatus] = useState(false);
   const [statusError, setStatusError] = useState("");
   const [statusUpdatedAt, setStatusUpdatedAt] = useState(worker.status_updated_at);
@@ -1476,7 +1469,7 @@ function WorkerCard({
 
     if (error) {
       setStatusError(error.message || "Could not update status.");
-      setStatus(worker.status || "pending");
+      setStatus(worker.status || "completed");
       setStatusUpdatedAt(worker.status_updated_at);
     } else {
       setStatusUpdatedAt(nowIso);
@@ -1904,12 +1897,10 @@ function WorkerCard({
                     background: savingStatus || !canEditWorkers ? "#f8fafc" : "#ffffff",
                     cursor: savingStatus || !canEditWorkers ? "not-allowed" : "pointer",
                   }}
-                >
-                  <option value="pending">Pending</option>
-                  <option value="onboarding">OnBoarding</option>
-                  <option value="hold">Hold</option>
-                  <option value="rejected">Rejected</option>
+                  >
                   <option value="completed">Completed</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="hold">Hold</option>
                   <option value="working">Working</option>
                 </select>
               </Field>
@@ -2148,6 +2139,7 @@ function WorkerCard({
 
 
 export default function AdminPage() {
+  const location = useLocation();
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -2157,7 +2149,7 @@ export default function AdminPage() {
   const [reviewFilter, setReviewFilter] = useState("");
   const [contactIssueFilter, setContactIssueFilter] = useState(false);
   const [selectedSkillIds, setSelectedSkillIds] = useState([]);
-  const [sortBy, setSortBy] = useState("status_priority");
+  const [sortBy, setSortBy] = useState("newest_registered");
   const [trades, setTrades] = useState([]);
   const [locations, setLocations] = useState([]);
   const [skills, setSkills] = useState([]);
@@ -2168,6 +2160,12 @@ export default function AdminPage() {
     can_edit_workers: false,
     can_delete_workers: false,
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const query = params.get("q");
+    if (query) setSearch(query);
+  }, [location.search]);
 
   useEffect(() => {
     const resetScroll = () => {
@@ -2202,6 +2200,10 @@ export default function AdminPage() {
           worker_certifications(certifications(name)),
           worker_documents(*)
         `);
+      const placedCandidatesData = await supabase
+        .from("cts_job_candidates")
+        .select("worker_id, candidate_status")
+        .eq("candidate_status", "placed");
 
       const tradesData = await supabase.from("trades").select("*").order("name");
       const locationsData = await supabase.from("locations").select("*").order("name");
@@ -2216,7 +2218,44 @@ export default function AdminPage() {
         .select("can_edit_workers, can_delete_workers")
         .maybeSingle();
 
-      if (!error) setWorkers(data || []);
+      if (!error) {
+        const placedWorkerIds = new Set(
+          (placedCandidatesData.data || [])
+            .map((candidate) => candidate.worker_id)
+            .filter(Boolean)
+        );
+        const syncedWorkers = (data || []).map((worker) => ({
+          ...worker,
+          status: getSyncedWorkerStatus(worker, placedWorkerIds),
+        }));
+        const statusUpdates = (data || [])
+          .map((worker) => ({
+            worker,
+            status: getSyncedWorkerStatus(worker, placedWorkerIds),
+          }))
+          .filter(({ worker, status }) => worker.status !== status);
+
+        if (statusUpdates.length > 0) {
+          const statusUpdatedAt = new Date().toISOString();
+          await Promise.all(
+            statusUpdates.map(({ worker, status }) =>
+              supabase
+                .from("workers")
+                .update({ status, status_updated_at: statusUpdatedAt })
+                .eq("id", worker.id)
+            )
+          );
+          setWorkers(
+            syncedWorkers.map((worker) =>
+              statusUpdates.some((item) => item.worker.id === worker.id)
+                ? { ...worker, status_updated_at: statusUpdatedAt }
+                : worker
+            )
+          );
+        } else {
+          setWorkers(syncedWorkers);
+        }
+      }
       setTrades(tradesData.data || []);
       setLocations(locationsData.data || []);
       setSkills(skillsData.data || []);
@@ -2412,8 +2451,6 @@ export default function AdminPage() {
     sortBy,
   ]);
 
-  const pendingCount = workers.filter((w) => w.status === "pending").length;
-  const onboardingCount = workers.filter((w) => w.status === "onboarding").length;
   const holdCount = workers.filter((w) => w.status === "hold").length;
   const rejectedCount = workers.filter((w) => w.status === "rejected").length;
   const completedCount = workers.filter((w) => w.status === "completed").length;
@@ -2423,11 +2460,9 @@ export default function AdminPage() {
     (w) => !String(w.phone || "").trim() || !String(w.email || "").trim()
   ).length;
   const workflowStatusBadges = [
-    { value: "pending", label: "Pending", count: pendingCount },
-    { value: "onboarding", label: "OnBoarding", count: onboardingCount },
-    { value: "hold", label: "Hold", count: holdCount },
-    { value: "rejected", label: "Rejected", count: rejectedCount },
     { value: "completed", label: "Completed", count: completedCount },
+    { value: "rejected", label: "Rejected", count: rejectedCount },
+    { value: "hold", label: "Hold", count: holdCount },
     { value: "working", label: "Working", count: workingCount },
   ];
   const hasAdvancedFilters =
@@ -2438,7 +2473,7 @@ export default function AdminPage() {
     contactIssueFilter ||
     !!recruiterFilter ||
     selectedSkillIds.length > 0 ||
-    sortBy !== "status_priority";
+    sortBy !== "newest_registered";
 
   const clearAdvancedFilters = () => {
     setTradeFilter("");
@@ -2448,7 +2483,7 @@ export default function AdminPage() {
     setContactIssueFilter(false);
     setRecruiterFilter("");
     setSelectedSkillIds([]);
-    setSortBy("status_priority");
+    setSortBy("newest_registered");
   };
 
   return (
@@ -2753,11 +2788,9 @@ export default function AdminPage() {
 
                     <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={inputStyle}>
                       <option value="">All Statuses</option>
-                      <option value="pending">Pending</option>
-                      <option value="onboarding">OnBoarding</option>
-                      <option value="hold">Hold</option>
-                      <option value="rejected">Rejected</option>
                       <option value="completed">Completed</option>
+                      <option value="rejected">Rejected</option>
+                      <option value="hold">Hold</option>
                       <option value="working">Working</option>
                     </select>
 
@@ -2777,9 +2810,9 @@ export default function AdminPage() {
                     </select>
 
                     <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={inputStyle}>
-                      <option value="status_priority">Sort: Status Priority</option>
                       <option value="newest_registered">Sort: Newest Registered</option>
                       <option value="oldest_registered">Sort: Oldest Registered</option>
+                      <option value="status_priority">Sort: Status Priority</option>
                     </select>
                   </div>
 

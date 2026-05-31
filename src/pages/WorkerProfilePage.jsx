@@ -186,12 +186,6 @@ function sectionTitleStyle() {
 
 function getStatusStyle(status) {
   switch (status) {
-    case "onboarding":
-      return {
-        background: "#e0f2fe",
-        color: "#0c4a6e",
-        border: "1px solid #7dd3fc",
-      };
     case "hold":
       return {
         background: "#ffedd5",
@@ -216,12 +210,11 @@ function getStatusStyle(status) {
         color: "#166534",
         border: "1px solid #86efac",
       };
-    case "pending":
     default:
       return {
-        background: "#fef3c7",
-        color: "#92400e",
-        border: "1px solid #fcd34d",
+        background: "#ede9fe",
+        color: "#5b21b6",
+        border: "1px solid #c4b5fd",
       };
   }
 }
@@ -252,8 +245,6 @@ function getAvailabilityStyle(availability) {
 
 function formatStatus(status) {
   switch (status) {
-    case "onboarding":
-      return "OnBoarding";
     case "hold":
       return "Hold";
     case "rejected":
@@ -262,9 +253,8 @@ function formatStatus(status) {
       return "Completed";
     case "working":
       return "Working";
-    case "pending":
     default:
-      return "Pending";
+      return "Completed";
   }
 }
 

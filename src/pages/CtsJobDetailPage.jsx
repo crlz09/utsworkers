@@ -471,6 +471,36 @@ export default function CtsJobDetailPage() {
     return null;
   };
 
+  const syncWorkerStatusFromPlacement = async (workerId) => {
+    if (!workerId) return null;
+
+    const { data: placedRows, error: placedError } = await supabase
+      .from("cts_job_candidates")
+      .select("id")
+      .eq("worker_id", workerId)
+      .eq("candidate_status", "placed")
+      .limit(1);
+
+    if (placedError) return placedError;
+
+    const desiredStatus = placedRows?.length ? "working" : "completed";
+    const { error } = await supabase
+      .from("workers")
+      .update({
+        status: desiredStatus,
+        status_updated_at: new Date().toISOString(),
+      })
+      .eq("id", workerId)
+      .in(
+        "status",
+        desiredStatus === "working"
+          ? ["completed", "hold", "rejected", "pending", "onboarding"]
+          : ["working", "pending", "onboarding"]
+      );
+
+    return error || null;
+  };
+
   const addCandidateToJob = async (worker, draft, currentJobState) => {
     if (!currentJobState) return;
     const payload = {
@@ -493,6 +523,10 @@ export default function CtsJobDetailPage() {
     };
     const { error } = await supabase.from("cts_job_candidates").insert(payload);
     if (error) { setFeedback({ error: error.message || "Could not assign worker to CTS job.", success: "" }); return; }
+    if (payload.candidate_status === "placed") {
+      const syncError = await syncWorkerStatusFromPlacement(worker.id);
+      if (syncError) { setFeedback({ error: syncError.message || "Candidate added, but worker status could not be synced.", success: "" }); return; }
+    }
     const touchError = await touchJobModifiedAt(currentJobState.id);
     if (touchError) {
       await load({ preserveFeedback: true });
@@ -544,6 +578,15 @@ export default function CtsJobDetailPage() {
       return;
     }
 
+    if (field === "candidate_status") {
+      const syncError = await syncWorkerStatusFromPlacement(row.worker_id);
+      if (syncError) {
+        await load({ preserveFeedback: true });
+        setFeedback({ error: syncError.message || "Field saved, but worker status could not be synced.", success: "" });
+        return;
+      }
+    }
+
     const touchError = await touchJobModifiedAt(row.cts_job_id);
     if (touchError) {
       await load({ preserveFeedback: true });
@@ -564,6 +607,8 @@ export default function CtsJobDetailPage() {
     const { error } = await supabase.from("cts_job_candidates").delete().eq("id", row.id);
     setDeleteIds((prev) => ({ ...prev, [row.id]: false }));
     if (error) { setFeedback({ error: error.message || "Could not remove candidate.", success: "" }); return; }
+    const syncError = await syncWorkerStatusFromPlacement(row.worker_id);
+    if (syncError) { await load({ preserveFeedback: true }); setFeedback({ error: syncError.message || "Candidate removed, but worker status could not be synced.", success: "" }); return; }
     const touchError = await touchJobModifiedAt(row.cts_job_id);
     if (touchError) { await load({ preserveFeedback: true }); setFeedback({ error: touchError.message || "Candidate removed, but job modification date could not be updated.", success: "" }); return; }
     setFeedback({ error: "", success: "Candidate removed from CTS job." });
