@@ -130,6 +130,9 @@ const copy = {
       noSkills: "No skills found in your catalog yet.",
       noCertifications: "No certifications found in your catalog yet.",
       success: "Worker registered successfully.",
+      successTitle: "Registration submitted",
+      successDetail:
+        "The worker profile was registered successfully. You can close this page now or register another person.",
       continueError: "Please review the highlighted fields before continuing.",
       submitError: "Please review the highlighted fields before submitting.",
       missingSupabase: "Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file.",
@@ -164,6 +167,7 @@ const copy = {
       register: "Register Worker",
       saving: "Saving...",
       clear: "Clear Form",
+      registerAnother: "Register Another Person",
     },
   },
   es: {
@@ -240,6 +244,9 @@ const copy = {
       noSkills: "Todavía no hay habilidades en el catálogo.",
       noCertifications: "Todavía no hay certificaciones en el catálogo.",
       success: "Worker registrado correctamente.",
+      successTitle: "Registro enviado",
+      successDetail:
+        "El perfil del worker fue registrado correctamente. Puedes cerrar esta página o registrar otra persona.",
       continueError: "Revisa los campos marcados antes de continuar.",
       submitError: "Revisa los campos marcados antes de enviar.",
       missingSupabase: "Supabase no está configurado. Agrega VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en tu archivo .env.local.",
@@ -274,6 +281,7 @@ const copy = {
       register: "Registrar Worker",
       saving: "Guardando...",
       clear: "Limpiar Formulario",
+      registerAnother: "Registrar Otra Persona",
     },
   },
 };
@@ -1043,6 +1051,80 @@ function ProjectHistoryEditor({ projects, setProjects, text }) {
   );
 }
 
+function RegistrationSuccessPanel({ text, onRegisterAnother }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        justifyItems: "center",
+        textAlign: "center",
+        gap: 18,
+        padding: "38px 18px 26px",
+      }}
+    >
+      <div
+        style={{
+          width: 74,
+          height: 74,
+          borderRadius: "50%",
+          background: "#ecfdf5",
+          color: "#047857",
+          border: "1px solid #a7f3d0",
+          display: "grid",
+          placeItems: "center",
+        }}
+      >
+        <CheckCircle2 size={40} strokeWidth={2.2} />
+      </div>
+
+      <div style={{ display: "grid", gap: 10, maxWidth: 620 }}>
+        <h2
+          style={{
+            margin: 0,
+            color: "#0f172a",
+            fontSize: "clamp(28px, 4vw, 40px)",
+            lineHeight: 1.08,
+            letterSpacing: 0,
+          }}
+        >
+          {text.messages.successTitle}
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            color: "#475569",
+            fontSize: 18,
+            lineHeight: 1.55,
+          }}
+        >
+          {text.messages.successDetail}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onRegisterAnother}
+        style={{
+          marginTop: 6,
+          border: "none",
+          background: "#0f172a",
+          color: "#ffffff",
+          borderRadius: 14,
+          padding: "14px 20px",
+          fontWeight: 900,
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <Plus size={18} />
+        {text.actions.registerAnother}
+      </button>
+    </div>
+  );
+}
+
 export default function RegisterPage() {
   const [locale, setLocale] = useState("en");
   const [form, setForm] = useState(initialForm);
@@ -1170,7 +1252,7 @@ export default function RegisterPage() {
     };
   }, [form.zip_code, locationOptions, text.messages.zipFilled, text.messages.zipLookupFailed, text.messages.zipNotFound]);
 
-  const resetForm = () => {
+  const resetForm = ({ keepSuccess = false } = {}) => {
     setForm(initialForm);
     setProjects([emptyProject()]);
     setCurrentStep(0);
@@ -1182,6 +1264,16 @@ export default function RegisterPage() {
     setTurnstileResetKey((prev) => prev + 1);
     setCompany("");
     setZipLookupStatus("");
+    setFieldErrors({});
+    setError("");
+    if (!keepSuccess) {
+      setSuccess(false);
+    }
+  };
+
+  const registerAnotherWorker = () => {
+    resetForm();
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const validateCurrentStep = () => {
@@ -1294,8 +1386,9 @@ export default function RegisterPage() {
 
       console.log("Worker created:", result.workerId);
 
-      resetForm();
+      resetForm({ keepSuccess: true });
       setSuccess(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       setError(
         err.message || text.messages.saveError
@@ -1416,6 +1509,12 @@ export default function RegisterPage() {
                 </p>
               </div>
 
+              {success ? (
+                <RegistrationSuccessPanel
+                  text={text}
+                  onRegisterAnother={registerAnotherWorker}
+                />
+              ) : (
               <form noValidate onSubmit={handleSubmit} style={{ display: "grid", gap: 26 }}>
                 <div aria-hidden="true" style={honeypotStyle()}>
                   <label htmlFor="company-field">Company</label>
@@ -1749,25 +1848,6 @@ export default function RegisterPage() {
                   </div>
                 ) : null}
 
-                {success ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "14px 16px",
-                      borderRadius: 16,
-                      background: "#ecfdf5",
-                      border: "1px solid #a7f3d0",
-                      color: "#047857",
-                      fontWeight: 700,
-                    }}
-                  >
-                    <CheckCircle2 size={18} />
-                    {text.messages.success}
-                  </div>
-                ) : null}
-
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "space-between" }}>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                     {currentStep > 0 ? (
@@ -1852,6 +1932,7 @@ export default function RegisterPage() {
                   </button>
                 </div>
               </form>
+              )}
             </div>
           </Motion.div>
         </div>
