@@ -2430,7 +2430,6 @@ export default function AdminPage() {
     { value: "completed", label: "Completed", count: completedCount },
     { value: "working", label: "Working", count: workingCount },
   ];
-
   const hasAdvancedFilters =
     !!tradeFilter ||
     !!locationFilter ||
@@ -2819,9 +2818,32 @@ export default function AdminPage() {
                     border: "1px dashed #cbd5e1",
                     color: "#64748b",
                     fontWeight: 700,
+                    display: "grid",
+                    justifyItems: "start",
+                    gap: 12,
                   }}
                 >
-                  No workers found for the selected filters.
+                  <span>No workers found for the selected filters.</span>
+                  {(search || hasAdvancedFilters) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearch("");
+                        clearAdvancedFilters();
+                      }}
+                      style={{
+                        border: "1px solid #cbd5e1",
+                        background: "#ffffff",
+                        color: "#0f172a",
+                        borderRadius: 12,
+                        padding: "9px 12px",
+                        fontWeight: 900,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                  ) : null}
                 </div>
               ) : (
                 filtered.map((w) => (

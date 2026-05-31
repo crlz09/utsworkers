@@ -24,6 +24,7 @@ import { motion as Motion } from "framer-motion";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+const AUTOSAVE_KEY = "uts_public_register_draft_v2";
 
 const supabase =
   supabaseUrl && supabaseAnonKey
@@ -133,6 +134,8 @@ const copy = {
       successTitle: "Registration submitted",
       successDetail:
         "The worker profile was registered successfully. You can close this page now or register another person.",
+      successSummaryTitle: "Submitted profile",
+      draftRestored: "Your saved draft was restored.",
       continueError: "Please review the highlighted fields before continuing.",
       submitError: "Please review the highlighted fields before submitting.",
       missingSupabase: "Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file.",
@@ -247,6 +250,8 @@ const copy = {
       successTitle: "Registro enviado",
       successDetail:
         "El perfil del worker fue registrado correctamente. Puedes cerrar esta página o registrar otra persona.",
+      successSummaryTitle: "Perfil enviado",
+      draftRestored: "Restauramos tu borrador guardado.",
       continueError: "Revisa los campos marcados antes de continuar.",
       submitError: "Revisa los campos marcados antes de enviar.",
       missingSupabase: "Supabase no está configurado. Agrega VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en tu archivo .env.local.",
@@ -1051,7 +1056,15 @@ function ProjectHistoryEditor({ projects, setProjects, text }) {
   );
 }
 
-function RegistrationSuccessPanel({ text, onRegisterAnother }) {
+function RegistrationSuccessPanel({ text, onRegisterAnother, summary }) {
+  const summaryRows = [
+    [text.labels.firstName, summary?.firstName],
+    [text.labels.lastName, summary?.lastName],
+    [text.labels.phone, summary?.phone],
+    [text.labels.email, summary?.email],
+    [text.labels.trade, summary?.trade],
+  ].filter(([, value]) => String(value || "").trim());
+
   return (
     <div
       style={{
@@ -1101,6 +1114,50 @@ function RegistrationSuccessPanel({ text, onRegisterAnother }) {
         </p>
       </div>
 
+      {summaryRows.length > 0 ? (
+        <div
+          style={{
+            width: "min(100%, 620px)",
+            display: "grid",
+            gap: 10,
+            padding: 18,
+            borderRadius: 18,
+            background: "#f8fafc",
+            border: "1px solid #dbeafe",
+            textAlign: "left",
+          }}
+        >
+          <div style={{ color: "#0f172a", fontWeight: 900 }}>
+            {text.messages.successSummaryTitle}
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 10,
+            }}
+          >
+            {summaryRows.map(([label, value]) => (
+              <div key={label} style={{ minWidth: 0 }}>
+                <div style={{ color: "#64748b", fontSize: 12, fontWeight: 800 }}>
+                  {label}
+                </div>
+                <div
+                  style={{
+                    color: "#0f172a",
+                    fontWeight: 850,
+                    overflowWrap: "anywhere",
+                    marginTop: 3,
+                  }}
+                >
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <button
         type="button"
         onClick={onRegisterAnother}
@@ -1147,11 +1204,90 @@ export default function RegisterPage() {
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [company, setCompany] = useState("");
   const [zipLookupStatus, setZipLookupStatus] = useState("");
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [lastSubmissionSummary, setLastSubmissionSummary] = useState(null);
   const text = copy[locale];
   const registrationSteps = text.steps.map((step, index) => ({
     ...step,
     fields: registrationStepFields[index].fields,
   }));
+
+  useEffect(() => {
+    try {
+      const savedDraft = JSON.parse(localStorage.getItem(AUTOSAVE_KEY) || "null");
+      if (!savedDraft || typeof savedDraft !== "object") return;
+
+      if (savedDraft.form && typeof savedDraft.form === "object") {
+        setForm({ ...initialForm, ...savedDraft.form });
+      }
+      if (Array.isArray(savedDraft.projects) && savedDraft.projects.length > 0) {
+        setProjects(savedDraft.projects.map((project) => ({ ...emptyProject(), ...project })));
+      }
+      if (Array.isArray(savedDraft.languages)) {
+        setLanguages(savedDraft.languages);
+      }
+      if (savedDraft.englishProficiency) {
+        setEnglishProficiency(String(savedDraft.englishProficiency));
+      }
+      if (Array.isArray(savedDraft.selectedSkillIds)) {
+        setSelectedSkillIds(savedDraft.selectedSkillIds);
+      }
+      if (Array.isArray(savedDraft.selectedCertificationIds)) {
+        setSelectedCertificationIds(savedDraft.selectedCertificationIds);
+      }
+      if (Number.isInteger(savedDraft.currentStep)) {
+        setCurrentStep(Math.min(Math.max(savedDraft.currentStep, 0), registrationStepFields.length - 1));
+      }
+      setDraftRestored(true);
+      window.setTimeout(() => setDraftRestored(false), 3500);
+    } catch {
+      localStorage.removeItem(AUTOSAVE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (success) return;
+
+    const hasDraftContent =
+      Object.values(form).some((value) => String(value || "").trim()) ||
+      projects.some((project) =>
+        Object.values(project).some((value) => String(value || "").trim())
+      ) ||
+      languages.length > 0 ||
+      selectedSkillIds.length > 0 ||
+      selectedCertificationIds.length > 0;
+
+    const timer = window.setTimeout(() => {
+      if (!hasDraftContent) {
+        localStorage.removeItem(AUTOSAVE_KEY);
+        return;
+      }
+
+      localStorage.setItem(
+        AUTOSAVE_KEY,
+        JSON.stringify({
+          form,
+          projects,
+          languages,
+          englishProficiency,
+          selectedSkillIds,
+          selectedCertificationIds,
+          currentStep,
+        })
+      );
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    form,
+    projects,
+    languages,
+    englishProficiency,
+    selectedSkillIds,
+    selectedCertificationIds,
+    currentStep,
+    success,
+  ]);
 
   useEffect(() => {
     const loadCatalogs = async () => {
@@ -1266,8 +1402,10 @@ export default function RegisterPage() {
     setZipLookupStatus("");
     setFieldErrors({});
     setError("");
+    localStorage.removeItem(AUTOSAVE_KEY);
     if (!keepSuccess) {
       setSuccess(false);
+      setLastSubmissionSummary(null);
     }
   };
 
@@ -1386,6 +1524,15 @@ export default function RegisterPage() {
 
       console.log("Worker created:", result.workerId);
 
+      setLastSubmissionSummary({
+        firstName: form.first_name.trim(),
+        lastName: form.last_name.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        trade:
+          tradeOptions.find((trade) => trade.id === form.trade_id)?.name ||
+          text.placeholders.trade,
+      });
       resetForm({ keepSuccess: true });
       setSuccess(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1507,11 +1654,33 @@ export default function RegisterPage() {
                 >
                   {text.subtitle}
                 </p>
+
+                {draftRestored && !success ? (
+                  <div
+                    style={{
+                      marginTop: 14,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "9px 12px",
+                      borderRadius: 999,
+                      background: "#eff6ff",
+                      border: "1px solid #bfdbfe",
+                      color: "#1e3a8a",
+                      fontWeight: 850,
+                      fontSize: 14,
+                    }}
+                  >
+                    <CheckCircle2 size={15} />
+                    {text.messages.draftRestored}
+                  </div>
+                ) : null}
               </div>
 
               {success ? (
                 <RegistrationSuccessPanel
                   text={text}
+                  summary={lastSubmissionSummary}
                   onRegisterAnother={registerAnotherWorker}
                 />
               ) : (

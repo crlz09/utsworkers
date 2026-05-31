@@ -20,6 +20,7 @@ import UtsClientTopBar from "../components/UtsClientTopBar";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const FIRST_ASSIGNMENT_WEEK = "2026-04-06";
+const LOCKED_WEEKS_STORAGE_KEY = "uts_hours_locked_weeks_v1";
 const SOURCE_LABEL = {
   admin: "Admin",
   client: "Client",
@@ -647,6 +648,13 @@ export default function HoursTrackerPage({ mode = "admin" }) {
   const [openWeeks, setOpenWeeks] = useState(() => new Set([toDateInputValue(startOfWeek(new Date()))]));
   const [closedEntryWeeks, setClosedEntryWeeks] = useState(() => new Set());
   const [openReconciliationWeeks, setOpenReconciliationWeeks] = useState(() => new Set());
+  const [lockedWeeks, setLockedWeeks] = useState(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(`${LOCKED_WEEKS_STORAGE_KEY}_${source}`) || "[]"));
+    } catch {
+      return new Set();
+    }
+  });
 
   const weeks = useMemo(() => getTrackedWeekStarts(), []);
 
@@ -798,6 +806,11 @@ export default function HoursTrackerPage({ mode = "admin" }) {
   };
 
   const saveWeek = async (weekStart) => {
+    if (lockedWeeks.has(weekStart)) {
+      setFeedback({ error: `Unlock ${formatWeekRange(weekStart)} before saving changes.`, success: "" });
+      return;
+    }
+
     setSavingWeek(weekStart);
     setFeedback({ error: "", success: "" });
 
@@ -878,6 +891,16 @@ export default function HoursTrackerPage({ mode = "admin" }) {
     });
   };
 
+  const toggleLockedWeek = (week) => {
+    setLockedWeeks((prev) => {
+      const next = new Set(prev);
+      if (next.has(week)) next.delete(week);
+      else next.add(week);
+      localStorage.setItem(`${LOCKED_WEEKS_STORAGE_KEY}_${source}`, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
   const renderTopBar = () => (isAdmin ? <UtsTopNavBar /> : <UtsClientTopBar />);
 
   return (
@@ -951,6 +974,7 @@ export default function HoursTrackerPage({ mode = "admin" }) {
               const isOpen = openWeeks.has(week);
               const isEntryOpen = !closedEntryWeeks.has(week);
               const isReconciliationOpen = openReconciliationWeeks.has(week);
+              const isLocked = lockedWeeks.has(week);
               const days = Array.from({ length: 7 }, (_, index) => toDateInputValue(addDays(parseDate(week), index)));
               const weekTotal = filteredAssignments.reduce(
                 (sum, assignment) =>
@@ -985,10 +1009,16 @@ export default function HoursTrackerPage({ mode = "admin" }) {
                     </div>
 
                     {isOpen ? (
-                      <button className="btn dark" type="button" onClick={() => saveWeek(week)} disabled={savingWeek === week}>
-                        {savingWeek === week ? <Loader2 className="spin" size={16} /> : <Save size={16} />}
-                        Save Week
-                      </button>
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <button className="btn" type="button" onClick={() => toggleLockedWeek(week)}>
+                          {isLocked ? <Clock3 size={16} /> : <Save size={16} />}
+                          {isLocked ? "Unlock Week" : "Lock Week"}
+                        </button>
+                        <button className="btn dark" type="button" onClick={() => saveWeek(week)} disabled={savingWeek === week || isLocked}>
+                          {savingWeek === week ? <Loader2 className="spin" size={16} /> : <Save size={16} />}
+                          {isLocked ? "Locked" : "Save Week"}
+                        </button>
+                      </div>
                     ) : (
                       <span className="pill">
                         <Clock3 size={14} />
@@ -1019,6 +1049,7 @@ export default function HoursTrackerPage({ mode = "admin" }) {
                           entriesByKey={entriesByKey}
                           source={source}
                           onChange={updateLocalEntry}
+                          readOnly={isLocked}
                         />
                       ) : null}
 

@@ -255,6 +255,8 @@ async function isRateLimited(
     .from("public_registration_attempts")
     .select("id", { count: "exact", head: true })
     .eq("ip_address", ipAddress)
+    .in("outcome", ["blocked", "rate_limited"])
+    .neq("reason", "captcha_missing")
     .gte("created_at", windowStart)
 
   if (error) {
@@ -424,6 +426,30 @@ async function findExistingWorkerContact(
   return null
 }
 
+async function handleContactCheck(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  payload: Record<string, unknown>,
+) {
+  const email = normalizeEmail(payload.email)
+  const phone = normalizePhone(payload.phone)
+
+  if (!email && !phone) {
+    return respond(200, { exists: false })
+  }
+
+  const existingContact = await findExistingWorkerContact(supabaseAdmin, email, phone)
+
+  if (!existingContact) {
+    return respond(200, { exists: false })
+  }
+
+  return respond(200, {
+    exists: true,
+    field: existingContact.field,
+    error: existingContact.error,
+  })
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
@@ -452,6 +478,10 @@ Deno.serve(async (req) => {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey)
+
+    if (payload.action === "check-contact") {
+      return await handleContactCheck(supabaseAdmin, payload)
+    }
 
     if (honeypot) {
       await logAttempt(supabaseAdmin, {

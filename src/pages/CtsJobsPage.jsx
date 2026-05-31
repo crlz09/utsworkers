@@ -2194,15 +2194,6 @@ export default function CtsJobsPage() {
   };
 
   const printSourcedCandidates = () => {
-    const printWindow = window.open("", "uts-candidates-sourced-print", "width=1200,height=800");
-    if (!printWindow) {
-      setFeedback({
-        error: "Pop-up blocked. Please allow pop-ups for this site and try printing again.",
-        success: "",
-      });
-      return;
-    }
-
     const printedAt = new Date().toLocaleString("en-US");
     const activeFilters = [
       candidateSearch.trim() ? `Search: ${candidateSearch.trim()}` : "",
@@ -2351,25 +2342,42 @@ export default function CtsJobsPage() {
             </thead>
             <tbody>${rows}</tbody>
           </table>
+          <script>
+            window.addEventListener("load", function () {
+              window.setTimeout(function () {
+                window.focus();
+                window.print();
+              }, 180);
+            });
+          </script>
         </body>
       </html>
     `;
 
-    printWindow.document.open();
-    printWindow.document.write(printMarkup);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.onload = () => {
-      printWindow.focus();
-      printWindow.print();
-    };
+    const printUrl = URL.createObjectURL(new Blob([printMarkup], { type: "text/html" }));
+    const printWindow = window.open(printUrl, "uts-candidates-sourced-print", "width=1200,height=800");
+    if (!printWindow) {
+      URL.revokeObjectURL(printUrl);
+      setFeedback({
+        error: "Pop-up blocked. Please allow pop-ups for this site and try printing again.",
+        success: "",
+      });
+      return;
+    }
 
-    setTimeout(() => {
-      if (!printWindow.closed) {
-        printWindow.focus();
-        printWindow.print();
-      }
-    }, 250);
+    window.setTimeout(() => URL.revokeObjectURL(printUrl), 10000);
+  };
+
+  const clearCandidateFilters = () => {
+    setCandidateSearch("");
+    setCandidateStatusFilter("");
+  };
+
+  const clearJobFilters = () => {
+    setSearch("");
+    setStatusFilter("");
+    setStateFilter("");
+    setBdRepFilter("");
   };
 
   return (
@@ -2504,7 +2512,13 @@ export default function CtsJobsPage() {
                 </div>
               ) : filteredCandidates.length === 0 ? (
                 <div className="empty-state" style={{ marginTop: 18 }}>
-                  No sourced candidates found with the current filters.
+                  <div>No sourced candidates found with the current filters.</div>
+                  {(candidateSearch || candidateStatusFilter) ? (
+                    <button className="btn" type="button" onClick={clearCandidateFilters} style={{ marginTop: 12 }}>
+                      <X size={16} />
+                      Clear filters
+                    </button>
+                  ) : null}
                 </div>
               ) : (
                 <div className="table-scroll">
@@ -2683,7 +2697,13 @@ export default function CtsJobsPage() {
               </div>
             ) : filteredJobs.length === 0 ? (
               <div className="empty-state" style={{ marginTop: 18 }}>
-                No CTS jobs found with the current filters.
+                <div>No CTS jobs found with the current filters.</div>
+                {(search || statusFilter || stateFilter || bdRepFilter) ? (
+                  <button className="btn" type="button" onClick={clearJobFilters} style={{ marginTop: 12 }}>
+                    <X size={16} />
+                    Clear filters
+                  </button>
+                ) : null}
               </div>
             ) : (
               <div className="table-scroll">
