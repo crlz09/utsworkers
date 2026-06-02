@@ -818,6 +818,14 @@ function formatCandidateStatus(status) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function getCandidateStatusPriority(status) {
+  const normalizedStatus = String(status || "sourced").toLowerCase();
+
+  if (normalizedStatus === "placed") return 1;
+  if (normalizedStatus === "sourced") return 2;
+  return 3;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -2120,14 +2128,26 @@ export default function CtsJobsPage() {
         return matchesSearch && matchesStatus;
       })
       .sort((a, b) => {
+        const statusPriorityA = getCandidateStatusPriority(a.candidate_status);
+        const statusPriorityB = getCandidateStatusPriority(b.candidate_status);
+        if (statusPriorityA !== statusPriorityB) {
+          return statusPriorityA - statusPriorityB;
+        }
+
+        const updatedAtA = getTimestamp(a.updated_at || a.created_at);
+        const updatedAtB = getTimestamp(b.updated_at || b.created_at);
+        if (updatedAtA !== updatedAtB) {
+          return updatedAtB - updatedAtA;
+        }
+
         const primary = compareValues(getCandidateSortValue(a), getCandidateSortValue(b));
         if (primary !== 0) {
           return candidateSort.direction === "asc" ? primary : -primary;
         }
 
-        const updatedAtA = getTimestamp(a.updated_at || a.created_at);
-        const updatedAtB = getTimestamp(b.updated_at || b.created_at);
-        return updatedAtB - updatedAtA;
+        const createdAtA = getTimestamp(a.created_at);
+        const createdAtB = getTimestamp(b.created_at);
+        return createdAtB - createdAtA;
       });
   }, [jobCandidates, candidateSearch, candidateStatusFilter, candidateSort]);
 
