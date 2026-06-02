@@ -242,6 +242,10 @@ function PageStyles() {
         align-items: center;
       }
 
+      .toolbar-row.with-filter {
+        grid-template-columns: minmax(220px, 1fr) minmax(150px, 220px) minmax(140px, auto);
+      }
+
       .input,
       .select {
         width: 100%;
@@ -393,8 +397,22 @@ function PageStyles() {
         color: rgba(255,255,255,0.78);
       }
 
+      .job-detail-toggle {
+        border: 1px solid #dbeafe;
+        border-radius: 14px;
+        background: #ffffff;
+        color: #0f172a;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
       .job-detail-grid {
-        margin-top: 18px;
+        margin-top: 12px;
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
@@ -442,7 +460,7 @@ function PageStyles() {
       @media (max-width: 640px) {
         .jobs-test-shell { width: min(100% - 28px, 1480px); padding: 14px 0; }
         .hero-card, .dashboard-card, .view-panel { padding: 18px; border-radius: 20px; }
-        .toolbar-row, .job-detail-grid { grid-template-columns: 1fr; }
+        .toolbar-row, .toolbar-row.with-filter, .job-detail-grid { grid-template-columns: 1fr; }
       }
     `}</style>
   );
@@ -493,6 +511,76 @@ function filterCandidateByView(candidate, view) {
   if (view.type !== "candidate") return true;
   if (view.status === "all") return true;
   return String(candidate.candidate_status || "sourced").toLowerCase() === view.status;
+}
+
+function SearchToolbar({
+  search,
+  setSearch,
+  resultCount,
+  resultType = "candidates",
+  showStatusFilter = false,
+  statusFilter = "",
+  setStatusFilter = () => {},
+  statuses = [],
+}) {
+  return (
+    <div className={`toolbar-row ${showStatusFilter ? "with-filter" : ""}`}>
+      <div style={{ position: "relative" }}>
+        <Search size={17} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#64748b" }} />
+        <input
+          className="input"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search candidate, phone, email, project, city or code..."
+          style={{ paddingLeft: 42, paddingRight: search ? 44 : 14 }}
+        />
+        {search ? (
+          <button
+            type="button"
+            onClick={() => setSearch("")}
+            aria-label="Clear search"
+            style={{
+              position: "absolute",
+              right: 10,
+              top: "50%",
+              transform: "translateY(-50%)",
+              border: "none",
+              borderRadius: 999,
+              background: "#f1f5f9",
+              width: 28,
+              height: 28,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <X size={15} />
+          </button>
+        ) : null}
+      </div>
+
+      {showStatusFilter ? (
+        <select
+          className="select"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          aria-label="Filter candidates by status"
+        >
+          <option value="">All Statuses</option>
+          {statuses.map((status) => (
+            <option key={status} value={status}>
+              {formatStatus(status)}
+            </option>
+          ))}
+        </select>
+      ) : null}
+
+      <div className="status-pill other">
+        {resultCount} {resultType}
+      </div>
+    </div>
+  );
 }
 
 function CandidateTable({ candidates, onOpenJob }) {
@@ -562,7 +650,7 @@ function CandidateTable({ candidates, onOpenJob }) {
                     {formatStatus(candidate.candidate_status)}
                   </span>
                 </td>
-                <td>{formatDateTime(candidate.updated_at || candidate.created_at)}</td>
+                <td className="table-muted-xs">{formatDateTime(candidate.updated_at || candidate.created_at)}</td>
               </tr>
             );
           })}
@@ -635,45 +723,48 @@ function JobsTable({ jobs, candidateCounts, onOpenJob, onOpenDetail }) {
   );
 }
 
-function JobDetailView({ job, candidates, onOpenDetail, onOpenJob }) {
+function JobDetailView({ job, candidates, onOpenJob, searchToolbar }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
   if (!job) {
     return <div className="empty-state">Select a CTS job from the left navigation.</div>;
   }
 
   return (
     <>
-      <div className="view-header">
-        <div>
-          <h2 className="view-title">{job.level_type || "Untitled job"}</h2>
-          <p className="view-subtitle">
-            {[job.city, job.state].filter(Boolean).join(", ") || "No location set"}
-            {job.bd_rep ? ` • BD Rep: ${job.bd_rep}` : ""}
-          </p>
-        </div>
-        <button className="btn dark" type="button" onClick={() => onOpenDetail(job.id)}>
-          Open Full Detail
-          <ExternalLink size={16} />
-        </button>
-      </div>
+      <button
+        className="job-detail-toggle"
+        type="button"
+        onClick={() => setDetailsOpen((prev) => !prev)}
+        aria-expanded={detailsOpen}
+      >
+        <span className="accordion-symbol">{detailsOpen ? "−" : "+"}</span>
+        Job Details
+      </button>
 
-      <div className="job-detail-grid">
-        <div className="detail-box"><div className="detail-label">Qty</div><div className="detail-value">{job.qty ?? "—"}</div></div>
-        <div className="detail-box"><div className="detail-label">Status</div><div className="detail-value">{formatStatus(job.status || "open")}</div></div>
-        <div className="detail-box"><div className="detail-label">Priority</div><div className="detail-value">{formatStatus(job.priority || "normal")}</div></div>
-        <div className="detail-box"><div className="detail-label">Start</div><div className="detail-value">{job.start_text || formatDateOnly(job.order_date)}</div></div>
-        <div className="detail-box"><div className="detail-label">Language</div><div className="detail-value">{job.language_requirement || "—"}</div></div>
-        <div className="detail-box"><div className="detail-label">Last Modified</div><div className="detail-value">{formatDateTime(job.updated_at || job.created_at)}</div></div>
-      </div>
+      {detailsOpen ? (
+        <>
+          <div className="job-detail-grid">
+            <div className="detail-box"><div className="detail-label">Qty</div><div className="detail-value">{job.qty ?? "—"}</div></div>
+            <div className="detail-box"><div className="detail-label">Status</div><div className="detail-value">{formatStatus(job.status || "open")}</div></div>
+            <div className="detail-box"><div className="detail-label">Priority</div><div className="detail-value">{formatStatus(job.priority || "normal")}</div></div>
+            <div className="detail-box"><div className="detail-label">Start</div><div className="detail-value">{job.start_text || formatDateOnly(job.order_date)}</div></div>
+            <div className="detail-box"><div className="detail-label">Language</div><div className="detail-value">{job.language_requirement || "—"}</div></div>
+            <div className="detail-box"><div className="detail-label">Last Modified</div><div className="detail-value">{formatDateTime(job.updated_at || job.created_at)}</div></div>
+          </div>
 
-      {job.details ? (
-        <div className="detail-box" style={{ marginTop: 12 }}>
-          <div className="detail-label">Details</div>
-          <div className="detail-value" style={{ lineHeight: 1.55 }}>{job.details}</div>
-        </div>
+          {job.details ? (
+            <div className="detail-box" style={{ marginTop: 12 }}>
+              <div className="detail-label">Details</div>
+              <div className="detail-value" style={{ lineHeight: 1.55 }}>{job.details}</div>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       <div style={{ marginTop: 24 }}>
         <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Candidates for this job ({candidates.length})</h3>
+        {searchToolbar}
         <CandidateTable candidates={candidates} onOpenJob={onOpenJob} />
       </div>
     </>
@@ -687,6 +778,7 @@ export default function JobsPageTest() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
   const [search, setSearch] = useState("");
+  const [candidateStatusFilter, setCandidateStatusFilter] = useState("");
   const [activeView, setActiveView] = useState({ type: "candidate", status: "placed" });
   const [jobsListOpen, setJobsListOpen] = useState(false);
 
@@ -759,6 +851,10 @@ export default function JobsPageTest() {
     return sortedCandidates.filter((candidate) => {
       if (activeView.type === "job" && candidate.cts_job_id !== activeView.jobId) return false;
       if (!filterCandidateByView(candidate, activeView)) return false;
+      if (activeView.type === "candidate" && activeView.status === "all" && candidateStatusFilter) {
+        const status = String(candidate.candidate_status || "sourced").toLowerCase();
+        if (status !== candidateStatusFilter) return false;
+      }
 
       const job = candidate.job || {};
       const worker = candidate.worker || {};
@@ -779,7 +875,7 @@ export default function JobsPageTest() {
 
       return matchesSearch;
     });
-  }, [activeView, search, sortedCandidates]);
+  }, [activeView, candidateStatusFilter, search, sortedCandidates]);
 
   const viewJobs = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -820,6 +916,11 @@ export default function JobsPageTest() {
     return { totalJobs: jobs.length, totalCandidates: jobCandidates.length, placed };
   }, [jobCandidates, jobs.length]);
 
+  const distinctCandidateStatuses = useMemo(
+    () => [...new Set(jobCandidates.map((candidate) => String(candidate.candidate_status || "sourced").toLowerCase()))].sort(),
+    [jobCandidates]
+  );
+
   const activeTitle = useMemo(() => {
     if (activeView.type === "candidate") {
       if (activeView.status === "placed") return "Placed Candidates";
@@ -832,7 +933,7 @@ export default function JobsPageTest() {
   const activeSubtitle = useMemo(() => {
     if (activeView.type === "candidate") return "Candidates are ordered by Status priority, then Last Modified from newest to oldest.";
     if (activeView.type === "jobs") return "Select any project from the left navigation or open its full detail page.";
-    return "Project snapshot with candidate list on the same screen.";
+    return "";
   }, [activeView.type]);
 
   const openJobView = (jobId) => setActiveView({ type: "job", jobId });
@@ -925,57 +1026,27 @@ export default function JobsPageTest() {
           </aside>
 
           <section className="glass-card view-panel">
-            <div className="view-header">
-              <div>
-                <h2 className="view-title">{activeTitle}</h2>
-                <p className="view-subtitle">{activeSubtitle}</p>
-              </div>
-              {activeView.type === "job" && selectedJob ? (
-                <button className="btn white" type="button" onClick={() => setActiveView({ type: "jobs" })}>
-                  Back to All Jobs
-                </button>
-              ) : null}
-            </div>
+            {activeView.type !== "job" ? (
+              <>
+                <div className="view-header">
+                  <div>
+                    <h2 className="view-title">{activeTitle}</h2>
+                    {activeSubtitle ? <p className="view-subtitle">{activeSubtitle}</p> : null}
+                  </div>
+                </div>
 
-            <div className="toolbar-row">
-              <div style={{ position: "relative" }}>
-                <Search size={17} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#64748b" }} />
-                <input
-                  className="input"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search candidate, phone, email, project, city or code..."
-                  style={{ paddingLeft: 42, paddingRight: search ? 44 : 14 }}
+                <SearchToolbar
+                  search={search}
+                  setSearch={setSearch}
+                  resultCount={loading ? "Loading..." : activeView.type === "jobs" ? viewJobs.length : viewCandidates.length}
+                  resultType={loading ? "" : "results"}
+                  showStatusFilter={activeView.type === "candidate" && activeView.status === "all"}
+                  statusFilter={candidateStatusFilter}
+                  setStatusFilter={setCandidateStatusFilter}
+                  statuses={distinctCandidateStatuses}
                 />
-                {search ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearch("")}
-                    aria-label="Clear search"
-                    style={{
-                      position: "absolute",
-                      right: 10,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      border: "none",
-                      borderRadius: 999,
-                      background: "#f1f5f9",
-                      width: 28,
-                      height: 28,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <X size={15} />
-                  </button>
-                ) : null}
-              </div>
-              <div className="status-pill other">
-                {loading ? "Loading..." : `${activeView.type === "jobs" ? viewJobs.length : viewCandidates.length} results`}
-              </div>
-            </div>
+              </>
+            ) : null}
 
             {loading ? (
               <div className="empty-state">
@@ -985,7 +1056,20 @@ export default function JobsPageTest() {
             ) : activeView.type === "jobs" ? (
               <JobsTable jobs={viewJobs} candidateCounts={candidateCounts} onOpenJob={openJobView} onOpenDetail={openJobDetail} />
             ) : activeView.type === "job" ? (
-              <JobDetailView job={selectedJob} candidates={viewCandidates} onOpenDetail={openJobDetail} onOpenJob={openJobView} />
+              <JobDetailView
+                key={selectedJob?.id || "job-detail"}
+                job={selectedJob}
+                candidates={viewCandidates}
+                onOpenJob={openJobView}
+                searchToolbar={(
+                  <SearchToolbar
+                    search={search}
+                    setSearch={setSearch}
+                    resultCount={viewCandidates.length}
+                    resultType="results"
+                  />
+                )}
+              />
             ) : (
               <CandidateTable candidates={viewCandidates} onOpenJob={openJobView} />
             )}
