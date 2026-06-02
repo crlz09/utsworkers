@@ -1,15 +1,41 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   ExternalLink,
   Loader2,
+  Plus,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import UtsClientTopBar from "../components/UtsClientTopBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { supabase } from "../lib/supabase";
+
+const EMPTY_JOB_FORM = {
+  qty: 1,
+  level_type: "",
+  city: "",
+  state: "",
+  start_text: "",
+  details: "",
+  language_requirement: "",
+  bd_rep: "",
+  client_name: "CTS",
+  status: "open",
+  priority: "normal",
+};
+
+const CANDIDATE_STATUS_OPTIONS = [
+  "sourced",
+  "contacted",
+  "interested",
+  "interviewed",
+  "submitted",
+  "placed",
+  "rejected",
+  "on_hold",
+];
 
 function PageStyles() {
   return (
@@ -269,6 +295,72 @@ function PageStyles() {
         box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08);
       }
 
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        background: rgba(15, 23, 42, 0.42);
+        display: grid;
+        place-items: center;
+        padding: 20px;
+      }
+
+      .modal-card {
+        width: min(760px, 100%);
+        max-height: min(760px, calc(100vh - 40px));
+        overflow: auto;
+        background: #ffffff;
+        border: 1px solid #dbeafe;
+        border-radius: 24px;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+        padding: 22px;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .form-field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .form-label {
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .candidate-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .mini-action-btn {
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #0f172a;
+        border-radius: 12px;
+        padding: 8px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .mini-action-btn.danger {
+        border-color: #fecaca;
+        color: #b91c1c;
+      }
+
       .table-scroll {
         width: 100%;
         overflow-x: auto;
@@ -474,7 +566,7 @@ function PageStyles() {
       @media (max-width: 640px) {
         .jobs-test-shell { width: min(100% - 28px, 1480px); padding: 14px 0; }
         .hero-card, .dashboard-card, .view-panel { padding: 18px; border-radius: 20px; }
-        .toolbar-row, .toolbar-row.with-filter, .job-detail-grid { grid-template-columns: 1fr; }
+        .toolbar-row, .toolbar-row.with-filter, .job-detail-grid, .form-grid { grid-template-columns: 1fr; }
       }
     `}</style>
   );
@@ -597,7 +689,7 @@ function SearchToolbar({
   );
 }
 
-function CandidateTable({ candidates, onOpenJob }) {
+function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChange, onCandidateSave, onCandidateDelete, savingIds = {}, deletingIds = {} }) {
   if (candidates.length === 0) {
     return <div className="empty-state">No candidates found for this view.</div>;
   }
@@ -622,13 +714,36 @@ function CandidateTable({ candidates, onOpenJob }) {
             const projectName = job.level_type || "Unlinked project";
             const projectLocation = [job.city, job.state].filter(Boolean).join(", ");
             const profileSlug = worker.public_profile_slug;
+            const canAdminEdit = mode === "admin";
+            const canEditStatus = canAdminEdit || mode === "client";
 
             return (
               <tr key={candidate.id}>
                 <td>
-                  <div className="candidate-name">{candidateName}</div>
+                  {canAdminEdit ? (
+                    <input
+                      className="input"
+                      value={candidate.name_snapshot || ""}
+                      onChange={(event) => onCandidateChange(candidate.id, "name_snapshot", event.target.value)}
+                      onBlur={() => onCandidateSave(candidate, "name_snapshot")}
+                      style={{ minHeight: 38, padding: "8px 10px" }}
+                    />
+                  ) : (
+                    <div className="candidate-name">{candidateName}</div>
+                  )}
                   <div className="candidate-contact">
-                    <span>{candidate.phone_snapshot || worker.phone || "No phone"}</span>
+                    {canAdminEdit ? (
+                      <input
+                        className="input"
+                        value={candidate.phone_snapshot || ""}
+                        onChange={(event) => onCandidateChange(candidate.id, "phone_snapshot", event.target.value)}
+                        onBlur={() => onCandidateSave(candidate, "phone_snapshot")}
+                        placeholder="No phone"
+                        style={{ minHeight: 34, padding: "7px 9px", fontSize: 12 }}
+                      />
+                    ) : (
+                      <span>{candidate.phone_snapshot || worker.phone || "No phone"}</span>
+                    )}
                     {worker.email ? <span>{worker.email}</span> : null}
                   </div>
                 </td>
@@ -660,11 +775,42 @@ function CandidateTable({ candidates, onOpenJob }) {
                   ) : null}
                 </td>
                 <td>
-                  <span className={`status-pill ${getCandidateStatusClass(candidate.candidate_status)}`}>
-                    {formatStatus(candidate.candidate_status)}
-                  </span>
+                  {canEditStatus ? (
+                    <select
+                      className="select"
+                      value={candidate.candidate_status || "sourced"}
+                      onChange={(event) => {
+                        onCandidateChange(candidate.id, "candidate_status", event.target.value);
+                        onCandidateSave({ ...candidate, candidate_status: event.target.value }, "candidate_status");
+                      }}
+                      disabled={!!savingIds[`${candidate.id}:candidate_status`]}
+                      style={{ minHeight: 38, padding: "8px 10px", fontSize: 12 }}
+                    >
+                      {CANDIDATE_STATUS_OPTIONS.map((status) => (
+                        <option key={status} value={status}>{formatStatus(status)}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className={`status-pill ${getCandidateStatusClass(candidate.candidate_status)}`}>
+                      {formatStatus(candidate.candidate_status)}
+                    </span>
+                  )}
                 </td>
-                <td className="table-muted-xs">{formatDateTime(candidate.updated_at || candidate.created_at)}</td>
+                <td className="table-muted-xs">
+                  <div>{formatDateTime(candidate.updated_at || candidate.created_at)}</div>
+                  {canAdminEdit ? (
+                    <button
+                      className="mini-action-btn danger"
+                      type="button"
+                      onClick={() => onCandidateDelete(candidate)}
+                      disabled={!!deletingIds[candidate.id]}
+                      style={{ marginTop: 8 }}
+                    >
+                      <Trash2 size={13} />
+                      {deletingIds[candidate.id] ? "Deleting..." : "Delete"}
+                    </button>
+                  ) : null}
+                </td>
               </tr>
             );
           })}
@@ -674,7 +820,7 @@ function CandidateTable({ candidates, onOpenJob }) {
   );
 }
 
-function JobsTable({ jobs, candidateCounts, onOpenJob, onOpenDetail }) {
+function JobsTable({ jobs, candidateCounts, onOpenJob }) {
   if (jobs.length === 0) {
     return <div className="empty-state">No CTS jobs found for this view.</div>;
   }
@@ -717,18 +863,7 @@ function JobsTable({ jobs, candidateCounts, onOpenJob, onOpenDetail }) {
               <td className="table-muted">{job.bd_rep || "—"}</td>
               <td><span className="status-pill other">{formatStatus(job.status || "open")}</span></td>
               <td className="table-muted">{candidateCounts[job.id] || 0}</td>
-              <td>
-                <div className="table-muted">{formatDateTime(job.updated_at || job.created_at)}</div>
-                <button
-                  className="btn white"
-                  type="button"
-                  onClick={() => onOpenDetail(job.id)}
-                  style={{ marginTop: 8, padding: "8px 10px", fontSize: 13 }}
-                >
-                  Full Detail
-                  <ExternalLink size={14} />
-                </button>
-              </td>
+              <td className="table-muted">{formatDateTime(job.updated_at || job.created_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -737,7 +872,72 @@ function JobsTable({ jobs, candidateCounts, onOpenJob, onOpenDetail }) {
   );
 }
 
-function JobDetailView({ job, candidates, onOpenJob, searchToolbar }) {
+
+function AddCandidateInline({ workers, onAddCandidate, adding }) {
+  const [workerId, setWorkerId] = useState("");
+  const [status, setStatus] = useState("sourced");
+
+  const submit = () => {
+    if (!workerId) return;
+    onAddCandidate(workerId, status);
+    setWorkerId("");
+    setStatus("sourced");
+  };
+
+  return (
+    <div className="candidate-actions">
+      <select className="select" value={workerId} onChange={(event) => setWorkerId(event.target.value)} style={{ minWidth: 220, minHeight: 40, padding: "8px 10px" }}>
+        <option value="">Select worker...</option>
+        {workers.map((worker) => (
+          <option key={worker.id} value={worker.id}>{worker.name || worker.email || worker.phone || worker.id}</option>
+        ))}
+      </select>
+      <select className="select" value={status} onChange={(event) => setStatus(event.target.value)} style={{ minWidth: 140, minHeight: 40, padding: "8px 10px" }}>
+        {CANDIDATE_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{formatStatus(option)}</option>)}
+      </select>
+      <button className="mini-action-btn" type="button" onClick={submit} disabled={!workerId || adding}>
+        <Plus size={13} />
+        {adding ? "Adding..." : "Add Candidate"}
+      </button>
+    </div>
+  );
+}
+
+function JobFormModal({ open, form, setForm, onClose, onSave, saving }) {
+  if (!open) return null;
+  const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal-card">
+        <div className="view-header">
+          <div>
+            <h2 className="view-title">New CTS Job</h2>
+            <p className="view-subtitle">Create a new CTS project/order.</p>
+          </div>
+          <button className="mini-action-btn" type="button" onClick={onClose}><X size={14} />Close</button>
+        </div>
+        <div className="form-grid" style={{ marginTop: 18 }}>
+          <div className="form-field"><label className="form-label">Level / Type</label><input className="input" value={form.level_type} onChange={(e) => update("level_type", e.target.value)} /></div>
+          <div className="form-field"><label className="form-label">Qty</label><input className="input" type="number" min="0" value={form.qty} onChange={(e) => update("qty", e.target.value)} /></div>
+          <div className="form-field"><label className="form-label">City</label><input className="input" value={form.city} onChange={(e) => update("city", e.target.value)} /></div>
+          <div className="form-field"><label className="form-label">State</label><input className="input" value={form.state} onChange={(e) => update("state", e.target.value)} /></div>
+          <div className="form-field"><label className="form-label">Start</label><input className="input" value={form.start_text} onChange={(e) => update("start_text", e.target.value)} /></div>
+          <div className="form-field"><label className="form-label">BD Rep</label><input className="input" value={form.bd_rep} onChange={(e) => update("bd_rep", e.target.value)} /></div>
+          <div className="form-field"><label className="form-label">Language</label><input className="input" value={form.language_requirement} onChange={(e) => update("language_requirement", e.target.value)} /></div>
+          <div className="form-field"><label className="form-label">Priority</label><select className="select" value={form.priority} onChange={(e) => update("priority", e.target.value)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
+          <div className="form-field" style={{ gridColumn: "1 / -1" }}><label className="form-label">Details</label><textarea className="input" value={form.details} onChange={(e) => update("details", e.target.value)} style={{ minHeight: 90, resize: "vertical" }} /></div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
+          <button className="mini-action-btn" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn dark" type="button" onClick={onSave} disabled={saving}>{saving ? "Saving..." : "Create Job"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JobDetailView({ job, candidates, onOpenJob, searchToolbar, mode = "admin", workers = [], onAddCandidate, addingCandidate, onCandidateChange, onCandidateSave, onCandidateDelete, savingIds, deletingIds }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   if (!job) {
@@ -780,24 +980,44 @@ function JobDetailView({ job, candidates, onOpenJob, searchToolbar }) {
       ) : null}
 
       <div style={{ marginTop: 24 }}>
-        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Candidates for this job ({candidates.length})</h3>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Candidates for this job ({candidates.length})</h3>
+          {mode === "admin" ? (
+            <AddCandidateInline workers={workers} onAddCandidate={onAddCandidate} adding={addingCandidate} />
+          ) : null}
+        </div>
         {searchToolbar}
-        <CandidateTable candidates={candidates} onOpenJob={onOpenJob} />
+        <CandidateTable
+          candidates={candidates}
+          onOpenJob={onOpenJob}
+          mode={mode}
+          onCandidateChange={onCandidateChange}
+          onCandidateSave={onCandidateSave}
+          onCandidateDelete={onCandidateDelete}
+          savingIds={savingIds}
+          deletingIds={deletingIds}
+        />
       </div>
     </>
   );
 }
 
 export default function JobsPageTest({ mode = "admin" }) {
-  const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [jobCandidates, setJobCandidates] = useState([]);
+  const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
   const [search, setSearch] = useState("");
   const [candidateStatusFilter, setCandidateStatusFilter] = useState("");
   const [activeView, setActiveView] = useState({ type: "candidate", status: "placed" });
   const [jobsListOpen, setJobsListOpen] = useState(false);
+  const [jobModalOpen, setJobModalOpen] = useState(false);
+  const [jobForm, setJobForm] = useState(EMPTY_JOB_FORM);
+  const [savingJob, setSavingJob] = useState(false);
+  const [savingIds, setSavingIds] = useState({});
+  const [deletingIds, setDeletingIds] = useState({});
+  const [addingCandidate, setAddingCandidate] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -806,7 +1026,7 @@ export default function JobsPageTest({ mode = "admin" }) {
     const [jobsRes, candidatesRes, workersRes] = await Promise.all([
       supabase.from("cts_jobs").select("*").order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
-      supabase.from("workers").select("id, name, phone, email, public_profile_slug"),
+      supabase.from("workers").select("id, name, phone, email, public_profile_slug").order("name", { ascending: true }),
     ]);
 
     if (jobsRes.error || candidatesRes.error || workersRes.error) {
@@ -825,6 +1045,7 @@ export default function JobsPageTest({ mode = "admin" }) {
     const workersById = new Map((workersRes.data || []).map((worker) => [worker.id, worker]));
 
     setJobs(jobsData);
+    setWorkers(workersRes.data || []);
     setJobCandidates(
       (candidatesRes.data || []).map((candidate) => ({
         ...candidate,
@@ -838,6 +1059,184 @@ export default function JobsPageTest({ mode = "admin" }) {
   useEffect(() => {
     void Promise.resolve().then(() => load());
   }, []);
+
+  const touchJobModifiedAt = async (jobId) => {
+    if (!jobId) return null;
+    const nowIso = new Date().toISOString();
+    const { error } = await supabase.from("cts_jobs").update({ updated_at: nowIso }).eq("id", jobId);
+    return error || null;
+  };
+
+  const syncWorkerStatusFromPlacement = async (workerId) => {
+    if (!workerId) return null;
+
+    const { data: placedRows, error: placedError } = await supabase
+      .from("cts_job_candidates")
+      .select("id")
+      .eq("worker_id", workerId)
+      .eq("candidate_status", "placed")
+      .limit(1);
+
+    if (placedError) return placedError;
+
+    const desiredStatus = placedRows?.length ? "working" : "completed";
+    const { error } = await supabase
+      .from("workers")
+      .update({ status: desiredStatus, status_updated_at: new Date().toISOString() })
+      .eq("id", workerId);
+
+    return error || null;
+  };
+
+  const saveNewJob = async () => {
+    if (mode !== "admin") return;
+    if (!jobForm.level_type.trim()) {
+      setFeedback({ error: "Level / Type is required.", success: "" });
+      return;
+    }
+
+    setSavingJob(true);
+    setFeedback({ error: "", success: "" });
+    const payload = {
+      qty: Number(jobForm.qty || 0),
+      level_type: jobForm.level_type.trim(),
+      city: jobForm.city.trim() || null,
+      state: jobForm.state.trim() || null,
+      start_text: jobForm.start_text.trim() || null,
+      details: jobForm.details.trim() || null,
+      language_requirement: jobForm.language_requirement.trim() || null,
+      bd_rep: jobForm.bd_rep.trim() || null,
+      client_name: jobForm.client_name.trim() || "CTS",
+      status: jobForm.status || "open",
+      priority: jobForm.priority || "normal",
+    };
+
+    const { error } = await supabase.from("cts_jobs").insert(payload);
+    setSavingJob(false);
+    if (error) {
+      setFeedback({ error: error.message || "Could not create CTS job.", success: "" });
+      return;
+    }
+
+    setJobForm(EMPTY_JOB_FORM);
+    setJobModalOpen(false);
+    setFeedback({ error: "", success: "CTS job created." });
+    await load({ preserveFeedback: true });
+  };
+
+  const updateCandidateField = (candidateId, field, value) => {
+    setJobCandidates((prev) => prev.map((candidate) => (
+      candidate.id === candidateId ? { ...candidate, [field]: value } : candidate
+    )));
+  };
+
+  const saveCandidateField = async (row, field) => {
+    if (!row?.id) return;
+    if (mode === "client" && field !== "candidate_status") return;
+    const savingKey = `${row.id}:${field}`;
+    setSavingIds((prev) => ({ ...prev, [savingKey]: true }));
+    setFeedback({ error: "", success: "" });
+
+    let value = row[field];
+    if (typeof value === "string") value = value.trim();
+    const payload = { [field]: value === "" ? null : value };
+
+    if (field === "candidate_status") {
+      payload.submitted_at = value === "submitted" && !row.submitted_at ? new Date().toISOString() : row.submitted_at || null;
+      payload.placed_at = value === "placed" && !row.placed_at ? new Date().toISOString() : row.placed_at || null;
+    }
+
+    if (field === "name_snapshot" && !payload[field]) {
+      setSavingIds((prev) => ({ ...prev, [savingKey]: false }));
+      setFeedback({ error: "Candidate name cannot be empty.", success: "" });
+      return;
+    }
+
+    const { error } = await supabase.from("cts_job_candidates").update(payload).eq("id", row.id);
+    setSavingIds((prev) => ({ ...prev, [savingKey]: false }));
+    if (error) {
+      setFeedback({ error: error.message || "Could not save candidate.", success: "" });
+      return;
+    }
+
+    if (field === "candidate_status") {
+      const syncError = await syncWorkerStatusFromPlacement(row.worker_id);
+      if (syncError) {
+        setFeedback({ error: syncError.message || "Status saved, but worker status could not be synced.", success: "" });
+        await load({ preserveFeedback: true });
+        return;
+      }
+    }
+
+    const touchError = await touchJobModifiedAt(row.cts_job_id);
+    if (touchError) {
+      setFeedback({ error: touchError.message || "Candidate saved, but job modified date could not update.", success: "" });
+      await load({ preserveFeedback: true });
+      return;
+    }
+
+    setFeedback({ error: "", success: "Candidate updated." });
+    await load({ preserveFeedback: true });
+  };
+
+  const addCandidateToJob = async (workerId, candidateStatus = "sourced") => {
+    if (mode !== "admin" || activeView.type !== "job" || !activeView.jobId) return;
+    const worker = workers.find((item) => item.id === workerId);
+    if (!worker) return;
+
+    setAddingCandidate(true);
+    setFeedback({ error: "", success: "" });
+    const payload = {
+      cts_job_id: activeView.jobId,
+      worker_id: worker.id,
+      name_snapshot: worker.name || worker.email || worker.phone || "Unnamed worker",
+      phone_snapshot: worker.phone || null,
+      candidate_status: candidateStatus || "sourced",
+      sort_order: jobCandidates.filter((candidate) => candidate.cts_job_id === activeView.jobId).length + 1,
+      submitted_at: candidateStatus === "submitted" ? new Date().toISOString() : null,
+      placed_at: candidateStatus === "placed" ? new Date().toISOString() : null,
+    };
+
+    const { error } = await supabase.from("cts_job_candidates").insert(payload);
+    setAddingCandidate(false);
+    if (error) {
+      setFeedback({ error: error.message || "Could not add candidate.", success: "" });
+      return;
+    }
+
+    if (candidateStatus === "placed") {
+      const syncError = await syncWorkerStatusFromPlacement(worker.id);
+      if (syncError) {
+        setFeedback({ error: syncError.message || "Candidate added, but worker status could not be synced.", success: "" });
+        await load({ preserveFeedback: true });
+        return;
+      }
+    }
+
+    await touchJobModifiedAt(activeView.jobId);
+    setFeedback({ error: "", success: "Candidate added." });
+    await load({ preserveFeedback: true });
+  };
+
+  const deleteCandidate = async (candidate) => {
+    if (mode !== "admin") return;
+    const confirmed = window.confirm(`Remove "${candidate.name_snapshot || "candidate"}" from this CTS job?`);
+    if (!confirmed) return;
+
+    setDeletingIds((prev) => ({ ...prev, [candidate.id]: true }));
+    setFeedback({ error: "", success: "" });
+    const { error } = await supabase.from("cts_job_candidates").delete().eq("id", candidate.id);
+    setDeletingIds((prev) => ({ ...prev, [candidate.id]: false }));
+    if (error) {
+      setFeedback({ error: error.message || "Could not delete candidate.", success: "" });
+      return;
+    }
+
+    await syncWorkerStatusFromPlacement(candidate.worker_id);
+    await touchJobModifiedAt(candidate.cts_job_id);
+    setFeedback({ error: "", success: "Candidate removed." });
+    await load({ preserveFeedback: true });
+  };
 
   const candidateCounts = useMemo(() => {
     const counts = {};
@@ -928,6 +1327,12 @@ export default function JobsPageTest({ mode = "admin" }) {
     [activeView, jobs]
   );
 
+  const availableWorkersForJob = useMemo(() => {
+    if (activeView.type !== "job") return workers;
+    const assignedIds = new Set(jobCandidates.filter((candidate) => candidate.cts_job_id === activeView.jobId).map((candidate) => candidate.worker_id));
+    return workers.filter((worker) => !assignedIds.has(worker.id));
+  }, [activeView, jobCandidates, workers]);
+
   const summary = useMemo(() => {
     const placed = jobCandidates.filter((candidate) => String(candidate.candidate_status || "sourced").toLowerCase() === "placed").length;
     return { totalJobs: jobs.length, totalCandidates: jobCandidates.length, placed };
@@ -955,7 +1360,6 @@ export default function JobsPageTest({ mode = "admin" }) {
 
   const openJobView = (jobId) => setActiveView({ type: "job", jobId });
   const isClientMode = mode === "client";
-  const openJobDetail = (jobId) => navigate(isClientMode ? `/client/cts-jobs/${jobId}` : `/cts-jobs/${jobId}`);
 
   return (
     <>
@@ -1051,6 +1455,12 @@ export default function JobsPageTest({ mode = "admin" }) {
                     <h2 className="view-title">{activeTitle}</h2>
                     {activeSubtitle ? <p className="view-subtitle">{activeSubtitle}</p> : null}
                   </div>
+                  {mode === "admin" && activeView.type === "jobs" ? (
+                    <button className="btn dark" type="button" onClick={() => setJobModalOpen(true)}>
+                      <Plus size={15} />
+                      New Project
+                    </button>
+                  ) : null}
                 </div>
 
                 <SearchToolbar
@@ -1072,13 +1482,22 @@ export default function JobsPageTest({ mode = "admin" }) {
                 Loading CTS dashboard...
               </div>
             ) : activeView.type === "jobs" ? (
-              <JobsTable jobs={viewJobs} candidateCounts={candidateCounts} onOpenJob={openJobView} onOpenDetail={openJobDetail} />
+              <JobsTable jobs={viewJobs} candidateCounts={candidateCounts} onOpenJob={openJobView} />
             ) : activeView.type === "job" ? (
               <JobDetailView
                 key={selectedJob?.id || "job-detail"}
                 job={selectedJob}
                 candidates={viewCandidates}
                 onOpenJob={openJobView}
+                mode={mode}
+                workers={availableWorkersForJob}
+                onAddCandidate={addCandidateToJob}
+                addingCandidate={addingCandidate}
+                onCandidateChange={updateCandidateField}
+                onCandidateSave={saveCandidateField}
+                onCandidateDelete={deleteCandidate}
+                savingIds={savingIds}
+                deletingIds={deletingIds}
                 searchToolbar={(
                   <SearchToolbar
                     search={search}
@@ -1089,11 +1508,28 @@ export default function JobsPageTest({ mode = "admin" }) {
                 )}
               />
             ) : (
-              <CandidateTable candidates={viewCandidates} onOpenJob={openJobView} />
+              <CandidateTable
+                candidates={viewCandidates}
+                onOpenJob={openJobView}
+                mode={mode}
+                onCandidateChange={updateCandidateField}
+                onCandidateSave={saveCandidateField}
+                onCandidateDelete={deleteCandidate}
+                savingIds={savingIds}
+                deletingIds={deletingIds}
+              />
             )}
           </section>
         </section>
       </main>
+      <JobFormModal
+        open={jobModalOpen && mode === "admin"}
+        form={jobForm}
+        setForm={setJobForm}
+        onClose={() => setJobModalOpen(false)}
+        onSave={saveNewJob}
+        saving={savingJob}
+      />
       <GoToTopButton />
     </>
   );
