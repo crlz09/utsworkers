@@ -343,9 +343,9 @@ function PageStyles() {
       }
 
       .add-candidate-modal {
-        width: min(680px, 100%);
-        height: min(720px, calc(100vh - 48px));
-        max-height: min(720px, calc(100vh - 48px));
+        width: min(760px, 100%);
+        height: min(720px, calc(100vh - 40px));
+        max-height: min(720px, calc(100vh - 40px));
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -1107,9 +1107,8 @@ function JobFormModal({ open, form, setForm, onClose, onSave, saving }) {
   );
 }
 
-function JobDetailView({ job, candidates, onOpenJob, searchToolbar, mode = "admin", workers = [], onAddCandidate, addingCandidate, onCandidateChange, onCandidateSave, onCandidateDelete, savingIds, deletingIds }) {
+function JobDetailView({ job, candidates, onOpenJob, searchToolbar, mode = "admin", onAddCandidateClick, addingCandidate, onCandidateChange, onCandidateSave, onCandidateDelete, savingIds, deletingIds }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [candidateModalOpen, setCandidateModalOpen] = useState(false);
 
   if (!job) {
     return <div className="empty-state">Select a CTS job from the left navigation.</div>;
@@ -1154,7 +1153,7 @@ function JobDetailView({ job, candidates, onOpenJob, searchToolbar, mode = "admi
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Candidates for this job ({candidates.length})</h3>
           {mode === "admin" ? (
-            <button className="mini-action-btn" type="button" onClick={() => setCandidateModalOpen(true)} disabled={addingCandidate}>
+            <button className="mini-action-btn" type="button" onClick={onAddCandidateClick} disabled={addingCandidate}>
               <Plus size={13} />
               Add Candidate
             </button>
@@ -1173,15 +1172,6 @@ function JobDetailView({ job, candidates, onOpenJob, searchToolbar, mode = "admi
         />
       </div>
 
-      {mode === "admin" ? (
-        <AddCandidateModal
-          open={candidateModalOpen}
-          workers={workers}
-          onAddCandidate={onAddCandidate}
-          onClose={() => setCandidateModalOpen(false)}
-          adding={addingCandidate}
-        />
-      ) : null}
     </>
   );
 }
@@ -1202,6 +1192,7 @@ export default function JobsPageTest({ mode = "admin" }) {
   const [savingIds, setSavingIds] = useState({});
   const [deletingIds, setDeletingIds] = useState({});
   const [addingCandidate, setAddingCandidate] = useState(false);
+  const [candidateModalOpen, setCandidateModalOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -1675,8 +1666,7 @@ export default function JobsPageTest({ mode = "admin" }) {
                 candidates={viewCandidates}
                 onOpenJob={openJobView}
                 mode={mode}
-                workers={availableWorkersForJob}
-                onAddCandidate={addCandidateToJob}
+                onAddCandidateClick={() => setCandidateModalOpen(true)}
                 addingCandidate={addingCandidate}
                 onCandidateChange={updateCandidateField}
                 onCandidateSave={saveCandidateField}
@@ -1714,6 +1704,13 @@ export default function JobsPageTest({ mode = "admin" }) {
         onClose={() => setJobModalOpen(false)}
         onSave={saveNewJob}
         saving={savingJob}
+      />
+      <AddCandidateModal
+        open={candidateModalOpen && mode === "admin" && activeView.type === "job"}
+        workers={availableWorkersForJob}
+        onAddCandidate={addCandidateToJob}
+        onClose={() => setCandidateModalOpen(false)}
+        adding={addingCandidate}
       />
       <GoToTopButton />
     </>
