@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
@@ -2140,6 +2140,7 @@ function WorkerCard({
 
 export default function AdminPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
