@@ -23,7 +23,7 @@ export async function getCurrentUserAccess() {
       .maybeSingle(),
     supabase
       .from("client_users")
-      .select("user_id, client_name, is_active, can_view_cts_jobs")
+      .select("user_id, client_name, recruiter_name, is_active, can_view_cts_jobs")
       .eq("user_id", user.id)
       .eq("is_active", true)
       .maybeSingle(),
