@@ -1,12 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Briefcase,
-  CheckCircle2,
   ExternalLink,
   Loader2,
   Search,
-  Users,
   X,
 } from "lucide-react";
 import UtsTopNavBar from "../components/UtsTopNavBar";
@@ -61,7 +58,7 @@ function PageStyles() {
 
       .hero-card,
       .dashboard-card {
-        padding: 24px;
+        padding: 22px 24px;
       }
 
       .hero-top {
@@ -74,23 +71,17 @@ function PageStyles() {
 
       .hero-title {
         margin: 0;
-        font-size: clamp(34px, 4.2vw, 46px);
-        line-height: 1.04;
-        font-weight: 900;
-        letter-spacing: -0.035em;
-      }
-
-      .hero-subtitle {
-        margin: 10px 0 0 0;
-        color: #475569;
-        font-size: 16px;
+        font-size: clamp(28px, 3.4vw, 40px);
+        line-height: 1.08;
+        font-weight: 700;
+        letter-spacing: -0.03em;
       }
 
       .btn {
         border: none;
         border-radius: 14px;
         padding: 12px 16px;
-        font-weight: 800;
+        font-weight: 700;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
@@ -104,35 +95,6 @@ function PageStyles() {
       .btn.white { background: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; }
       .btn:hover:not(:disabled) { transform: translateY(-1px); }
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-      .summary-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
-        margin-top: 20px;
-      }
-
-      .metric-card {
-        padding: 16px;
-        border-radius: 18px;
-        background: #f8fbff;
-        border: 1px solid #dbeafe;
-      }
-
-      .metric-label {
-        font-size: 12px;
-        color: #64748b;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-
-      .metric-value {
-        margin-top: 6px;
-        font-size: 28px;
-        font-weight: 900;
-        color: #0f172a;
-      }
 
       .dashboard-layout {
         display: grid;
@@ -157,9 +119,9 @@ function PageStyles() {
       }
 
       .side-section-title {
-        font-size: 12px;
+        font-size: 11px;
         color: #64748b;
-        font-weight: 900;
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.1em;
       }
@@ -168,10 +130,10 @@ function PageStyles() {
         width: 100%;
         min-width: 0;
         border: 1px solid #dbeafe;
-        border-radius: 16px;
+        border-radius: 14px;
         background: #ffffff;
         color: #0f172a;
-        padding: 12px 13px;
+        padding: 10px 12px;
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 12px;
@@ -200,13 +162,15 @@ function PageStyles() {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-weight: 900;
+        font-size: 13px;
+        font-weight: 500;
       }
 
       .job-nav-btn .side-nav-label {
         font-size: 13px;
         line-height: 1.25;
         letter-spacing: -0.01em;
+        font-weight: 700;
       }
 
       .side-nav-meta {
@@ -219,7 +183,7 @@ function PageStyles() {
         margin-top: 4px;
         color: #64748b;
         font-size: 11px;
-        font-weight: 700;
+        font-weight: 400;
       }
 
       .side-nav-btn.active .side-nav-meta { color: rgba(255,255,255,0.72); }
@@ -233,8 +197,8 @@ function PageStyles() {
         padding: 5px 10px;
         background: #eff6ff;
         color: #1e3a8a;
-        font-size: 12px;
-        font-weight: 900;
+        font-size: 11px;
+        font-weight: 500;
         line-height: 1;
       }
 
@@ -258,14 +222,15 @@ function PageStyles() {
 
       .view-title {
         margin: 0;
-        font-size: clamp(26px, 3vw, 36px);
-        font-weight: 900;
-        letter-spacing: -0.03em;
+        font-size: clamp(22px, 2.4vw, 30px);
+        font-weight: 700;
+        letter-spacing: -0.025em;
       }
 
       .view-subtitle {
         margin: 8px 0 0 0;
-        color: #475569;
+        color: #64748b;
+        font-size: 14px;
         line-height: 1.6;
       }
 
@@ -321,10 +286,10 @@ function PageStyles() {
       th {
         background: #f8fbff;
         color: #334155;
-        font-size: 12px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        font-weight: 900;
+        font-weight: 700;
       }
 
       tbody tr {
@@ -342,7 +307,7 @@ function PageStyles() {
       tr:last-child td { border-bottom: none; }
 
       .candidate-name {
-        font-weight: 900;
+        font-weight: 500;
         color: #0f172a;
         letter-spacing: -0.01em;
       }
@@ -352,9 +317,9 @@ function PageStyles() {
         display: grid;
         gap: 2px;
         color: #94a3b8;
-        font-size: 13px;
+        font-size: 12px;
         line-height: 1.35;
-        font-weight: 650;
+        font-weight: 400;
       }
 
       .profile-action-cell {
@@ -374,8 +339,8 @@ function PageStyles() {
         align-items: center;
         border-radius: 999px;
         padding: 6px 10px;
-        font-size: 12px;
-        font-weight: 900;
+        font-size: 11px;
+        font-weight: 500;
         border: 1px solid #bfdbfe;
         background: #eff6ff;
         color: #1e3a8a;
@@ -385,6 +350,48 @@ function PageStyles() {
       .status-pill.placed { border-color: #bbf7d0; background: #ecfdf3; color: #15803d; }
       .status-pill.sourced { border-color: #bfdbfe; background: #dbeafe; color: #1e40af; }
       .status-pill.other { border-color: #e2e8f0; background: #f8fafc; color: #475569; }
+
+      .table-project-name {
+        border: none;
+        background: transparent;
+        color: #1d4ed8;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 0;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .table-muted {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 400;
+      }
+
+      .table-muted-xs {
+        color: #94a3b8;
+        font-size: 12px;
+        font-weight: 400;
+      }
+
+      .jobs-submenu {
+        display: grid;
+        gap: 8px;
+        padding-left: 16px;
+        border-left: 1px solid #dbeafe;
+      }
+
+      .accordion-symbol {
+        display: inline-flex;
+        width: 16px;
+        justify-content: center;
+        color: #64748b;
+        font-weight: 500;
+      }
+
+      .side-nav-btn.active .accordion-symbol {
+        color: rgba(255,255,255,0.78);
+      }
 
       .job-detail-grid {
         margin-top: 18px;
@@ -403,15 +410,16 @@ function PageStyles() {
       .detail-label {
         font-size: 11px;
         color: #64748b;
-        font-weight: 900;
+        font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.08em;
       }
 
       .detail-value {
         margin-top: 6px;
-        color: #0f172a;
-        font-weight: 900;
+        color: #475569;
+        font-size: 13px;
+        font-weight: 400;
       }
 
       .empty-state {
@@ -422,20 +430,19 @@ function PageStyles() {
         padding: 26px;
         color: #475569;
         text-align: center;
-        font-weight: 800;
+        font-weight: 700;
       }
 
       @media (max-width: 1024px) {
         .dashboard-layout { grid-template-columns: 1fr; }
         .side-nav { position: static; max-height: none; }
-        .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .job-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
 
       @media (max-width: 640px) {
         .jobs-test-shell { width: min(100% - 28px, 1480px); padding: 14px 0; }
         .hero-card, .dashboard-card, .view-panel { padding: 18px; border-radius: 20px; }
-        .summary-grid, .toolbar-row, .job-detail-grid { grid-template-columns: 1fr; }
+        .toolbar-row, .job-detail-grid { grid-template-columns: 1fr; }
       }
     `}</style>
   );
@@ -539,23 +546,15 @@ function CandidateTable({ candidates, onOpenJob }) {
                 </td>
                 <td>
                   <button
+                    className="table-project-name"
                     type="button"
                     onClick={() => job.id && onOpenJob(job.id)}
                     disabled={!job.id}
-                    style={{
-                      border: "none",
-                      background: "transparent",
-                      color: job.id ? "#1d4ed8" : "#0f172a",
-                      fontWeight: 900,
-                      padding: 0,
-                      cursor: job.id ? "pointer" : "default",
-                      textAlign: "left",
-                    }}
                   >
                     {projectName}
                   </button>
                   {projectLocation ? (
-                    <div style={{ marginTop: 5, color: "#64748b", fontSize: 13 }}>{projectLocation}</div>
+                    <div className="table-muted-xs" style={{ marginTop: 5 }}>{projectLocation}</div>
                   ) : null}
                 </td>
                 <td>
@@ -597,35 +596,27 @@ function JobsTable({ jobs, candidateCounts, onOpenJob, onOpenDetail }) {
         <tbody>
           {jobs.map((job) => (
             <tr key={job.id}>
-              <td style={{ fontWeight: 900 }}>{job.qty ?? "—"}</td>
+              <td className="table-muted">{job.qty ?? "—"}</td>
               <td>
                 <button
+                  className="table-project-name"
                   type="button"
                   onClick={() => onOpenJob(job.id)}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    color: "#1d4ed8",
-                    fontWeight: 900,
-                    padding: 0,
-                    cursor: "pointer",
-                    textAlign: "left",
-                  }}
                 >
                   {job.level_type || "Untitled job"}
                 </button>
                 {job.job_code ? (
-                  <div style={{ marginTop: 5, color: "#64748b", fontSize: 13 }}>Code: {job.job_code}</div>
+                  <div className="table-muted-xs" style={{ marginTop: 5 }}>Code: {job.job_code}</div>
                 ) : null}
               </td>
-              <td>{job.city || "—"}</td>
-              <td>{job.state || "—"}</td>
-              <td>{job.start_text || formatDateOnly(job.order_date)}</td>
-              <td>{job.bd_rep || "—"}</td>
+              <td className="table-muted-xs">{job.city || "—"}</td>
+              <td className="table-muted-xs">{job.state || "—"}</td>
+              <td className="table-muted">{job.start_text || formatDateOnly(job.order_date)}</td>
+              <td className="table-muted">{job.bd_rep || "—"}</td>
               <td><span className="status-pill other">{formatStatus(job.status || "open")}</span></td>
-              <td style={{ fontWeight: 900 }}>{candidateCounts[job.id] || 0}</td>
+              <td className="table-muted">{candidateCounts[job.id] || 0}</td>
               <td>
-                <div>{formatDateTime(job.updated_at || job.created_at)}</div>
+                <div className="table-muted">{formatDateTime(job.updated_at || job.created_at)}</div>
                 <button
                   className="btn white"
                   type="button"
@@ -677,12 +668,12 @@ function JobDetailView({ job, candidates, onOpenDetail, onOpenJob }) {
       {job.details ? (
         <div className="detail-box" style={{ marginTop: 12 }}>
           <div className="detail-label">Details</div>
-          <div className="detail-value" style={{ lineHeight: 1.55, fontWeight: 700 }}>{job.details}</div>
+          <div className="detail-value" style={{ lineHeight: 1.55 }}>{job.details}</div>
         </div>
       ) : null}
 
       <div style={{ marginTop: 24 }}>
-        <h3 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>Candidates for this job ({candidates.length})</h3>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Candidates for this job ({candidates.length})</h3>
         <CandidateTable candidates={candidates} onOpenJob={onOpenJob} />
       </div>
     </>
@@ -697,6 +688,7 @@ export default function JobsPageTest() {
   const [feedback, setFeedback] = useState({ error: "", success: "" });
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState({ type: "candidate", status: "placed" });
+  const [jobsListOpen, setJobsListOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -825,14 +817,12 @@ export default function JobsPageTest() {
 
   const summary = useMemo(() => {
     const placed = jobCandidates.filter((candidate) => String(candidate.candidate_status || "sourced").toLowerCase() === "placed").length;
-    const sourced = jobCandidates.filter((candidate) => String(candidate.candidate_status || "sourced").toLowerCase() === "sourced").length;
-    return { totalJobs: jobs.length, totalCandidates: jobCandidates.length, placed, sourced };
+    return { totalJobs: jobs.length, totalCandidates: jobCandidates.length, placed };
   }, [jobCandidates, jobs.length]);
 
   const activeTitle = useMemo(() => {
     if (activeView.type === "candidate") {
       if (activeView.status === "placed") return "Placed Candidates";
-      if (activeView.status === "sourced") return "Sourced Candidates";
       return "All Candidates";
     }
     if (activeView.type === "jobs") return "CTS Jobs List";
@@ -855,23 +845,7 @@ export default function JobsPageTest() {
       <main className="jobs-test-shell">
         <section className="glass-card hero-card">
           <div className="hero-top">
-            <div>
-              <h1 className="hero-title">CTS Jobs Dashboard</h1>
-              <p className="hero-subtitle">
-                Test layout with left navigation and a focused view panel for candidates and CTS jobs.
-              </p>
-            </div>
-            <button className="btn dark" type="button" onClick={load} disabled={loading}>
-              {loading ? <Loader2 className="spin" size={16} /> : <Briefcase size={16} />}
-              Refresh Data
-            </button>
-          </div>
-
-          <div className="summary-grid">
-            <div className="metric-card"><div className="metric-label">CTS Jobs</div><div className="metric-value">{summary.totalJobs}</div></div>
-            <div className="metric-card"><div className="metric-label">Candidates</div><div className="metric-value">{summary.totalCandidates}</div></div>
-            <div className="metric-card"><div className="metric-label">Placed</div><div className="metric-value">{summary.placed}</div></div>
-            <div className="metric-card"><div className="metric-label">Sourced</div><div className="metric-value">{summary.sourced}</div></div>
+            <h1 className="hero-title">CTS Jobs Dashboard</h1>
           </div>
         </section>
 
@@ -886,11 +860,9 @@ export default function JobsPageTest() {
             <div className="side-section">
               <div className="side-section-title">Candidates</div>
               {[
-                { key: "placed", label: "Placed", count: summary.placed, icon: CheckCircle2 },
-                { key: "sourced", label: "Sourced", count: summary.sourced, icon: Users },
-                { key: "all", label: "All", count: summary.totalCandidates, icon: Users },
+                { key: "placed", label: "Placed", count: summary.placed },
+                { key: "all", label: "All", count: summary.totalCandidates },
               ].map((item) => {
-                const Icon = item.icon;
                 const active = activeView.type === "candidate" && activeView.status === item.key;
                 return (
                   <button
@@ -901,7 +873,6 @@ export default function JobsPageTest() {
                   >
                     <span style={{ minWidth: 0 }}>
                       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <Icon size={16} />
                         <span className="side-nav-label">{item.label}</span>
                       </span>
                     </span>
@@ -916,33 +887,40 @@ export default function JobsPageTest() {
               <button
                 type="button"
                 className={`side-nav-btn job-nav-btn ${activeView.type === "jobs" ? "active" : ""}`}
-                onClick={() => setActiveView({ type: "jobs" })}
+                onClick={() => {
+                  setJobsListOpen((prev) => !prev);
+                  setActiveView({ type: "jobs" });
+                }}
+                aria-expanded={jobsListOpen}
               >
                 <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, overflow: "hidden" }}>
-                  <Briefcase size={16} style={{ flex: "0 0 auto" }} />
-                  <span className="side-nav-label">All</span>
+                  <span className="accordion-symbol">{jobsListOpen ? "−" : "+"}</span>
+                  <span className="side-nav-label">All ({summary.totalJobs})</span>
                 </span>
-                <span className="count-badge">{summary.totalJobs}</span>
               </button>
 
-              {jobs.map((job) => {
-                const active = activeView.type === "job" && activeView.jobId === job.id;
-                return (
-                  <button
-                    key={job.id}
-                    type="button"
-                    className={`side-nav-btn job-nav-btn ${active ? "active" : ""}`}
-                    onClick={() => openJobView(job.id)}
-                    title={job.level_type || "Untitled job"}
-                  >
-                    <span style={{ minWidth: 0, overflow: "hidden" }}>
-                      <span className="side-nav-label">{job.level_type || "Untitled job"}</span>
-                      <span className="side-nav-meta">{[job.city, job.state].filter(Boolean).join(", ") || "No location"}</span>
-                    </span>
-                    <span className="count-badge">{candidateCounts[job.id] || 0}</span>
-                  </button>
-                );
-              })}
+              {jobsListOpen ? (
+                <div className="jobs-submenu">
+                  {jobs.map((job) => {
+                    const active = activeView.type === "job" && activeView.jobId === job.id;
+                    return (
+                      <button
+                        key={job.id}
+                        type="button"
+                        className={`side-nav-btn job-nav-btn ${active ? "active" : ""}`}
+                        onClick={() => openJobView(job.id)}
+                        title={job.level_type || "Untitled job"}
+                      >
+                        <span style={{ minWidth: 0, overflow: "hidden" }}>
+                          <span className="side-nav-label">{job.level_type || "Untitled job"}</span>
+                          <span className="side-nav-meta">{[job.city, job.state].filter(Boolean).join(", ") || "No location"}</span>
+                        </span>
+                        <span className="count-badge">{candidateCounts[job.id] || 0}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
             </div>
           </aside>
 
