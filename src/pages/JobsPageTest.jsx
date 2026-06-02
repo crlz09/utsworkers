@@ -342,6 +342,53 @@ function PageStyles() {
         flex-wrap: wrap;
       }
 
+      .add-candidate-modal {
+        width: min(680px, 100%);
+      }
+
+      .worker-results {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+        max-height: 430px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+
+      .worker-result-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        border: 1px solid #dbeafe;
+        border-radius: 16px;
+        background: #ffffff;
+        padding: 12px 14px;
+      }
+
+      .worker-result-info {
+        min-width: 0;
+      }
+
+      .worker-result-name {
+        color: #0f172a;
+        font-size: 14px;
+        font-weight: 700;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .worker-result-meta {
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.45;
+        margin-top: 3px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .mini-action-btn {
         border: 1px solid #cbd5e1;
         background: #ffffff;
@@ -596,6 +643,10 @@ function formatStatus(status) {
   return String(status || "sourced")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function getCandidateStatusPriority(status) {
@@ -873,32 +924,70 @@ function JobsTable({ jobs, candidateCounts, onOpenJob }) {
 }
 
 
-function AddCandidateInline({ workers, onAddCandidate, adding }) {
-  const [workerId, setWorkerId] = useState("");
-  const [status, setStatus] = useState("sourced");
+function AddCandidateModal({ open, workers, onAddCandidate, onClose, adding }) {
+  const [workerSearch, setWorkerSearch] = useState("");
 
-  const submit = () => {
-    if (!workerId) return;
-    onAddCandidate(workerId, status);
-    setWorkerId("");
-    setStatus("sourced");
+  const filteredWorkers = useMemo(() => {
+    const query = normalizeText(workerSearch);
+    if (!query) return workers.slice(0, 40);
+
+    return workers
+      .filter((worker) => normalizeText([worker.name, worker.phone, worker.email].filter(Boolean).join(" ")).includes(query))
+      .slice(0, 40);
+  }, [workerSearch, workers]);
+
+  const submit = async (workerId) => {
+    if (!workerId || adding) return;
+    const added = await onAddCandidate(workerId);
+    if (!added) return;
+    setWorkerSearch("");
+    onClose();
   };
 
+  if (!open) return null;
+
   return (
-    <div className="candidate-actions">
-      <select className="select" value={workerId} onChange={(event) => setWorkerId(event.target.value)} style={{ minWidth: 220, minHeight: 40, padding: "8px 10px" }}>
-        <option value="">Select worker...</option>
-        {workers.map((worker) => (
-          <option key={worker.id} value={worker.id}>{worker.name || worker.email || worker.phone || worker.id}</option>
-        ))}
-      </select>
-      <select className="select" value={status} onChange={(event) => setStatus(event.target.value)} style={{ minWidth: 140, minHeight: 40, padding: "8px 10px" }}>
-        {CANDIDATE_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{formatStatus(option)}</option>)}
-      </select>
-      <button className="mini-action-btn" type="button" onClick={submit} disabled={!workerId || adding}>
-        <Plus size={13} />
-        {adding ? "Adding..." : "Add Candidate"}
-      </button>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="add-candidate-title">
+      <div className="modal-card add-candidate-modal">
+        <div className="view-header">
+          <div>
+            <h2 className="view-title" id="add-candidate-title">Add Candidate</h2>
+            <p className="view-subtitle">Search registered workers by name or phone. New candidates are added as Sourced.</p>
+          </div>
+          <button className="mini-action-btn" type="button" onClick={onClose} disabled={adding}><X size={14} />Close</button>
+        </div>
+
+        <div className="search-box" style={{ marginTop: 18 }}>
+          <Search size={16} />
+          <input
+            value={workerSearch}
+            onChange={(event) => setWorkerSearch(event.target.value)}
+            placeholder="Search worker by name or phone..."
+            autoFocus
+          />
+        </div>
+
+        <div className="worker-results" aria-live="polite">
+          {filteredWorkers.length ? filteredWorkers.map((worker) => (
+            <div className="worker-result-row" key={worker.id}>
+              <div className="worker-result-info">
+                <div className="worker-result-name">{worker.name || worker.email || worker.phone || "Unnamed worker"}</div>
+                <div className="worker-result-meta">
+                  {worker.phone || "No phone"}{worker.email ? ` · ${worker.email}` : ""}
+                </div>
+              </div>
+              <button className="mini-action-btn" type="button" onClick={() => submit(worker.id)} disabled={adding}>
+                <Plus size={13} />
+                {adding ? "Adding..." : "Add"}
+              </button>
+            </div>
+          )) : (
+            <div className="empty-state" style={{ marginTop: 14 }}>
+              No available workers match your search.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -939,6 +1028,7 @@ function JobFormModal({ open, form, setForm, onClose, onSave, saving }) {
 
 function JobDetailView({ job, candidates, onOpenJob, searchToolbar, mode = "admin", workers = [], onAddCandidate, addingCandidate, onCandidateChange, onCandidateSave, onCandidateDelete, savingIds, deletingIds }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [candidateModalOpen, setCandidateModalOpen] = useState(false);
 
   if (!job) {
     return <div className="empty-state">Select a CTS job from the left navigation.</div>;
@@ -983,7 +1073,10 @@ function JobDetailView({ job, candidates, onOpenJob, searchToolbar, mode = "admi
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Candidates for this job ({candidates.length})</h3>
           {mode === "admin" ? (
-            <AddCandidateInline workers={workers} onAddCandidate={onAddCandidate} adding={addingCandidate} />
+            <button className="mini-action-btn" type="button" onClick={() => setCandidateModalOpen(true)} disabled={addingCandidate}>
+              <Plus size={13} />
+              Add Candidate
+            </button>
           ) : null}
         </div>
         {searchToolbar}
@@ -998,6 +1091,16 @@ function JobDetailView({ job, candidates, onOpenJob, searchToolbar, mode = "admi
           deletingIds={deletingIds}
         />
       </div>
+
+      {mode === "admin" ? (
+        <AddCandidateModal
+          open={candidateModalOpen}
+          workers={workers}
+          onAddCandidate={onAddCandidate}
+          onClose={() => setCandidateModalOpen(false)}
+          adding={addingCandidate}
+        />
+      ) : null}
     </>
   );
 }
@@ -1180,9 +1283,9 @@ export default function JobsPageTest({ mode = "admin" }) {
   };
 
   const addCandidateToJob = async (workerId, candidateStatus = "sourced") => {
-    if (mode !== "admin" || activeView.type !== "job" || !activeView.jobId) return;
+    if (mode !== "admin" || activeView.type !== "job" || !activeView.jobId) return false;
     const worker = workers.find((item) => item.id === workerId);
-    if (!worker) return;
+    if (!worker) return false;
 
     setAddingCandidate(true);
     setFeedback({ error: "", success: "" });
@@ -1201,7 +1304,7 @@ export default function JobsPageTest({ mode = "admin" }) {
     setAddingCandidate(false);
     if (error) {
       setFeedback({ error: error.message || "Could not add candidate.", success: "" });
-      return;
+      return false;
     }
 
     if (candidateStatus === "placed") {
@@ -1209,13 +1312,14 @@ export default function JobsPageTest({ mode = "admin" }) {
       if (syncError) {
         setFeedback({ error: syncError.message || "Candidate added, but worker status could not be synced.", success: "" });
         await load({ preserveFeedback: true });
-        return;
+        return false;
       }
     }
 
     await touchJobModifiedAt(activeView.jobId);
     setFeedback({ error: "", success: "Candidate added." });
     await load({ preserveFeedback: true });
+    return true;
   };
 
   const deleteCandidate = async (candidate) => {
