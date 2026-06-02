@@ -344,15 +344,64 @@ function PageStyles() {
 
       .add-candidate-modal {
         width: min(680px, 100%);
+        height: min(720px, calc(100vh - 48px));
+        max-height: min(720px, calc(100vh - 48px));
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .add-candidate-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 0 4px 4px 0;
+      }
+
+      .add-candidate-search {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.98) 78%, rgba(255, 255, 255, 0) 100%);
+        padding: 18px 0 14px;
+      }
+
+      .search-box {
+        width: 100%;
+        min-height: 56px;
+        border: 1px solid #cbd5e1;
+        border-radius: 18px;
+        background: #ffffff;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+      }
+
+      .search-box svg {
+        color: #64748b;
+        flex: 0 0 auto;
+      }
+
+      .search-box input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: #0f172a;
+        font-size: 15px;
+      }
+
+      .search-box input::placeholder {
+        color: #94a3b8;
       }
 
       .worker-results {
         display: grid;
         gap: 10px;
-        margin-top: 14px;
-        max-height: 430px;
-        overflow-y: auto;
-        padding-right: 4px;
       }
 
       .worker-result-row {
@@ -927,6 +976,16 @@ function JobsTable({ jobs, candidateCounts, onOpenJob }) {
 function AddCandidateModal({ open, workers, onAddCandidate, onClose, adding }) {
   const [workerSearch, setWorkerSearch] = useState("");
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   const filteredWorkers = useMemo(() => {
     const query = normalizeText(workerSearch);
     if (!query) return workers.slice(0, 40);
@@ -944,48 +1003,70 @@ function AddCandidateModal({ open, workers, onAddCandidate, onClose, adding }) {
     onClose();
   };
 
+  const handleEscape = (event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    if (workerSearch) {
+      setWorkerSearch("");
+      return;
+    }
+    onClose();
+  };
+
   if (!open) return null;
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="add-candidate-title">
-      <div className="modal-card add-candidate-modal">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-candidate-title"
+      onMouseDown={onClose}
+      onKeyDown={handleEscape}
+      tabIndex={-1}
+    >
+      <div className="modal-card add-candidate-modal" onMouseDown={(event) => event.stopPropagation()}>
         <div className="view-header">
           <div>
             <h2 className="view-title" id="add-candidate-title">Add Candidate</h2>
-            <p className="view-subtitle">Search registered workers by name or phone. New candidates are added as Sourced.</p>
+            <p className="view-subtitle">Search registered workers by name or phone.</p>
           </div>
           <button className="mini-action-btn" type="button" onClick={onClose} disabled={adding}><X size={14} />Close</button>
         </div>
 
-        <div className="search-box" style={{ marginTop: 18 }}>
-          <Search size={16} />
-          <input
-            value={workerSearch}
-            onChange={(event) => setWorkerSearch(event.target.value)}
-            placeholder="Search worker by name or phone..."
-            autoFocus
-          />
-        </div>
+        <div className="add-candidate-scroll">
+          <div className="add-candidate-search">
+            <div className="search-box">
+              <Search size={16} />
+              <input
+                value={workerSearch}
+                onChange={(event) => setWorkerSearch(event.target.value)}
+                placeholder="Search worker by name or phone..."
+                autoFocus
+              />
+            </div>
+          </div>
 
-        <div className="worker-results" aria-live="polite">
-          {filteredWorkers.length ? filteredWorkers.map((worker) => (
-            <div className="worker-result-row" key={worker.id}>
-              <div className="worker-result-info">
-                <div className="worker-result-name">{worker.name || worker.email || worker.phone || "Unnamed worker"}</div>
-                <div className="worker-result-meta">
-                  {worker.phone || "No phone"}{worker.email ? ` · ${worker.email}` : ""}
+          <div className="worker-results" aria-live="polite">
+            {filteredWorkers.length ? filteredWorkers.map((worker) => (
+              <div className="worker-result-row" key={worker.id}>
+                <div className="worker-result-info">
+                  <div className="worker-result-name">{worker.name || worker.email || worker.phone || "Unnamed worker"}</div>
+                  <div className="worker-result-meta">
+                    {worker.phone || "No phone"}{worker.email ? ` · ${worker.email}` : ""}
+                  </div>
                 </div>
+                <button className="mini-action-btn" type="button" onClick={() => submit(worker.id)} disabled={adding}>
+                  <Plus size={13} />
+                  {adding ? "Adding..." : "Add"}
+                </button>
               </div>
-              <button className="mini-action-btn" type="button" onClick={() => submit(worker.id)} disabled={adding}>
-                <Plus size={13} />
-                {adding ? "Adding..." : "Add"}
-              </button>
-            </div>
-          )) : (
-            <div className="empty-state" style={{ marginTop: 14 }}>
-              No available workers match your search.
-            </div>
-          )}
+            )) : (
+              <div className="empty-state" style={{ marginTop: 14 }}>
+                No available workers match your search.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
