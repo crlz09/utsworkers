@@ -107,6 +107,14 @@ export default function App() {
           }
         />
         <Route
+          path="/cts-jobs-test"
+          element={
+            <AdminRoute>
+              <JobsPageTest />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="/cts-jobs/:jobId"
           element={
             <AdminRoute>
