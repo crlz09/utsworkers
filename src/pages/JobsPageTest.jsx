@@ -1333,7 +1333,7 @@ function JobDetailView({
       <div className="job-detail-header">
         <div className="job-title-wrap">
           <h2 className="view-title">{job.level_type || "Untitled job"}</h2>
-          {isAdmin ? (
+          {isAdmin && detailsOpen ? (
             <button
               className="icon-danger-btn"
               type="button"
