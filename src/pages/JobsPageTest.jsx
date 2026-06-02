@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Check,
   ExternalLink,
   Loader2,
+  Pencil,
   Plus,
   Search,
   Trash2,
@@ -642,6 +644,96 @@ function PageStyles() {
         font-weight: 400;
       }
 
+      .job-title-wrap {
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .job-title-wrap .view-title {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .job-detail-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .icon-danger-btn {
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        border: 1px solid #fecaca;
+        border-radius: 12px;
+        background: #fff5f5;
+        color: #b91c1c;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: 0.18s ease;
+      }
+
+      .icon-danger-btn:hover:not(:disabled) {
+        background: #fee2e2;
+        transform: translateY(-1px);
+      }
+
+      .icon-danger-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .detail-box-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .detail-edit-btn {
+        border: none;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1e3a8a;
+        padding: 5px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .detail-edit-btn:hover:not(:disabled) {
+        background: #dbeafe;
+      }
+
+      .detail-edit-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .detail-edit-control {
+        margin-top: 8px;
+        min-height: 38px;
+        padding: 8px 10px;
+        font-size: 13px;
+        border-radius: 12px;
+      }
+
+      .detail-textarea {
+        min-height: 92px;
+        resize: vertical;
+        line-height: 1.5;
+      }
+
       .empty-state {
         margin-top: 18px;
         border: 1px dashed #bfdbfe;
@@ -1107,45 +1199,269 @@ function JobFormModal({ open, form, setForm, onClose, onSave, saving }) {
   );
 }
 
-function JobDetailView({ job, candidates, onOpenJob, searchToolbar, mode = "admin", onAddCandidateClick, addingCandidate, onCandidateChange, onCandidateSave, onCandidateDelete, savingIds, deletingIds }) {
+function EditableJobDetailField({
+  label,
+  field,
+  value,
+  displayValue,
+  editable = true,
+  type = "text",
+  options = [],
+  editingField,
+  setEditingField,
+  onSave,
+  saving = false,
+}) {
+  const isEditing = editingField === field;
+  const [draftValue, setDraftValue] = useState(value ?? "");
+
+  const openEditor = () => {
+    if (isEditing) {
+      setEditingField("");
+      return;
+    }
+    setDraftValue(value ?? "");
+    setEditingField(field);
+  };
+
+  const save = () => {
+    void onSave(field, draftValue);
+  };
+
+  return (
+    <div className="detail-box">
+      <div className="detail-box-header">
+        <div className="detail-label">{label}</div>
+        {editable ? (
+          <button
+            className="detail-edit-btn"
+            type="button"
+            onClick={openEditor}
+            disabled={saving}
+          >
+            <Pencil size={11} />
+            {isEditing ? "Editing" : "Edit"}
+          </button>
+        ) : null}
+      </div>
+
+      {isEditing ? (
+        <>
+          {type === "select" ? (
+            <select
+              className="select detail-edit-control"
+              value={draftValue}
+              onChange={(event) => setDraftValue(event.target.value)}
+              disabled={saving}
+            >
+              {options.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          ) : type === "textarea" ? (
+            <textarea
+              className="input detail-edit-control detail-textarea"
+              value={draftValue}
+              onChange={(event) => setDraftValue(event.target.value)}
+              disabled={saving}
+            />
+          ) : (
+            <input
+              className="input detail-edit-control"
+              type={type}
+              min={type === "number" ? "0" : undefined}
+              value={draftValue}
+              onChange={(event) => setDraftValue(event.target.value)}
+              disabled={saving}
+            />
+          )}
+          <div className="detail-edit-actions">
+            <button className="mini-action-btn" type="button" onClick={() => setEditingField("")} disabled={saving}>Cancel</button>
+            <button className="mini-action-btn" type="button" onClick={save} disabled={saving}>
+              <Check size={13} />
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="detail-value">{displayValue ?? value ?? "—"}</div>
+      )}
+    </div>
+  );
+}
+
+function JobDetailView({
+  job,
+  candidates,
+  onOpenJob,
+  searchToolbar,
+  mode = "admin",
+  onAddCandidateClick,
+  addingCandidate,
+  onCandidateChange,
+  onCandidateSave,
+  onCandidateDelete,
+  savingIds,
+  deletingIds,
+  onJobSaveField,
+  savingJobFields = {},
+  onJobDelete,
+  deletingJob = false,
+}) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editingJobField, setEditingJobField] = useState("");
+  const isAdmin = mode === "admin";
 
   if (!job) {
     return <div className="empty-state">Select a CTS job from the left navigation.</div>;
   }
 
+  const saveJobField = async (field, value) => {
+    const saved = await onJobSaveField(job, field, value);
+    if (saved) setEditingJobField("");
+  };
+
+  const commonFieldProps = {
+    editable: isAdmin,
+    editingField: editingJobField,
+    setEditingField: setEditingJobField,
+    onSave: saveJobField,
+  };
+
   return (
     <>
       <div className="job-detail-header">
-        <h2 className="view-title">{job.level_type || "Untitled job"}</h2>
-        <button
-          className="job-detail-toggle"
-          type="button"
-          onClick={() => setDetailsOpen((prev) => !prev)}
-          aria-expanded={detailsOpen}
-        >
-          <span className="accordion-symbol">{detailsOpen ? "−" : "+"}</span>
-          Job Details
-        </button>
+        <div className="job-title-wrap">
+          <h2 className="view-title">{job.level_type || "Untitled job"}</h2>
+          {isAdmin ? (
+            <button
+              className="icon-danger-btn"
+              type="button"
+              onClick={() => onJobDelete(job)}
+              disabled={deletingJob}
+              title="Delete CTS job"
+              aria-label="Delete CTS job"
+            >
+              <Trash2 size={17} />
+            </button>
+          ) : null}
+        </div>
+        <div className="job-detail-actions">
+          <button
+            className="job-detail-toggle"
+            type="button"
+            onClick={() => setDetailsOpen((prev) => !prev)}
+            aria-expanded={detailsOpen}
+          >
+            <span className="accordion-symbol">{detailsOpen ? "−" : "+"}</span>
+            Job Details
+          </button>
+        </div>
       </div>
 
       {detailsOpen ? (
         <>
           <div className="job-detail-grid">
-            <div className="detail-box"><div className="detail-label">Qty</div><div className="detail-value">{job.qty ?? "—"}</div></div>
-            <div className="detail-box"><div className="detail-label">Status</div><div className="detail-value">{formatStatus(job.status || "open")}</div></div>
-            <div className="detail-box"><div className="detail-label">Priority</div><div className="detail-value">{formatStatus(job.priority || "normal")}</div></div>
-            <div className="detail-box"><div className="detail-label">Start</div><div className="detail-value">{job.start_text || formatDateOnly(job.order_date)}</div></div>
-            <div className="detail-box"><div className="detail-label">Language</div><div className="detail-value">{job.language_requirement || "—"}</div></div>
-            <div className="detail-box"><div className="detail-label">Last Modified</div><div className="detail-value">{formatDateTime(job.updated_at || job.created_at)}</div></div>
+            <EditableJobDetailField
+              label="Level / Type"
+              field="level_type"
+              value={job.level_type || ""}
+              displayValue={job.level_type || "Untitled job"}
+              saving={!!savingJobFields.level_type}
+              {...commonFieldProps}
+            />
+            <EditableJobDetailField
+              label="Qty"
+              field="qty"
+              value={job.qty ?? 0}
+              displayValue={job.qty ?? "—"}
+              type="number"
+              saving={!!savingJobFields.qty}
+              {...commonFieldProps}
+            />
+            <EditableJobDetailField
+              label="Status"
+              field="status"
+              value={job.status || "open"}
+              displayValue={formatStatus(job.status || "open")}
+              type="select"
+              options={["open", "filled", "closed", "on_hold", "cancelled"].map((status) => ({ value: status, label: formatStatus(status) }))}
+              saving={!!savingJobFields.status}
+              {...commonFieldProps}
+            />
+            <EditableJobDetailField
+              label="Priority"
+              field="priority"
+              value={job.priority || "normal"}
+              displayValue={formatStatus(job.priority || "normal")}
+              type="select"
+              options={["low", "normal", "high", "urgent"].map((priority) => ({ value: priority, label: formatStatus(priority) }))}
+              saving={!!savingJobFields.priority}
+              {...commonFieldProps}
+            />
+            <EditableJobDetailField
+              label="City"
+              field="city"
+              value={job.city || ""}
+              displayValue={job.city || "—"}
+              saving={!!savingJobFields.city}
+              {...commonFieldProps}
+            />
+            <EditableJobDetailField
+              label="State"
+              field="state"
+              value={job.state || ""}
+              displayValue={job.state || "—"}
+              saving={!!savingJobFields.state}
+              {...commonFieldProps}
+            />
+            <EditableJobDetailField
+              label="Start"
+              field="start_text"
+              value={job.start_text || ""}
+              displayValue={job.start_text || formatDateOnly(job.order_date)}
+              saving={!!savingJobFields.start_text}
+              {...commonFieldProps}
+            />
+            <EditableJobDetailField
+              label="BD Rep"
+              field="bd_rep"
+              value={job.bd_rep || ""}
+              displayValue={job.bd_rep || "—"}
+              saving={!!savingJobFields.bd_rep}
+              {...commonFieldProps}
+            />
+            <EditableJobDetailField
+              label="Language"
+              field="language_requirement"
+              value={job.language_requirement || ""}
+              displayValue={job.language_requirement || "—"}
+              saving={!!savingJobFields.language_requirement}
+              {...commonFieldProps}
+            />
+            <EditableJobDetailField
+              label="Last Modified"
+              field="updated_at"
+              value={formatDateTime(job.updated_at || job.created_at)}
+              displayValue={formatDateTime(job.updated_at || job.created_at)}
+              editable={false}
+              editingField={editingJobField}
+              setEditingField={setEditingJobField}
+              onSave={saveJobField}
+            />
           </div>
 
-          {job.details ? (
-            <div className="detail-box" style={{ marginTop: 12 }}>
-              <div className="detail-label">Details</div>
-              <div className="detail-value" style={{ lineHeight: 1.55 }}>{job.details}</div>
-            </div>
-          ) : null}
+          <div style={{ marginTop: 12 }}>
+            <EditableJobDetailField
+              label="Details"
+              field="details"
+              value={job.details || ""}
+              displayValue={job.details || "—"}
+              type="textarea"
+              saving={!!savingJobFields.details}
+              {...commonFieldProps}
+            />
+          </div>
         </>
       ) : null}
 
@@ -1189,6 +1505,8 @@ export default function JobsPageTest({ mode = "admin" }) {
   const [jobModalOpen, setJobModalOpen] = useState(false);
   const [jobForm, setJobForm] = useState(EMPTY_JOB_FORM);
   const [savingJob, setSavingJob] = useState(false);
+  const [savingJobFields, setSavingJobFields] = useState({});
+  const [deletingJobIds, setDeletingJobIds] = useState({});
   const [savingIds, setSavingIds] = useState({});
   const [deletingIds, setDeletingIds] = useState({});
   const [addingCandidate, setAddingCandidate] = useState(false);
@@ -1296,6 +1614,89 @@ export default function JobsPageTest({ mode = "admin" }) {
     setJobForm(EMPTY_JOB_FORM);
     setJobModalOpen(false);
     setFeedback({ error: "", success: "CTS job created." });
+    await load({ preserveFeedback: true });
+  };
+
+  const saveJobField = async (job, field, rawValue) => {
+    if (mode !== "admin" || !job?.id) return false;
+
+    const editableFields = new Set([
+      "qty",
+      "level_type",
+      "city",
+      "state",
+      "start_text",
+      "details",
+      "language_requirement",
+      "bd_rep",
+      "status",
+      "priority",
+    ]);
+    if (!editableFields.has(field)) return false;
+
+    let value = rawValue;
+    if (typeof value === "string") value = value.trim();
+
+    if (field === "level_type" && !value) {
+      setFeedback({ error: "Level / Type is required.", success: "" });
+      return false;
+    }
+
+    if (field === "qty") {
+      value = Number(value || 0);
+      if (Number.isNaN(value) || value < 0) {
+        setFeedback({ error: "Qty must be a valid number.", success: "" });
+        return false;
+      }
+    }
+
+    const savingKey = `${job.id}:${field}`;
+    setSavingJobFields((prev) => ({ ...prev, [savingKey]: true, [field]: true }));
+    setFeedback({ error: "", success: "" });
+
+    const updatedAt = new Date().toISOString();
+    const payload = {
+      [field]: value === "" ? null : value,
+      updated_at: updatedAt,
+    };
+
+    const { error } = await supabase.from("cts_jobs").update(payload).eq("id", job.id);
+    setSavingJobFields((prev) => ({ ...prev, [savingKey]: false, [field]: false }));
+    if (error) {
+      setFeedback({ error: error.message || "Could not update CTS job.", success: "" });
+      return false;
+    }
+
+    setJobs((prev) => prev.map((item) => (
+      item.id === job.id ? { ...item, ...payload } : item
+    )));
+    setJobCandidates((prev) => prev.map((candidate) => (
+      candidate.cts_job_id === job.id && candidate.job
+        ? { ...candidate, job: { ...candidate.job, ...payload } }
+        : candidate
+    )));
+    setFeedback({ error: "", success: "CTS job updated." });
+    return true;
+  };
+
+  const deleteJob = async (job) => {
+    if (mode !== "admin" || !job?.id) return;
+    const confirmed = window.confirm(
+      `Delete "${job.level_type || "Untitled job"}"? This will remove the project and any assigned candidates. This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingJobIds((prev) => ({ ...prev, [job.id]: true }));
+    setFeedback({ error: "", success: "" });
+    const { error } = await supabase.from("cts_jobs").delete().eq("id", job.id);
+    setDeletingJobIds((prev) => ({ ...prev, [job.id]: false }));
+    if (error) {
+      setFeedback({ error: error.message || "Could not delete CTS job.", success: "" });
+      return;
+    }
+
+    setActiveView({ type: "jobs" });
+    setFeedback({ error: "", success: "CTS job deleted." });
     await load({ preserveFeedback: true });
   };
 
@@ -1673,6 +2074,10 @@ export default function JobsPageTest({ mode = "admin" }) {
                 onCandidateDelete={deleteCandidate}
                 savingIds={savingIds}
                 deletingIds={deletingIds}
+                onJobSaveField={saveJobField}
+                savingJobFields={savingJobFields}
+                onJobDelete={deleteJob}
+                deletingJob={!!deletingJobIds[selectedJob?.id]}
                 searchToolbar={(
                   <SearchToolbar
                     search={search}
