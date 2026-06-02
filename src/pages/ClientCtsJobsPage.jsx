@@ -338,6 +338,14 @@ function formatStatus(status) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function getCandidateStatusPriority(status) {
+  const normalizedStatus = String(status || "sourced").toLowerCase();
+
+  if (normalizedStatus === "placed") return 1;
+  if (normalizedStatus === "sourced") return 2;
+  return 3;
+}
+
 function getJobStatusStyle(status) {
   switch (status) {
     case "filled":
@@ -519,9 +527,20 @@ export default function ClientCtsJobsPage() {
         return matchesSearch && matchesStatus;
       })
       .sort((a, b) => {
+        const statusPriorityA = getCandidateStatusPriority(a.status);
+        const statusPriorityB = getCandidateStatusPriority(b.status);
+        if (statusPriorityA !== statusPriorityB) {
+          return statusPriorityA - statusPriorityB;
+        }
+
+        const updatedAtA = getTimestamp(a.updated_at);
+        const updatedAtB = getTimestamp(b.updated_at);
+        if (updatedAtA !== updatedAtB) {
+          return updatedAtB - updatedAtA;
+        }
+
         const primary = compareValues(getSortValue(a), getSortValue(b));
-        if (primary !== 0) return candidateSort.direction === "asc" ? primary : -primary;
-        return getTimestamp(b.updated_at) - getTimestamp(a.updated_at);
+        return candidateSort.direction === "asc" ? primary : -primary;
       });
   }, [candidates, candidateSearch, candidateStatusFilter, candidateSort]);
 
