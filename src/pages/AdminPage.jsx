@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
@@ -2140,6 +2140,7 @@ function WorkerCard({
 
 export default function AdminPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -2530,17 +2531,40 @@ export default function AdminPage() {
             </div>
 
             <div style={{ display: "grid", gap: 8 }}>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: "clamp(34px, 5vw, 42px)",
-                  lineHeight: 1.08,
-                  letterSpacing: 0,
-                }}
-                className="admin-heading"
-              >
-                Admin Panel
-              </h1>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <h1
+                  style={{
+                    margin: 0,
+                    fontSize: "clamp(34px, 5vw, 42px)",
+                    lineHeight: 1.08,
+                    letterSpacing: 0,
+                  }}
+                  className="admin-heading"
+                >
+                  Admin Panel
+                </h1>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/cts-jobs-test")}
+                  style={{
+                    border: "none",
+                    borderRadius: 14,
+                    background: "#0f172a",
+                    color: "#ffffff",
+                    padding: "12px 16px",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.16)",
+                  }}
+                >
+                  <Briefcase size={16} />
+                  CTS Jobs Test
+                </button>
+              </div>
 
               <p className="admin-subtitle" style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
                 Review, search, filter, sort, and manage workers by workflow status.
