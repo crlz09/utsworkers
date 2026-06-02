@@ -402,6 +402,14 @@ function PageStyles() {
         color: rgba(255,255,255,0.78);
       }
 
+      .job-detail-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
       .job-detail-toggle {
         border: 1px solid #dbeafe;
         border-radius: 14px;
@@ -737,15 +745,18 @@ function JobDetailView({ job, candidates, onOpenJob, searchToolbar }) {
 
   return (
     <>
-      <button
-        className="job-detail-toggle"
-        type="button"
-        onClick={() => setDetailsOpen((prev) => !prev)}
-        aria-expanded={detailsOpen}
-      >
-        <span className="accordion-symbol">{detailsOpen ? "−" : "+"}</span>
-        Job Details
-      </button>
+      <div className="job-detail-header">
+        <h2 className="view-title">{job.level_type || "Untitled job"}</h2>
+        <button
+          className="job-detail-toggle"
+          type="button"
+          onClick={() => setDetailsOpen((prev) => !prev)}
+          aria-expanded={detailsOpen}
+        >
+          <span className="accordion-symbol">{detailsOpen ? "−" : "+"}</span>
+          Job Details
+        </button>
+      </div>
 
       {detailsOpen ? (
         <>
