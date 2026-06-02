@@ -32,6 +32,12 @@ function PageStyles() {
 
       input, select, textarea, button { font: inherit; }
 
+      .uts-topbar {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 60 !important;
+      }
+
       .spin { animation: spin 1s linear infinite; }
       @keyframes spin {
         from { transform: rotate(0deg); }
@@ -104,13 +110,11 @@ function PageStyles() {
       }
 
       .side-nav {
-        position: sticky;
-        top: 98px;
         display: grid;
         gap: 18px;
         padding: 20px;
-        max-height: calc(100vh - 122px);
-        overflow: auto;
+        align-self: start;
+        overflow: visible;
       }
 
       .side-section {
@@ -266,7 +270,8 @@ function PageStyles() {
 
       .table-scroll {
         width: 100%;
-        overflow: auto;
+        overflow-x: auto;
+        overflow-y: visible;
         margin-top: 18px;
         border: 1px solid #dbeafe;
         border-radius: 18px;
@@ -453,7 +458,7 @@ function PageStyles() {
 
       @media (max-width: 1024px) {
         .dashboard-layout { grid-template-columns: 1fr; }
-        .side-nav { position: static; max-height: none; }
+        .side-nav { overflow: visible; }
         .job-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
 
