@@ -9,7 +9,6 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 const InterviewMiniApp = lazy(() => import("./pages/InterviewMiniApp"));
 const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
 const WorkerProfilePage = lazy(() => import("./pages/WorkerProfilePage"));
-const CtsJobsPage = lazy(() => import("./pages/CtsJobsPage"));
 const JobsPageTest = lazy(() => import("./pages/JobsPageTest"));
 const CtsJobDetailPage = lazy(() => import("./pages/CtsJobDetailPage"));
 const ClientCtsJobsPage = lazy(() => import("./pages/ClientCtsJobsPage"));
@@ -95,7 +94,15 @@ export default function App() {
           path="/cts-jobs"
           element={
             <AdminRoute>
-              <CtsJobsPage />
+              <JobsPageTest />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/cts-jobs-test"
+          element={
+            <AdminRoute>
+              <Navigate to="/cts-jobs" replace />
             </AdminRoute>
           }
         />

@@ -2546,7 +2546,7 @@ export default function AdminPage() {
 
                 <button
                   type="button"
-                  onClick={() => navigate("/cts-jobs-test")}
+                  onClick={() => navigate("/cts-jobs")}
                   style={{
                     border: "none",
                     borderRadius: 14,
@@ -2562,7 +2562,7 @@ export default function AdminPage() {
                   }}
                 >
                   <Briefcase size={16} />
-                  CTS Jobs Test
+                  CTS Jobs
                 </button>
               </div>
 
