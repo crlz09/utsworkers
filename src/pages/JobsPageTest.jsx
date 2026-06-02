@@ -7,6 +7,7 @@ import {
   X,
 } from "lucide-react";
 import UtsTopNavBar from "../components/UtsTopNavBar";
+import UtsClientTopBar from "../components/UtsClientTopBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { supabase } from "../lib/supabase";
 
@@ -787,7 +788,7 @@ function JobDetailView({ job, candidates, onOpenJob, searchToolbar }) {
   );
 }
 
-export default function JobsPageTest() {
+export default function JobsPageTest({ mode = "admin" }) {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [jobCandidates, setJobCandidates] = useState([]);
@@ -953,12 +954,13 @@ export default function JobsPageTest() {
   }, [activeView.type]);
 
   const openJobView = (jobId) => setActiveView({ type: "job", jobId });
-  const openJobDetail = (jobId) => navigate(`/cts-jobs/${jobId}`);
+  const isClientMode = mode === "client";
+  const openJobDetail = (jobId) => navigate(isClientMode ? `/client/cts-jobs/${jobId}` : `/cts-jobs/${jobId}`);
 
   return (
     <>
       <PageStyles />
-      <UtsTopNavBar />
+      {isClientMode ? <UtsClientTopBar /> : <UtsTopNavBar />}
       <main className="jobs-test-shell">
         <section className="glass-card hero-card">
           <div className="hero-top">

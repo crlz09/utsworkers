@@ -2544,26 +2544,6 @@ export default function AdminPage() {
                   Admin Panel
                 </h1>
 
-                <button
-                  type="button"
-                  onClick={() => navigate("/cts-jobs")}
-                  style={{
-                    border: "none",
-                    borderRadius: 14,
-                    background: "#0f172a",
-                    color: "#ffffff",
-                    padding: "12px 16px",
-                    fontWeight: 900,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.16)",
-                  }}
-                >
-                  <Briefcase size={16} />
-                  CTS Jobs
-                </button>
               </div>
 
               <p className="admin-subtitle" style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
