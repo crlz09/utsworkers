@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ExternalLink,
@@ -1501,7 +1501,7 @@ export default function JobsPageTest({ mode = "admin" }) {
   const [search, setSearch] = useState("");
   const [candidateStatusFilter, setCandidateStatusFilter] = useState("");
   const [activeView, setActiveView] = useState({ type: "candidate", status: "placed" });
-  const [jobsListOpen, setJobsListOpen] = useState(false);
+  const [jobsListOpen, setJobsListOpen] = useState(true);
   const [jobModalOpen, setJobModalOpen] = useState(false);
   const [jobForm, setJobForm] = useState(EMPTY_JOB_FORM);
   const [savingJob, setSavingJob] = useState(false);
@@ -1935,7 +1935,18 @@ export default function JobsPageTest({ mode = "admin" }) {
     return "";
   }, [activeView.type]);
 
-  const openJobView = (jobId) => setActiveView({ type: "job", jobId });
+  const jobNavRefs = useRef({});
+
+  useEffect(() => {
+    if (activeView.type !== "job" || !jobsListOpen) return;
+    const selectedJobButton = jobNavRefs.current[activeView.jobId];
+    selectedJobButton?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeView, jobsListOpen]);
+
+  const openJobView = (jobId) => {
+    setJobsListOpen(true);
+    setActiveView({ type: "job", jobId });
+  };
   const isClientMode = mode === "client";
 
   return (
@@ -2006,6 +2017,10 @@ export default function JobsPageTest({ mode = "admin" }) {
                     return (
                       <button
                         key={job.id}
+                        ref={(element) => {
+                          if (element) jobNavRefs.current[job.id] = element;
+                          else delete jobNavRefs.current[job.id];
+                        }}
                         type="button"
                         className={`side-nav-btn job-nav-btn ${active ? "active" : ""}`}
                         onClick={() => openJobView(job.id)}
