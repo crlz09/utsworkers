@@ -4,11 +4,6 @@ import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { supabase } from "../lib/supabase";
 
-const SOURCE_OPTIONS = [
-  { value: "client", label: "Client submitted hours" },
-  { value: "admin", label: "Admin hours" },
-];
-
 function InvoiceStyles() {
   return (
     <style>{`
@@ -458,6 +453,14 @@ function formatDate(value) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function startOfWeek(date) {
+  const next = new Date(date);
+  const day = next.getDay() || 7;
+  next.setHours(0, 0, 0, 0);
+  next.setDate(next.getDate() - day + 1);
+  return next;
+}
+
 function parseRate(value) {
   if (value == null) return 0;
   const numeric = Number(String(value).replace(/[^0-9.-]+/g, ""));
@@ -476,10 +479,10 @@ export default function InvoicePage() {
   const [candidates, setCandidates] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [hoursEntries, setHoursEntries] = useState([]);
+  const [weeklyReviews, setWeeklyReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
   const [clientFilter, setClientFilter] = useState("");
-  const [source, setSource] = useState("client");
   const [dateFrom, setDateFrom] = useState(toDateInputValue(startOfMonth(today)));
   const [dateTo, setDateTo] = useState(toDateInputValue(endOfMonth(today)));
   const [invoiceNumber, setInvoiceNumber] = useState(() => `INV-${toDateInputValue(today).replace(/-/g, "")}`);
@@ -492,24 +495,33 @@ export default function InvoicePage() {
     setLoading(true);
     setFeedback({ error: "", success: "" });
 
-    const [jobsRes, candidatesRes, workersRes, hoursRes] = await Promise.all([
+    const reviewStart = toDateInputValue(startOfWeek(new Date(`${dateFrom}T00:00:00`)));
+    const [jobsRes, candidatesRes, workersRes, hoursRes, reviewsRes] = await Promise.all([
       supabase.from("cts_jobs").select("id, level_type, city, state, client_name, job_code").order("created_at", { ascending: false }),
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }),
       supabase.from("workers").select("id, name, phone, email"),
       supabase
         .from("hours_entries")
         .select("*")
+        .eq("source", "admin")
         .gte("work_date", dateFrom)
         .lte("work_date", dateTo),
+      supabase
+        .from("weekly_hours_reviews")
+        .select("*")
+        .eq("status", "approved")
+        .gte("week_start_date", reviewStart)
+        .lte("week_start_date", dateTo),
     ]);
 
-    if (jobsRes.error || candidatesRes.error || workersRes.error || hoursRes.error) {
+    if (jobsRes.error || candidatesRes.error || workersRes.error || hoursRes.error || reviewsRes.error) {
       setFeedback({
         error:
           jobsRes.error?.message ||
           candidatesRes.error?.message ||
           workersRes.error?.message ||
           hoursRes.error?.message ||
+          reviewsRes.error?.message ||
           "Could not load invoice data.",
         success: "",
       });
@@ -517,6 +529,7 @@ export default function InvoicePage() {
       setCandidates([]);
       setWorkers([]);
       setHoursEntries([]);
+      setWeeklyReviews([]);
       setLoading(false);
       return;
     }
@@ -525,8 +538,9 @@ export default function InvoicePage() {
     setCandidates(candidatesRes.data || []);
     setWorkers(workersRes.data || []);
     setHoursEntries(hoursRes.data || []);
+    setWeeklyReviews(reviewsRes.data || []);
     setLoading(false);
-  }, [dateFrom, dateTo, setCandidates, setFeedback, setHoursEntries, setJobs, setLoading, setWorkers]);
+  }, [dateFrom, dateTo, setCandidates, setFeedback, setHoursEntries, setJobs, setLoading, setWeeklyReviews, setWorkers]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());
@@ -535,6 +549,7 @@ export default function InvoicePage() {
   const jobsById = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
   const workersById = useMemo(() => new Map(workers.map((worker) => [worker.id, worker])), [workers]);
   const candidatesById = useMemo(() => new Map(candidates.map((candidate) => [candidate.id, candidate])), [candidates]);
+  const approvedReviewKeys = useMemo(() => new Set(weeklyReviews.map((review) => `${review.cts_job_candidate_id}|${review.week_start_date}`)), [weeklyReviews]);
 
   const clients = useMemo(() => {
     const set = new Set(jobs.map((job) => (job.client_name || "CTS").trim() || "CTS"));
@@ -548,7 +563,8 @@ export default function InvoicePage() {
     const grouped = new Map();
 
     hoursEntries.forEach((entry) => {
-      if (entry.source !== source) return;
+      if (entry.source !== "admin") return;
+      if (!approvedReviewKeys.has(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)) return;
       const hours = Number(entry.regular_hours || 0);
       if (!hours) return;
 
@@ -598,7 +614,7 @@ export default function InvoicePage() {
       if (projectCompare !== 0) return projectCompare;
       return a.candidateName.localeCompare(b.candidateName);
     });
-  }, [candidatesById, hoursEntries, jobsById, search, selectedClient, source, workersById]);
+  }, [approvedReviewKeys, candidatesById, hoursEntries, jobsById, search, selectedClient, workersById]);
 
   const rowsWithTotals = useMemo(
     () => invoiceRows.map((row) => {
@@ -662,7 +678,7 @@ export default function InvoicePage() {
             <div className="invoice-kicker"><FileText size={15} /> Billing</div>
             <h1 className="invoice-title">Invoice</h1>
             <p className="invoice-subtitle">
-              Generate client invoices from tracked CTS job hours. Select a client, date range, and source, then review line items before printing or exporting.
+              Generate client invoices from approved admin timesheets. Select a client and date range, then review line items before printing or exporting.
             </p>
           </div>
           <div className="invoice-actions">
@@ -683,20 +699,13 @@ export default function InvoicePage() {
         <section className="invoice-grid">
           <aside className="invoice-card invoice-controls">
             <h2 className="invoice-panel-title">Invoice Builder</h2>
-            <p className="invoice-muted">Use client submitted hours for customer-facing invoices, or admin hours when you need an internal correction.</p>
+            <p className="invoice-muted">Invoices now use approved admin timesheets only, so draft or pending hours are never billed accidentally.</p>
 
             <div className="invoice-form">
               <div className="invoice-field">
                 <label className="invoice-label">Client</label>
                 <select className="invoice-select" value={selectedClient} onChange={(event) => setClientFilter(event.target.value)}>
                   {clients.length ? clients.map((client) => <option key={client} value={client}>{client}</option>) : <option value="">No clients found</option>}
-                </select>
-              </div>
-
-              <div className="invoice-field">
-                <label className="invoice-label">Hours Source</label>
-                <select className="invoice-select" value={source} onChange={(event) => setSource(event.target.value)}>
-                  {SOURCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
 
@@ -771,7 +780,7 @@ export default function InvoicePage() {
                   <div className="bill-box">
                     <div className="bill-heading">Service Period</div>
                     <div className="bill-main">{formatDate(dateFrom)} – {formatDate(dateTo)}</div>
-                    <div className="invoice-muted">{SOURCE_OPTIONS.find((option) => option.value === source)?.label}</div>
+                    <div className="invoice-muted">Approved admin timesheets only</div>
                   </div>
                 </div>
 
@@ -830,7 +839,7 @@ export default function InvoicePage() {
                   </>
                 ) : (
                   <div style={{ padding: 24 }}>
-                    <div className="empty-state">No invoice lines found for the selected client, date range, and source.</div>
+                    <div className="empty-state">No approved invoice lines found for the selected client and date range.</div>
                   </div>
                 )}
 

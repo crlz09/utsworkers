@@ -3,576 +3,136 @@ import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
-  Briefcase,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle2,
-  Clock3,
   Download,
-  ExternalLink,
   Loader2,
   Printer,
   RefreshCw,
   Save,
-  Users,
-  X,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
-import UtsClientTopBar from "../components/UtsClientTopBar";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const FIRST_ASSIGNMENT_WEEK = "2026-04-06";
-const LOCKED_WEEKS_STORAGE_KEY = "uts_hours_locked_weeks_v1";
-const SOURCE_LABEL = {
-  admin: "Admin",
-  client: "Client",
-};
-const WORKER_HOUR_FIELDS = [
-  "monday_hours",
-  "tuesday_hours",
-  "wednesday_hours",
-  "thursday_hours",
-  "friday_hours",
-  "saturday_hours",
-  "sunday_hours",
+const STATUS_OPTIONS = [
+  { value: "all", label: "All statuses" },
+  { value: "missing", label: "Missing hours" },
+  { value: "pending", label: "Pending" },
+  { value: "reviewed", label: "Reviewed" },
+  { value: "approved", label: "Approved" },
 ];
 
 function PageStyles() {
   return (
     <style>{`
       * { box-sizing: border-box; }
-
-      html,
-      body {
-        margin: 0;
-        width: 100%;
-        overflow-x: hidden;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #eef4ff;
-        color: #0f172a;
-      }
-
+      html, body { margin: 0; width: 100%; overflow-x: hidden; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4ff; color: #0f172a; }
       input, select, button { font: inherit; }
-
       .spin { animation: spin 1s linear infinite; }
-      @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-
-      .hours-shell {
-        width: min(1440px, calc(100% - 48px));
-        margin: 0 auto;
-        padding: 24px 0 48px;
-        display: grid;
-        gap: 20px;
-      }
-
-      .glass-card {
-        min-width: 0;
-        background: rgba(255,255,255,0.9);
-        backdrop-filter: blur(10px);
-        border: 1px solid #dbeafe;
-        border-radius: 28px;
-        box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
-      }
-
-      .hero-card,
-      .week-card {
-        padding: 24px;
-      }
-
-      .hero-top,
-      .week-top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        flex-wrap: wrap;
-      }
-
-      .hero-title {
-        margin: 0;
-        font-size: clamp(34px, 5vw, 44px);
-        line-height: 1.02;
-        font-weight: 900;
-        letter-spacing: 0;
-      }
-
-      .hero-subtitle {
-        margin: 10px 0 0 0;
-        color: #475569;
-        font-size: 16px;
-        line-height: 1.5;
-      }
-
-      .btn,
-      .icon-btn {
-        border: 1px solid #cbd5e1;
-        border-radius: 14px;
-        min-height: 46px;
-        padding: 12px 16px;
-        background: #ffffff;
-        color: #0f172a;
-        font-weight: 900;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        transition: 0.18s ease;
-      }
-
-      .btn.dark {
-        background: #0f172a;
-        color: #ffffff;
-        border-color: #0f172a;
-      }
-
-      .btn:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-      }
-
-      .icon-btn {
-        width: 48px;
-        padding: 0;
-      }
-
-      .filters-row {
-        display: grid;
-        grid-template-columns: minmax(240px, 1fr) minmax(170px, 0.45fr);
-        gap: 10px;
-        align-items: center;
-        width: min(100%, 860px);
-      }
-
-      .input,
-      .select {
-        width: 100%;
-        min-height: 46px;
-        border: 1px solid #cbd5e1;
-        background: #ffffff;
-        color: #0f172a;
-        border-radius: 13px;
-        padding: 12px 14px;
-        outline: none;
-      }
-
-      .summary-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
-        margin-top: 18px;
-      }
-
-      .metric-card {
-        border: 1px solid #dbeafe;
-        border-radius: 18px;
-        padding: 16px;
-        background: rgba(248, 251, 255, 0.92);
-      }
-
-      .metric-label {
-        color: #64748b;
-        font-weight: 900;
-        font-size: 13px;
-      }
-
-      .metric-value {
-        margin-top: 5px;
-        color: #0f172a;
-        font-weight: 950;
-        font-size: 28px;
-      }
-
-      .table-scroll {
-        width: 100%;
-        max-width: 100%;
-        overflow-x: auto;
-        margin-top: 18px;
-      }
-
-      .hours-table {
-        width: 100%;
-        min-width: 1120px;
-        border-collapse: separate;
-        border-spacing: 0;
-      }
-
-      .hours-table th {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        background: #eff6ff;
-        color: #1e3a8a;
-        text-align: left;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        padding: 14px;
-        border-bottom: 1px solid #bfdbfe;
-      }
-
-      .hours-table td {
-        background: #ffffff;
-        border-bottom: 1px solid #e2e8f0;
-        padding: 14px;
-        vertical-align: middle;
-      }
-
-      .hours-table tbody tr:hover td {
-        background: #f8fbff;
-      }
-
-      .sticky-worker {
-        position: sticky;
-        left: 0;
-        z-index: 2;
-        min-width: 260px;
-        max-width: 260px;
-        box-shadow: 10px 0 20px rgba(15, 23, 42, 0.05);
-      }
-
-      thead .sticky-worker {
-        z-index: 4;
-        background: #eff6ff;
-      }
-
-      .hours-input {
-        width: 78px;
-        min-height: 42px;
-        border: 1px solid #cbd5e1;
-        border-radius: 12px;
-        padding: 10px;
-        text-align: center;
-        font-weight: 900;
-        color: #0f172a;
-      }
-
-      .pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 7px 11px;
-        border-radius: 999px;
-        background: #e0f2fe;
-        color: #075985;
-        font-weight: 900;
-        font-size: 12px;
-      }
-
-      .match-cell {
-        border-radius: 14px;
-        padding: 10px 12px;
-        font-weight: 900;
-        min-width: 120px;
-        text-align: center;
-      }
-
-      .match-ok {
-        background: #dcfce7;
-        color: #166534;
-        border: 1px solid #86efac;
-      }
-
-      .match-warn {
-        background: #ffedd5;
-        color: #9a3412;
-        border: 1px solid #fdba74;
-      }
-
-      .match-empty {
-        background: #f1f5f9;
-        color: #64748b;
-        border: 1px solid #cbd5e1;
-      }
-
-      .section-toggle {
-        width: 100%;
-        margin-top: 18px;
-        border: 1px solid #dbeafe;
-        border-radius: 18px;
-        background: rgba(248, 251, 255, 0.92);
-        color: #0f172a;
-        padding: 14px 16px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        text-align: left;
-      }
-
-      .section-toggle-title {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 950;
-        font-size: 18px;
-      }
-
-      .table-total-line {
-        margin-top: 12px;
-        border: 1px solid #dbeafe;
-        border-radius: 16px;
-        background: #f8fbff;
-        padding: 14px 16px;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 14px;
-        color: #0f172a;
-        font-weight: 950;
-      }
-
-      .report-card {
-        padding: 24px;
-      }
-
-      .report-toolbar {
-        margin-top: 18px;
-        display: grid;
-        grid-template-columns: minmax(180px, 0.8fr) minmax(200px, 1fr) minmax(160px, 0.7fr) minmax(160px, 0.7fr);
-        gap: 10px;
-        align-items: center;
-      }
-
-      .report-actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-      }
-
-      .status-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        border-radius: 999px;
-        padding: 7px 10px;
-        font-size: 12px;
-        font-weight: 900;
-        white-space: nowrap;
-      }
-
-      .status-chip.confirmed { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-      .status-chip.pending { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
-      .status-chip.missing { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-      .status-chip.neutral { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-
-      .report-table {
-        width: 100%;
-        min-width: 980px;
-        border-collapse: separate;
-        border-spacing: 0;
-      }
-
-      .report-table th,
-      .report-table td {
-        padding: 14px;
-        border-bottom: 1px solid #e2e8f0;
-        background: #ffffff;
-        text-align: left;
-        vertical-align: middle;
-      }
-
-      .report-table th {
-        background: #eff6ff;
-        color: #1e3a8a;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-
-      .report-table tbody tr:hover td { background: #f8fbff; }
-
-      .report-worker {
-        font-weight: 950;
-        color: #0f172a;
-      }
-
-      .report-meta {
-        margin-top: 4px;
-        color: #64748b;
-        font-size: 12px;
-        line-height: 1.45;
-      }
-
-      .empty-state {
-        border: 1px dashed #cbd5e1;
-        background: rgba(248, 250, 252, 0.9);
-        border-radius: 18px;
-        padding: 18px;
-        color: #475569;
-        font-weight: 800;
-        text-align: center;
-      }
-
-      .feedback-error,
-      .feedback-success {
-        border-radius: 16px;
-        padding: 14px 16px;
-        font-weight: 900;
-      }
-
-      .feedback-error {
-        color: #991b1b;
-        background: #fef2f2;
-        border: 1px solid #fecaca;
-      }
-
-      .feedback-success {
-        color: #166534;
-        background: #f0fdf4;
-        border: 1px solid #bbf7d0;
-      }
-
-      .approval-list {
-        display: grid;
-        gap: 12px;
-        margin-top: 16px;
-      }
-
-      .approval-row {
-        border: 1px solid #dbeafe;
-        border-radius: 16px;
-        background: #f8fbff;
-        padding: 15px;
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 14px;
-        align-items: center;
-      }
-
-      .approval-days {
-        display: flex;
-        gap: 7px;
-        flex-wrap: wrap;
-        margin-top: 10px;
-      }
-
-      .approval-day {
-        min-width: 62px;
-        border: 1px solid #dbeafe;
-        border-radius: 12px;
-        background: #ffffff;
-        padding: 8px;
-        text-align: center;
-      }
-
-      .approval-day-label {
-        color: #64748b;
-        font-size: 11px;
-        font-weight: 950;
-        text-transform: uppercase;
-      }
-
-      .approval-day-value {
-        margin-top: 3px;
-        color: #0f172a;
-        font-weight: 950;
-      }
-
-      @media (max-width: 900px) {
-        .hours-shell {
-          width: min(100% - 24px, 1440px);
-        }
-
-        .hero-card,
-        .week-card {
-          padding: 18px;
-          border-radius: 22px;
-        }
-
-        .filters-row,
-        .report-toolbar,
-        .summary-grid {
-          grid-template-columns: 1fr;
-        }
-
-      }
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      .hours-shell { width: min(1440px, calc(100% - 48px)); margin: 0 auto; padding: 24px 0 48px; display: grid; gap: 18px; }
+      .card { background: rgba(255,255,255,0.92); border: 1px solid #dbeafe; border-radius: 28px; box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08); padding: 24px; }
+      .hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      .kicker { display: inline-flex; align-items: center; gap: 8px; color: #1d4ed8; font-size: 12px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+      .title { margin: 0; font-size: clamp(31px, 4vw, 46px); line-height: 1.05; font-weight: 850; letter-spacing: -0.035em; }
+      .subtitle { margin: 10px 0 0; color: #64748b; font-size: 15px; line-height: 1.65; max-width: 760px; }
+      .btn { border: 1px solid #cbd5e1; border-radius: 14px; min-height: 44px; padding: 10px 14px; background: #fff; color: #0f172a; font-size: 13px; font-weight: 750; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: 0.18s ease; text-decoration: none; }
+      .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08); }
+      .btn.dark { background: #0f172a; border-color: #0f172a; color: #fff; }
+      .btn.success { background: #16a34a; border-color: #16a34a; color: #fff; }
+      .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+      .hero-actions, .row-actions { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .filters { display: grid; grid-template-columns: minmax(220px, 1.2fr) minmax(150px, 0.55fr) minmax(190px, 0.75fr) minmax(150px, 0.55fr); gap: 10px; align-items: end; }
+      .field { display: grid; gap: 7px; }
+      .label { color: #64748b; font-size: 11px; font-weight: 850; letter-spacing: 0.09em; text-transform: uppercase; }
+      .input, .select { width: 100%; min-height: 44px; border: 1px solid #cbd5e1; border-radius: 13px; background: #fff; color: #0f172a; padding: 10px 12px; outline: none; }
+      .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+      .metric { border: 1px solid #dbeafe; border-radius: 18px; background: #f8fbff; padding: 16px; }
+      .metric-label { color: #64748b; font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: 0.08em; }
+      .metric-value { margin-top: 6px; color: #0f172a; font-size: 28px; line-height: 1; font-weight: 850; letter-spacing: -0.035em; }
+      .feedback { border-radius: 16px; padding: 13px 14px; font-weight: 800; }
+      .feedback.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+      .feedback.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+      .table-scroll { width: 100%; overflow-x: auto; }
+      .timesheet-table { width: 100%; min-width: 1220px; border-collapse: separate; border-spacing: 0; }
+      .timesheet-table th { background: #eff6ff; color: #1e3a8a; font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: 0.08em; padding: 12px; text-align: left; border-bottom: 1px solid #dbeafe; }
+      .timesheet-table td { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 12px; vertical-align: middle; }
+      .timesheet-table tbody tr:nth-child(even) td { background: #fbfdff; }
+      .worker-name { font-weight: 850; color: #0f172a; }
+      .worker-meta { margin-top: 4px; color: #64748b; font-size: 12px; line-height: 1.45; }
+      .project { font-weight: 850; color: #0f172a; }
+      .project-meta { margin-top: 4px; color: #64748b; font-size: 12px; }
+      .hours-input { width: 72px; min-height: 38px; border: 1px solid #cbd5e1; border-radius: 12px; padding: 8px; text-align: center; font-weight: 750; color: #0f172a; background: #fff; }
+      .hours-input:disabled { background: #f1f5f9; color: #94a3b8; }
+      .total-cell { text-align: right; font-weight: 850; color: #0f172a; }
+      .status-pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 7px 10px; font-size: 12px; font-weight: 850; white-space: nowrap; }
+      .status-pill.missing { background: #fef2f2; color: #991b1b; }
+      .status-pill.pending { background: #fff7ed; color: #9a3412; }
+      .status-pill.reviewed { background: #eff6ff; color: #1d4ed8; }
+      .status-pill.approved { background: #ecfdf5; color: #047857; }
+      .empty { border: 1px dashed #cbd5e1; background: #f8fafc; color: #475569; border-radius: 20px; padding: 28px; text-align: center; font-weight: 800; }
+      @media (max-width: 980px) { .filters, .summary-grid { grid-template-columns: 1fr 1fr; } .hours-shell { width: min(100% - 28px, 1440px); } }
+      @media (max-width: 640px) { .filters, .summary-grid { grid-template-columns: 1fr; } .card { padding: 18px; border-radius: 22px; } }
+      @media print { .uts-topbar, .hero-actions, .filters-card, .row-actions, .btn, .go-to-top-button { display: none !important; } body { background: #fff; } .hours-shell { width: 100%; padding: 0; } .card { box-shadow: none; border-color: #e2e8f0; } }
     `}</style>
   );
 }
 
+function startOfWeek(date) {
+  const next = new Date(date);
+  const day = next.getDay() || 7;
+  next.setHours(0, 0, 0, 0);
+  next.setDate(next.getDate() - day + 1);
+  return next;
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
 function toDateInputValue(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return date.toISOString().slice(0, 10);
 }
 
 function parseDate(value) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
+  return new Date(`${value}T00:00:00`);
 }
 
-function startOfWeek(date) {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  const day = next.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  next.setDate(next.getDate() + diff);
-  return next;
-}
-
-function addDays(date, count) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + count);
-  return next;
+function formatDate(value) {
+  return parseDate(value).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function formatWeekRange(weekStart) {
   const start = parseDate(weekStart);
   const end = addDays(start, 6);
-  return `${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} - ${end.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
-}
-
-function getTrackedWeekStarts(today = new Date()) {
-  const firstWeek = parseDate(FIRST_ASSIGNMENT_WEEK);
-  const currentWeek = startOfWeek(today);
-  const weeks = [];
-
-  for (let cursor = currentWeek; cursor >= firstWeek; cursor = addDays(cursor, -7)) {
-    weeks.push(toDateInputValue(cursor));
-  }
-
-  return weeks;
-}
-
-function formatDateLabel(dateValue) {
-  return parseDate(dateValue).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 function formatHours(value) {
-  const number = Number(value || 0);
-  return Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
-}
-
-function entryKey(candidateId, date, source) {
-  return `${candidateId}|${date}|${source}`;
+  return Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function normalizeHours(value) {
   if (value === "" || value == null) return "";
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return "";
-  return Math.min(parsed, 24).toString();
+  return String(Math.min(parsed, 24));
 }
 
 function normalizePhoneDigits(value) {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
-  return digits;
+  return String(value || "").replace(/\D/g, "");
 }
 
-function getWeekDays(weekStart) {
-  return Array.from({ length: 7 }, (_, index) => toDateInputValue(addDays(parseDate(weekStart), index)));
+function entryKey(candidateId, workDate) {
+  return `${candidateId}|${workDate}`;
+}
+
+function reviewKey(candidateId, weekStart) {
+  return `${candidateId}|${weekStart}`;
 }
 
 function csvEscape(value) {
@@ -594,405 +154,77 @@ function downloadCsv(filename, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
-function getReportStatus({ adminTotal, clientTotal, hasUnreviewedClientHours }) {
-  if (clientTotal > 0 && adminTotal === 0) return "missing_admin";
-  if (adminTotal > 0 && clientTotal === 0) return "missing_client";
-  if (adminTotal !== clientTotal) return "difference";
-  if (clientTotal > 0 && hasUnreviewedClientHours) return "pending";
-  if (adminTotal > 0 || clientTotal > 0) return "confirmed";
-  return "empty";
+function getRowStatus(total, review) {
+  if (review?.status === "approved") return "approved";
+  if (review?.status === "reviewed") return "reviewed";
+  if (total <= 0) return "missing";
+  return "pending";
 }
 
-function getReportStatusLabel(status) {
-  switch (status) {
-    case "confirmed":
-      return "Confirmed";
-    case "pending":
-      return "Pending review";
-    case "missing_admin":
-      return "Missing admin";
-    case "missing_client":
-      return "Missing worker";
-    case "difference":
-      return "Difference";
-    default:
-      return "No hours";
-  }
+function getStatusLabel(status) {
+  return {
+    missing: "Missing hours",
+    pending: "Pending",
+    reviewed: "Reviewed",
+    approved: "Approved",
+  }[status] || "Pending";
 }
 
-function getReportStatusClass(status) {
-  if (status === "confirmed") return "confirmed";
-  if (status === "pending" || status === "difference") return "pending";
-  if (status === "missing_admin" || status === "missing_client") return "missing";
-  return "neutral";
-}
-
-function compareClass(adminValue, clientValue) {
-  const hasAdmin = adminValue !== "" && adminValue != null;
-  const hasClient = clientValue !== "" && clientValue != null;
-  if (!hasAdmin && !hasClient) return "match-empty";
-  if (Number(adminValue || 0) === Number(clientValue || 0) && hasAdmin && hasClient) return "match-ok";
-  return "match-warn";
-}
-
-function HoursTable({
-  assignments,
-  days,
-  entriesByKey,
-  source,
-  onChange,
-  readOnly = false,
-}) {
-  const tableTotal = assignments.reduce(
-    (sum, assignment) =>
-      sum +
-      days.reduce((daySum, day) => {
-        const value = entriesByKey.get(entryKey(assignment.id, day, source))?.regular_hours ?? "";
-        return daySum + Number(value || 0);
-      }, 0),
-    0
-  );
-
-  return (
-    <>
-      <div className="table-scroll">
-        <table className="hours-table">
-          <thead>
-            <tr>
-              <th className="sticky-worker">Worker / Project</th>
-              {days.map((day, index) => (
-                <th key={day}>
-                  {DAY_LABELS[index]}
-                  <div style={{ marginTop: 4, color: "#64748b", letterSpacing: 0, textTransform: "none" }}>
-                    {formatDateLabel(day)}
-                  </div>
-                </th>
-              ))}
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {assignments.map((assignment) => {
-              const total = days.reduce((sum, day) => {
-                const value = entriesByKey.get(entryKey(assignment.id, day, source))?.regular_hours ?? "";
-                return sum + Number(value || 0);
-              }, 0);
-
-              return (
-                <tr key={assignment.id}>
-                  <td className="sticky-worker">
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-                      <div>
-                        <div style={{ fontWeight: 950, color: "#0f172a" }}>{assignment.name}</div>
-                        <div style={{ marginTop: 5, color: "#64748b", fontSize: 13 }}>
-                          {assignment.project || "Unlinked project"}
-                        </div>
-                      </div>
-                      {assignment.public_profile_slug ? (
-                        <button
-                          className="icon-btn"
-                          type="button"
-                          style={{ width: 38, minHeight: 38, borderRadius: 12 }}
-                          onClick={() => window.open(`/profile/${assignment.public_profile_slug}`, "_blank")}
-                          title="Open worker profile"
-                        >
-                          <ExternalLink size={16} />
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                  {days.map((day) => {
-                    const key = entryKey(assignment.id, day, source);
-                    const current = entriesByKey.get(key)?.regular_hours ?? "";
-
-                    return (
-                      <td key={day}>
-                        <input
-                          className="hours-input"
-                          type="number"
-                          min="0"
-                          max="24"
-                          step="0.25"
-                          value={current}
-                          disabled={readOnly}
-                          onChange={(event) => onChange(assignment, day, normalizeHours(event.target.value))}
-                          aria-label={`${assignment.name} ${DAY_LABELS[days.indexOf(day)]} hours`}
-                        />
-                      </td>
-                    );
-                  })}
-                  <td style={{ fontWeight: 950 }}>{formatHours(total)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div className="table-total-line">
-        <span>Total Hours</span>
-        <span style={{ fontSize: 24 }}>{formatHours(tableTotal)}</span>
-      </div>
-    </>
-  );
-}
-
-function ReconciliationTable({ assignments, days, entriesByKey }) {
-  return (
-    <div className="table-scroll">
-      <table className="hours-table">
-        <thead>
-          <tr>
-            <th className="sticky-worker">Worker / Project</th>
-            {days.map((day, index) => (
-              <th key={day}>
-                {DAY_LABELS[index]}
-                <div style={{ marginTop: 4, color: "#64748b", letterSpacing: 0, textTransform: "none" }}>
-                  {formatDateLabel(day)}
-                </div>
-              </th>
-            ))}
-            <th>Week</th>
-          </tr>
-        </thead>
-        <tbody>
-          {assignments.map((assignment) => {
-            let adminTotal = 0;
-            let clientTotal = 0;
-
-            return (
-              <tr key={assignment.id}>
-                <td className="sticky-worker">
-                  <div style={{ fontWeight: 950, color: "#0f172a" }}>{assignment.name}</div>
-                  <div style={{ marginTop: 5, color: "#64748b", fontSize: 13 }}>{assignment.project || "Unlinked project"}</div>
-                </td>
-                {days.map((day) => {
-                  const adminValue = entriesByKey.get(entryKey(assignment.id, day, "admin"))?.regular_hours ?? "";
-                  const clientValue = entriesByKey.get(entryKey(assignment.id, day, "client"))?.regular_hours ?? "";
-                  adminTotal += Number(adminValue || 0);
-                  clientTotal += Number(clientValue || 0);
-
-                  return (
-                    <td key={day}>
-                      <div className={`match-cell ${compareClass(adminValue, clientValue)}`}>
-                        A {adminValue === "" ? "—" : formatHours(adminValue)}
-                        <br />
-                        C {clientValue === "" ? "—" : formatHours(clientValue)}
-                      </div>
-                    </td>
-                  );
-                })}
-                <td>
-                  <div className={`match-cell ${compareClass(adminTotal, clientTotal)}`}>
-                    A {formatHours(adminTotal)}
-                    <br />
-                    C {formatHours(clientTotal)}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function HoursReport({
-  weeks,
-  selectedWeek,
-  setSelectedWeek,
-  rows,
-  summary,
-  statusFilter,
-  setStatusFilter,
-  onConfirmRow,
-  onConfirmVisible,
-  confirmingKey,
-}) {
-  const exportReport = () => {
-    downloadCsv(
-      `hours-report-${selectedWeek}.csv`,
-      ["Week", "Worker", "Phone", "Email", "Project", "Admin Hours", "Client Hours", "Difference", "Status"],
-      rows.map((row) => [
-        formatWeekRange(selectedWeek),
-        row.name,
-        row.phone,
-        row.email,
-        row.project,
-        formatHours(row.adminTotal),
-        formatHours(row.clientTotal),
-        formatHours(row.difference),
-        getReportStatusLabel(row.status),
-      ])
-    );
-  };
-
-  return (
-    <div className="glass-card report-card">
-      <div className="hero-top">
-        <div>
-          <h2 style={{ margin: 0, fontSize: 26, fontWeight: 950, letterSpacing: "-0.03em" }}>Weekly Hours Report</h2>
-          <p className="hero-subtitle" style={{ marginTop: 8 }}>
-            Review worker-submitted hours, compare them against admin hours, and confirm rows that are ready for billing.
-          </p>
-        </div>
-        <div className="report-actions">
-          <button className="btn" type="button" onClick={exportReport} disabled={!rows.length}>
-            <Download size={16} /> Export CSV
-          </button>
-          <button className="btn" type="button" onClick={() => window.print()} disabled={!rows.length}>
-            <Printer size={16} /> Print
-          </button>
-          <button className="btn dark" type="button" onClick={() => onConfirmVisible(rows)} disabled={!rows.some((row) => row.canConfirm) || !!confirmingKey}>
-            <CheckCircle2 size={16} /> Confirm Visible
-          </button>
-        </div>
-      </div>
-
-      <div className="summary-grid">
-        <div className="metric-card"><div className="metric-label">Pending Review</div><div className="metric-value">{summary.pending}</div></div>
-        <div className="metric-card"><div className="metric-label">Admin Hours</div><div className="metric-value">{formatHours(summary.adminHours)}</div></div>
-        <div className="metric-card"><div className="metric-label">Worker Hours</div><div className="metric-value">{formatHours(summary.clientHours)}</div></div>
-        <div className="metric-card"><div className="metric-label">Differences</div><div className="metric-value">{summary.differences}</div></div>
-      </div>
-
-      <div className="report-toolbar">
-        <select className="select" value={selectedWeek} onChange={(event) => setSelectedWeek(event.target.value)}>
-          {weeks.map((week) => <option key={week} value={week}>{formatWeekRange(week)}</option>)}
-        </select>
-        <select className="select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-          <option value="all">All statuses</option>
-          <option value="pending">Pending review</option>
-          <option value="difference">Differences</option>
-          <option value="missing_admin">Missing admin</option>
-          <option value="missing_client">Missing worker</option>
-          <option value="confirmed">Confirmed</option>
-        </select>
-        <div className="status-chip pending"><AlertTriangle size={14} /> {summary.needsAttention} need attention</div>
-        <div className="status-chip confirmed"><CheckCircle2 size={14} /> {summary.confirmed} confirmed</div>
-      </div>
-
-      {rows.length ? (
-        <div className="table-scroll">
-          <table className="report-table">
-            <thead>
-              <tr>
-                <th>Worker / Project</th>
-                <th style={{ textAlign: "right" }}>Admin</th>
-                <th style={{ textAlign: "right" }}>Worker</th>
-                <th style={{ textAlign: "right" }}>Difference</th>
-                <th>Status</th>
-                <th style={{ textAlign: "right" }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.key}>
-                  <td>
-                    <div className="report-worker">{row.name}</div>
-                    <div className="report-meta">{row.project || "Unlinked project"}{row.projectLocation ? ` · ${row.projectLocation}` : ""}</div>
-                    <div className="report-meta">{[row.phone, row.email].filter(Boolean).join(" · ") || "No contact"}</div>
-                  </td>
-                  <td style={{ textAlign: "right", fontWeight: 950 }}>{formatHours(row.adminTotal)}</td>
-                  <td style={{ textAlign: "right", fontWeight: 950 }}>{formatHours(row.clientTotal)}</td>
-                  <td style={{ textAlign: "right", fontWeight: 950 }}>{formatHours(row.difference)}</td>
-                  <td>
-                    <span className={`status-chip ${getReportStatusClass(row.status)}`}>
-                      {row.status === "confirmed" ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
-                      {getReportStatusLabel(row.status)}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    <button className="btn" type="button" onClick={() => onConfirmRow(row)} disabled={!row.canConfirm || confirmingKey === row.key}>
-                      {confirmingKey === row.key ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />}
-                      Confirm
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="empty-state" style={{ marginTop: 18 }}>No hours report rows match the selected filters.</div>
-      )}
-    </div>
-  );
-}
-
-export default function HoursTrackerPage({ mode = "admin" }) {
+export default function HoursTrackerPage() {
   const navigate = useNavigate();
-  const source = mode === "client" ? "client" : "admin";
-  const isAdmin = mode === "admin";
   const [assignments, setAssignments] = useState([]);
   const [entriesByKey, setEntriesByKey] = useState(new Map());
-  const [pendingWorkerSubmissions, setPendingWorkerSubmissions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [savingWeek, setSavingWeek] = useState("");
-  const [feedback, setFeedback] = useState({ error: "", success: "" });
+  const [draftHours, setDraftHours] = useState(new Map());
+  const [reviewsByKey, setReviewsByKey] = useState(new Map());
+  const [jobs, setJobs] = useState([]);
+  const [weekStart, setWeekStart] = useState(() => toDateInputValue(startOfWeek(new Date())));
   const [search, setSearch] = useState("");
   const [jobFilter, setJobFilter] = useState("");
-  const [reportWeek, setReportWeek] = useState(() => toDateInputValue(startOfWeek(new Date())));
-  const [reportStatusFilter, setReportStatusFilter] = useState("pending");
-  const [confirmingReportKey, setConfirmingReportKey] = useState("");
-  const [openWeeks, setOpenWeeks] = useState(() => new Set([toDateInputValue(startOfWeek(new Date()))]));
-  const [closedEntryWeeks, setClosedEntryWeeks] = useState(() => new Set());
-  const [openReconciliationWeeks, setOpenReconciliationWeeks] = useState(() => new Set());
-  const [lockedWeeks, setLockedWeeks] = useState(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(`${LOCKED_WEEKS_STORAGE_KEY}_${source}`) || "[]"));
-    } catch {
-      return new Set();
-    }
-  });
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState("");
+  const [feedback, setFeedback] = useState({ error: "", success: "" });
 
-  const weeks = useMemo(() => getTrackedWeekStarts(), []);
-
-  const dateRange = useMemo(() => {
-    const starts = weeks.map(parseDate);
-    const min = new Date(Math.min(...starts.map((item) => item.getTime())));
-    const max = addDays(parseDate(weeks[0]), 6);
-    return { start: toDateInputValue(min), end: toDateInputValue(max) };
-  }, [weeks]);
+  const days = useMemo(
+    () => Array.from({ length: 7 }, (_, index) => toDateInputValue(addDays(parseDate(weekStart), index))),
+    [weekStart]
+  );
 
   const load = useCallback(async ({ preserveFeedback = false } = {}) => {
     setLoading(true);
-    if (!preserveFeedback) {
-      setFeedback({ error: "", success: "" });
-    }
+    if (!preserveFeedback) setFeedback({ error: "", success: "" });
 
-    const [candidateRes, jobsRes, workersRes, hoursRes, workerSubmissionsRes] = await Promise.all([
+    const [candidateRes, jobsRes, workersRes, hoursRes, reviewsRes] = await Promise.all([
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
       supabase.from("cts_jobs").select("id, level_type, city, state, status").order("created_at", { ascending: false }),
       supabase.from("workers").select("id, name, phone, email, public_profile_slug"),
       supabase
         .from("hours_entries")
         .select("*")
-        .gte("work_date", dateRange.start)
-        .lte("work_date", dateRange.end),
-      isAdmin
-        ? supabase
-            .from("worker_weekly_hours")
-            .select("*, workers(name, email), cts_jobs(level_type, city, state)")
-            .eq("status", "submitted")
-            .order("submitted_at", { ascending: true, nullsFirst: false })
-        : Promise.resolve({ data: [], error: null }),
+        .eq("source", "admin")
+        .gte("work_date", weekStart)
+        .lte("work_date", days[6]),
+      supabase
+        .from("weekly_hours_reviews")
+        .select("*")
+        .eq("week_start_date", weekStart),
     ]);
 
-    if (candidateRes.error || jobsRes.error || workersRes.error || hoursRes.error || workerSubmissionsRes.error) {
+    if (candidateRes.error || jobsRes.error || workersRes.error || hoursRes.error || reviewsRes.error) {
       setFeedback({
         error:
           candidateRes.error?.message ||
           jobsRes.error?.message ||
           workersRes.error?.message ||
           hoursRes.error?.message ||
-          workerSubmissionsRes.error?.message ||
-          "Could not load hours tracker.",
+          reviewsRes.error?.message ||
+          "Could not load hours control.",
         success: "",
       });
       setAssignments([]);
       setEntriesByKey(new Map());
-      setPendingWorkerSubmissions([]);
+      setDraftHours(new Map());
+      setReviewsByKey(new Map());
       setLoading(false);
       return;
     }
@@ -1000,430 +232,276 @@ export default function HoursTrackerPage({ mode = "admin" }) {
     const jobsById = new Map((jobsRes.data || []).map((job) => [job.id, job]));
     const workersById = new Map((workersRes.data || []).map((worker) => [worker.id, worker]));
 
-    setAssignments(
-      (candidateRes.data || [])
-        .filter((candidate) => String(candidate.candidate_status || "").toLowerCase() === "placed")
-        .map((candidate) => {
-          const job = jobsById.get(candidate.cts_job_id) || {};
-          const worker = workersById.get(candidate.worker_id) || {};
-
-          return {
-            ...candidate,
-            name: candidate.name_snapshot || worker.name || "Unnamed worker",
-            phone: candidate.phone_snapshot || worker.phone || "",
-            email: worker.email || "",
-            public_profile_slug: worker.public_profile_slug || "",
-            project: job.level_type || "",
-            project_location: [job.city, job.state].filter(Boolean).join(", "),
-            job_status: job.status || "",
-            phone_digits: normalizePhoneDigits(candidate.phone_snapshot || worker.phone || ""),
-          };
-        })
-    );
+    const nextAssignments = (candidateRes.data || [])
+      .filter((candidate) => String(candidate.candidate_status || "").toLowerCase() === "placed")
+      .map((candidate) => {
+        const job = jobsById.get(candidate.cts_job_id) || {};
+        const worker = workersById.get(candidate.worker_id) || {};
+        return {
+          ...candidate,
+          name: candidate.name_snapshot || worker.name || "Unnamed worker",
+          phone: candidate.phone_snapshot || worker.phone || "",
+          email: worker.email || "",
+          public_profile_slug: worker.public_profile_slug || "",
+          project: job.level_type || "Untitled project",
+          projectLocation: [job.city, job.state].filter(Boolean).join(", "),
+          jobStatus: job.status || "",
+          phoneDigits: normalizePhoneDigits(candidate.phone_snapshot || worker.phone || ""),
+        };
+      })
+      .sort((a, b) => {
+        const projectCompare = (a.project || "").localeCompare(b.project || "");
+        if (projectCompare !== 0) return projectCompare;
+        return (a.name || "").localeCompare(b.name || "");
+      });
 
     const nextEntries = new Map();
+    const nextDraft = new Map();
     (hoursRes.data || []).forEach((entry) => {
-      nextEntries.set(entryKey(entry.cts_job_candidate_id, entry.work_date, entry.source), entry);
+      const key = entryKey(entry.cts_job_candidate_id, entry.work_date);
+      nextEntries.set(key, entry);
+      nextDraft.set(key, entry.regular_hours == null ? "" : String(entry.regular_hours));
     });
+
+    const nextReviews = new Map();
+    (reviewsRes.data || []).forEach((review) => {
+      nextReviews.set(reviewKey(review.cts_job_candidate_id, review.week_start_date), review);
+    });
+
+    setJobs(jobsRes.data || []);
+    setAssignments(nextAssignments);
     setEntriesByKey(nextEntries);
-    setPendingWorkerSubmissions(workerSubmissionsRes.data || []);
+    setDraftHours(nextDraft);
+    setReviewsByKey(nextReviews);
     setLoading(false);
-  }, [dateRange.end, dateRange.start, isAdmin]);
+  }, [days, weekStart]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());
   }, [load]);
 
-  const filteredAssignments = useMemo(() => {
+  const rows = useMemo(() => assignments.map((assignment) => {
+    const values = {};
+    let total = 0;
+    days.forEach((day) => {
+      const value = draftHours.get(entryKey(assignment.id, day)) ?? "";
+      values[day] = value;
+      total += Number(value || 0);
+    });
+    const review = reviewsByKey.get(reviewKey(assignment.id, weekStart));
+    const status = getRowStatus(total, review);
+    return { assignment, values, total, review, status };
+  }), [assignments, days, draftHours, reviewsByKey, weekStart]);
+
+  const filteredRows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     const phoneNeedle = normalizePhoneDigits(search);
-    return assignments
-      .filter((assignment) => {
-        const haystack = [
-          assignment.name,
-          assignment.phone,
-          assignment.email,
-          assignment.project,
-          assignment.project_location,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        const matchesSearch = !needle || haystack.includes(needle) || (phoneNeedle && assignment.phone_digits?.includes(phoneNeedle));
-        const matchesJob = !jobFilter || assignment.cts_job_id === jobFilter;
-        return matchesSearch && matchesJob;
-      })
-      .sort((a, b) => {
-        const projectCompare = (a.project || "Unlinked project").localeCompare(b.project || "Unlinked project");
-        if (projectCompare !== 0) return projectCompare;
-        return (a.name || "").localeCompare(b.name || "");
-      });
-  }, [assignments, jobFilter, search]);
-
-  const distinctJobs = useMemo(() => {
-    const map = new Map();
-    assignments.forEach((assignment) => {
-      if (assignment.cts_job_id) {
-        map.set(assignment.cts_job_id, assignment.project || "Unlinked project");
-      }
+    return rows.filter(({ assignment, status }) => {
+      const haystack = [assignment.name, assignment.phone, assignment.email, assignment.project, assignment.projectLocation]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const matchesSearch = !needle || haystack.includes(needle) || (phoneNeedle && assignment.phoneDigits.includes(phoneNeedle));
+      const matchesJob = !jobFilter || assignment.cts_job_id === jobFilter;
+      const matchesStatus = statusFilter === "all" || status === statusFilter;
+      return matchesSearch && matchesJob && matchesStatus;
     });
-    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [assignments]);
+  }, [jobFilter, rows, search, statusFilter]);
 
-  const summary = useMemo(() => {
-    let totalHours = 0;
+  const summary = useMemo(() => ({
+    totalHours: rows.reduce((sum, row) => sum + row.total, 0),
+    missing: rows.filter((row) => row.status === "missing").length,
+    pending: rows.filter((row) => row.status === "pending").length,
+    reviewed: rows.filter((row) => row.status === "reviewed").length,
+    approved: rows.filter((row) => row.status === "approved").length,
+  }), [rows]);
 
-    entriesByKey.forEach((entry) => {
-      if (entry.source === source) {
-        totalHours += Number(entry.regular_hours || 0);
-      }
-    });
-
-    return { totalHours };
-  }, [entriesByKey, source]);
-
-  const weeklyReportRows = useMemo(() => {
-    const days = getWeekDays(reportWeek);
-
-    return filteredAssignments
-      .map((assignment) => {
-        let adminTotal = 0;
-        let clientTotal = 0;
-        const clientEntryIds = [];
-        let hasUnreviewedClientHours = false;
-
-        days.forEach((day) => {
-          const adminEntry = entriesByKey.get(entryKey(assignment.id, day, "admin"));
-          const clientEntry = entriesByKey.get(entryKey(assignment.id, day, "client"));
-          adminTotal += Number(adminEntry?.regular_hours || 0);
-          clientTotal += Number(clientEntry?.regular_hours || 0);
-
-          if (clientEntry?.id && Number(clientEntry.regular_hours || 0) > 0) {
-            clientEntryIds.push(clientEntry.id);
-            if (!clientEntry.admin_reviewed_at) hasUnreviewedClientHours = true;
-          }
-        });
-
-        const status = getReportStatus({ adminTotal, clientTotal, hasUnreviewedClientHours });
-        const difference = adminTotal - clientTotal;
-
-        return {
-          key: `${assignment.id}|${reportWeek}`,
-          assignmentId: assignment.id,
-          name: assignment.name,
-          phone: assignment.phone,
-          email: assignment.email,
-          project: assignment.project,
-          projectLocation: assignment.project_location,
-          ctsJobId: assignment.cts_job_id,
-          adminTotal,
-          clientTotal,
-          difference,
-          status,
-          clientEntryIds,
-          canConfirm: clientEntryIds.length > 0 && status !== "confirmed" && status !== "missing_admin" && status !== "missing_client" && Math.abs(difference) < 0.0001,
-        };
-      })
-      .filter((row) => {
-        if (reportStatusFilter === "all") return row.adminTotal > 0 || row.clientTotal > 0;
-        if (reportStatusFilter === "pending") return row.status === "pending" || row.status === "difference" || row.status === "missing_admin" || row.status === "missing_client";
-        return row.status === reportStatusFilter;
-      })
-      .sort((a, b) => {
-        const projectCompare = (a.project || "Unlinked project").localeCompare(b.project || "Unlinked project");
-        if (projectCompare !== 0) return projectCompare;
-        return (a.name || "").localeCompare(b.name || "");
-      });
-  }, [entriesByKey, filteredAssignments, reportStatusFilter, reportWeek]);
-
-  const weeklyReportSummary = useMemo(() => {
-    const allRows = weeklyReportRows;
-    return {
-      adminHours: allRows.reduce((sum, row) => sum + row.adminTotal, 0),
-      clientHours: allRows.reduce((sum, row) => sum + row.clientTotal, 0),
-      pending: allRows.filter((row) => row.status === "pending").length,
-      differences: allRows.filter((row) => row.status === "difference").length,
-      confirmed: allRows.filter((row) => row.status === "confirmed").length,
-      needsAttention: allRows.filter((row) => ["pending", "difference", "missing_admin", "missing_client"].includes(row.status)).length,
-    };
-  }, [weeklyReportRows]);
-
-  const confirmReportRows = async (rows) => {
-    if (!isAdmin) return;
-    const ids = [...new Set(rows.filter((row) => row.canConfirm).flatMap((row) => row.clientEntryIds))];
-    if (!ids.length) return;
-
-    setConfirmingReportKey(rows.length === 1 ? rows[0].key : "visible");
-    setFeedback({ error: "", success: "" });
-    const reviewedAt = new Date().toISOString();
-    const { error } = await supabase
-      .from("hours_entries")
-      .update({ admin_reviewed_at: reviewedAt })
-      .in("id", ids);
-
-    setConfirmingReportKey("");
-    if (error) {
-      setFeedback({ error: error.message || "Could not confirm hours.", success: "" });
-      return;
-    }
-
-    setEntriesByKey((prev) => {
+  const updateHours = (candidateId, workDate, value) => {
+    const normalized = normalizeHours(value);
+    setDraftHours((prev) => {
       const next = new Map(prev);
-      next.forEach((entry, key) => {
-        if (ids.includes(entry.id)) next.set(key, { ...entry, admin_reviewed_at: reviewedAt });
-      });
+      next.set(entryKey(candidateId, workDate), normalized);
       return next;
     });
-    setFeedback({ error: "", success: `${ids.length} worker hour entries confirmed for ${formatWeekRange(reportWeek)}.` });
   };
 
-  const updateLocalEntry = (assignment, workDate, value) => {
-    setEntriesByKey((prev) => {
+  const upsertReview = async (assignment, status) => {
+    const reviewPayload = {
+      cts_job_candidate_id: assignment.id,
+      cts_job_id: assignment.cts_job_id,
+      worker_id: assignment.worker_id,
+      week_start_date: weekStart,
+      status,
+      reviewed_at: status === "reviewed" || status === "approved" ? new Date().toISOString() : null,
+      approved_at: status === "approved" ? new Date().toISOString() : null,
+    };
+
+    const { data, error } = await supabase
+      .from("weekly_hours_reviews")
+      .upsert(reviewPayload, { onConflict: "cts_job_candidate_id,week_start_date" })
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    setReviewsByKey((prev) => {
       const next = new Map(prev);
-      const key = entryKey(assignment.id, workDate, source);
-      const existing = next.get(key);
+      next.set(reviewKey(assignment.id, weekStart), data || reviewPayload);
+      return next;
+    });
+  };
 
-      if (value === "") {
-        if (existing) next.set(key, { ...existing, regular_hours: "" });
-        return next;
+  const saveRow = async (assignment) => {
+    setSavingKey(`save-${assignment.id}`);
+    setFeedback({ error: "", success: "" });
+
+    const upsertRows = [];
+    const deleteIds = [];
+    days.forEach((day) => {
+      const key = entryKey(assignment.id, day);
+      const value = draftHours.get(key) ?? "";
+      const existing = entriesByKey.get(key);
+      if (value === "" || Number(value) === 0) {
+        if (existing?.id) deleteIds.push(existing.id);
+        return;
       }
-
-      next.set(key, {
-        ...(existing || {}),
+      upsertRows.push({
         cts_job_candidate_id: assignment.id,
         cts_job_id: assignment.cts_job_id,
         worker_id: assignment.worker_id,
-        work_date: workDate,
-        week_start_date: toDateInputValue(startOfWeek(parseDate(workDate))),
-        source,
-        regular_hours: value,
-      });
-      return next;
-    });
-  };
-
-  const saveWeek = async (weekStart) => {
-    if (lockedWeeks.has(weekStart)) {
-      setFeedback({ error: `Unlock ${formatWeekRange(weekStart)} before saving changes.`, success: "" });
-      return;
-    }
-
-    setSavingWeek(weekStart);
-    setFeedback({ error: "", success: "" });
-
-    const days = Array.from({ length: 7 }, (_, index) => toDateInputValue(addDays(parseDate(weekStart), index)));
-    const upsertRows = [];
-    const deleteIds = [];
-
-    filteredAssignments.forEach((assignment) => {
-      days.forEach((day) => {
-        const entry = entriesByKey.get(entryKey(assignment.id, day, source));
-        if (!entry) return;
-        if (entry.regular_hours === "" || entry.regular_hours == null) {
-          if (entry.id) deleteIds.push(entry.id);
-          return;
-        }
-
-        upsertRows.push({
-          cts_job_candidate_id: assignment.id,
-          cts_job_id: assignment.cts_job_id,
-          worker_id: assignment.worker_id,
-          work_date: day,
-          week_start_date: weekStart,
-          source,
-          regular_hours: Number(entry.regular_hours || 0),
-          ...(source === "client" ? { admin_reviewed_at: null } : {}),
-        });
+        work_date: day,
+        week_start_date: weekStart,
+        source: "admin",
+        regular_hours: Number(value),
       });
     });
 
-    if (deleteIds.length > 0) {
-      const { error } = await supabase.from("hours_entries").delete().eq("source", source).in("id", deleteIds);
-      if (error) {
-        setFeedback({ error: error.message || "Could not delete cleared hours.", success: "" });
-        setSavingWeek("");
-        return;
+    try {
+      if (deleteIds.length) {
+        const { error } = await supabase.from("hours_entries").delete().eq("source", "admin").in("id", deleteIds);
+        if (error) throw error;
       }
-    }
-
-    if (upsertRows.length > 0) {
-      const { error } = await supabase
-        .from("hours_entries")
-        .upsert(upsertRows, { onConflict: "cts_job_candidate_id,work_date,source" });
-      if (error) {
-        setFeedback({ error: error.message || "Could not save hours.", success: "" });
-        setSavingWeek("");
-        return;
+      if (upsertRows.length) {
+        const { error } = await supabase
+          .from("hours_entries")
+          .upsert(upsertRows, { onConflict: "cts_job_candidate_id,work_date,source" });
+        if (error) throw error;
       }
+      if ((reviewsByKey.get(reviewKey(assignment.id, weekStart))?.status || "pending") === "approved") {
+        await upsertReview(assignment, "pending");
+      }
+      await load({ preserveFeedback: true });
+      setFeedback({ error: "", success: `Hours saved for ${assignment.name}.` });
+    } catch (error) {
+      setFeedback({ error: error.message || "Could not save hours.", success: "" });
+    } finally {
+      setSavingKey("");
     }
-
-    setSavingWeek("");
-    await load({ preserveFeedback: true });
-    setFeedback({ error: "", success: `${SOURCE_LABEL[source]} hours saved for ${formatWeekRange(weekStart)}.` });
   };
 
-  const toggleWeek = (week) => {
-    setOpenWeeks((prev) => {
-      const next = new Set(prev);
-      if (next.has(week)) next.delete(week);
-      else next.add(week);
-      return next;
-    });
-  };
-
-  const toggleEntryWeek = (week) => {
-    setClosedEntryWeeks((prev) => {
-      const next = new Set(prev);
-      if (next.has(week)) next.delete(week);
-      else next.add(week);
-      return next;
-    });
-  };
-
-  const toggleReconciliationWeek = (week) => {
-    setOpenReconciliationWeeks((prev) => {
-      const next = new Set(prev);
-      if (next.has(week)) next.delete(week);
-      else next.add(week);
-      return next;
-    });
-  };
-
-  const toggleLockedWeek = (week) => {
-    setLockedWeeks((prev) => {
-      const next = new Set(prev);
-      if (next.has(week)) next.delete(week);
-      else next.add(week);
-      localStorage.setItem(`${LOCKED_WEEKS_STORAGE_KEY}_${source}`, JSON.stringify([...next]));
-      return next;
-    });
-  };
-
-  const approveWorkerSubmission = async (submission) => {
-    setSavingWeek(submission.week_start_date);
+  const updateStatus = async (assignment, status) => {
+    setSavingKey(`${status}-${assignment.id}`);
     setFeedback({ error: "", success: "" });
-
-    const weekStartDate = parseDate(submission.week_start_date);
-    const rows = WORKER_HOUR_FIELDS.map((field, index) => ({
-      cts_job_candidate_id: submission.cts_job_candidate_id,
-      cts_job_id: submission.cts_job_id,
-      worker_id: submission.worker_id,
-      work_date: toDateInputValue(addDays(weekStartDate, index)),
-      week_start_date: submission.week_start_date,
-      source: "admin",
-      regular_hours: Number(submission[field] || 0),
-      notes: submission.notes || null,
-    }));
-
-    const { error: upsertError } = await supabase
-      .from("hours_entries")
-      .upsert(rows, { onConflict: "cts_job_candidate_id,work_date,source" });
-
-    if (upsertError) {
-      setFeedback({ error: upsertError.message || "Could not approve worker hours.", success: "" });
-      setSavingWeek("");
-      return;
+    try {
+      await upsertReview(assignment, status);
+      setFeedback({ error: "", success: `${assignment.name} marked as ${getStatusLabel(status).toLowerCase()} for ${formatWeekRange(weekStart)}.` });
+    } catch (error) {
+      setFeedback({ error: error.message || "Could not update review status.", success: "" });
+    } finally {
+      setSavingKey("");
     }
-
-    const { error: updateError } = await supabase
-      .from("worker_weekly_hours")
-      .update({
-        status: "approved",
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: (await supabase.auth.getUser()).data.user?.id || null,
-      })
-      .eq("id", submission.id);
-
-    if (updateError) {
-      setFeedback({ error: updateError.message || "Hours were copied, but the submission could not be marked approved.", success: "" });
-      setSavingWeek("");
-      return;
-    }
-
-    await load({ preserveFeedback: true });
-    setSavingWeek("");
-    setFeedback({ error: "", success: `${submission.workers?.name || "Worker"} hours approved and loaded into Hours Tracker.` });
   };
 
-  const rejectWorkerSubmission = async (submission) => {
-    const { error } = await supabase
-      .from("worker_weekly_hours")
-      .update({
-        status: "rejected",
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: (await supabase.auth.getUser()).data.user?.id || null,
-      })
-      .eq("id", submission.id);
-
-    if (error) {
-      setFeedback({ error: error.message || "Could not reject worker hours.", success: "" });
-      return;
+  const saveVisible = async () => {
+    for (const row of filteredRows) {
+      await saveRow(row.assignment);
     }
-
-    await load({ preserveFeedback: true });
-    setFeedback({ error: "", success: `${submission.workers?.name || "Worker"} hours rejected.` });
   };
 
-  const renderTopBar = () => (isAdmin ? <UtsTopNavBar /> : <UtsClientTopBar />);
+  const exportCsv = () => {
+    downloadCsv(
+      `weekly-hours-${weekStart}.csv`,
+      ["Week", "Worker", "Phone", "Email", "Project", ...DAY_LABELS, "Total", "Status"],
+      filteredRows.map(({ assignment, values, total, status }) => [
+        formatWeekRange(weekStart),
+        assignment.name,
+        assignment.phone,
+        assignment.email,
+        assignment.project,
+        ...days.map((day) => formatHours(values[day] || 0)),
+        formatHours(total),
+        getStatusLabel(status),
+      ])
+    );
+  };
 
   return (
     <>
       <PageStyles />
-      {renderTopBar()}
-      <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%)" }}>
-        <div className="hours-shell">
-          <div className="glass-card hero-card">
-            <div className="hero-top">
-              <div>
-                <h1 className="hero-title">{isAdmin ? "Hours Tracker" : "CTS Hours Entry"}</h1>
-                <p className="hero-subtitle">
-                  {isAdmin
-                    ? "Load worker-reported hours and compare them against the client weekly submission."
-                    : "Submit weekly hours for sourced candidates assigned to CTS jobs."}
-                </p>
-              </div>
+      <UtsTopNavBar />
+      <main className="hours-shell">
+        <section className="card hero">
+          <div>
+            <div className="kicker"><CalendarDays size={15} /> Admin Hours Control</div>
+            <h1 className="title">Weekly Timesheets</h1>
+            <p className="subtitle">
+              Track employee hours from one admin dashboard. Enter hours, review each worker week, approve completed timesheets, and send only approved hours to invoicing.
+            </p>
+          </div>
+          <div className="hero-actions">
+            <button className="btn" type="button" onClick={() => navigate("/admin")}> <ArrowLeft size={15} /> Admin Panel</button>
+            <button className="btn" type="button" onClick={() => load()} disabled={loading}>{loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />} Refresh</button>
+            <button className="btn" type="button" onClick={exportCsv} disabled={!filteredRows.length}><Download size={15} /> Export CSV</button>
+          </div>
+        </section>
 
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {!isAdmin ? (
-                  <button className="btn" type="button" onClick={() => navigate("/client/cts-jobs")}>
-                    <ArrowLeft size={16} />
-                    Back to Jobs
-                  </button>
-                ) : null}
-                <button className="btn" type="button" onClick={load}>
-                  <RefreshCw size={16} />
-                  Refresh
-                </button>
-              </div>
+        {feedback.error ? <div className="feedback error">{feedback.error}</div> : null}
+        {feedback.success ? <div className="feedback success">{feedback.success}</div> : null}
+
+        <section className="card filters-card">
+          <div className="filters">
+            <div className="field">
+              <label className="label">Search</label>
+              <input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search worker, phone, email, or project" />
             </div>
-
-            <div style={{ marginTop: 18 }} className="filters-row">
-              <input
-                className="input"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search worker, phone digits, email or project..."
-              />
+            <div className="field">
+              <label className="label">Week</label>
+              <input className="input" type="date" value={weekStart} onChange={(event) => setWeekStart(toDateInputValue(startOfWeek(parseDate(event.target.value))))} />
+            </div>
+            <div className="field">
+              <label className="label">Project</label>
               <select className="select" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
-                <option value="">All Projects</option>
-                {distinctJobs.map(([id, label]) => (
-                  <option key={id} value={id}>{label}</option>
-                ))}
+                <option value="">All projects</option>
+                {jobs.map((job) => <option key={job.id} value={job.id}>{job.level_type || "Untitled project"}</option>)}
               </select>
             </div>
-
-            {isAdmin ? (
-              <div className="summary-grid">
-                <div className="metric-card">
-                  <div className="metric-label">Total Hours</div>
-                  <div className="metric-value">{formatHours(summary.totalHours)}</div>
-                </div>
-              </div>
-            ) : null}
+            <div className="field">
+              <label className="label">Status</label>
+              <select className="select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
           </div>
+        </section>
 
-          {feedback.error ? <div className="feedback-error">{feedback.error}</div> : null}
-          {feedback.success ? <div className="feedback-success">{feedback.success}</div> : null}
+        <section className="summary-grid">
+          <div className="metric"><div className="metric-label">Total Hours</div><div className="metric-value">{formatHours(summary.totalHours)}</div></div>
+          <div className="metric"><div className="metric-label">Pending</div><div className="metric-value">{summary.pending}</div></div>
+          <div className="metric"><div className="metric-label">Reviewed</div><div className="metric-value">{summary.reviewed}</div></div>
+          <div className="metric"><div className="metric-label">Approved</div><div className="metric-value">{summary.approved}</div></div>
+        </section>
+
+        <section className="card">
+          <div className="hero" style={{ marginBottom: 14 }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 24, letterSpacing: "-0.03em" }}>Week of {formatWeekRange(weekStart)}</h2>
+              <p className="subtitle" style={{ marginTop: 6 }}>{filteredRows.length} workers shown · {summary.missing} missing hours</p>
+            </div>
+            <div className="hero-actions">
+              <button className="btn dark" type="button" onClick={saveVisible} disabled={loading || !filteredRows.length || !!savingKey}>
+                {savingKey ? <Loader2 className="spin" size={15} /> : <Save size={15} />} Save Visible
+              </button>
+            </div>
+          </div>
 
           {isAdmin && !loading ? (
             <HoursReport
@@ -1441,129 +519,63 @@ export default function HoursTrackerPage({ mode = "admin" }) {
           ) : null}
 
           {loading ? (
-            <div className="glass-card week-card empty-state">
-              <Loader2 className="spin" size={18} style={{ marginRight: 8, verticalAlign: "middle" }} />
-              Loading hours tracker...
-            </div>
-          ) : filteredAssignments.length === 0 ? (
-            <div className="glass-card week-card empty-state">No assigned candidates found with the current filters.</div>
-          ) : (
-            weeks.map((week) => {
-              const isOpen = openWeeks.has(week);
-              const isEntryOpen = !closedEntryWeeks.has(week);
-              const isReconciliationOpen = openReconciliationWeeks.has(week);
-              const isLocked = lockedWeeks.has(week);
-              const days = Array.from({ length: 7 }, (_, index) => toDateInputValue(addDays(parseDate(week), index)));
-              const weekTotal = filteredAssignments.reduce(
-                (sum, assignment) =>
-                  sum +
-                  days.reduce((daySum, day) => {
-                    const value = entriesByKey.get(entryKey(assignment.id, day, source))?.regular_hours ?? "";
-                    return daySum + Number(value || 0);
-                  }, 0),
-                0
-              );
-
-              return (
-                <div className="glass-card week-card" key={week}>
-                  <div className="week-top">
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <button
-                        className="icon-btn"
-                        type="button"
-                        onClick={() => toggleWeek(week)}
-                        title={isOpen ? "Collapse week" : "Expand week"}
-                        aria-label={isOpen ? "Collapse week" : "Expand week"}
-                      >
-                        {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
-                      <CalendarDays size={20} />
-                      <div>
-                        <div style={{ fontWeight: 950, fontSize: 22 }}>Week of {formatWeekRange(week)}</div>
-                        <div style={{ marginTop: 4, color: "#64748b", fontWeight: 800 }}>
-                          {filteredAssignments.length} candidates · {formatHours(weekTotal)} {SOURCE_LABEL[source].toLowerCase()} hours
-                        </div>
-                      </div>
-                    </div>
-
-                    {isOpen ? (
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <button className="btn" type="button" onClick={() => toggleLockedWeek(week)}>
-                          {isLocked ? <Clock3 size={16} /> : <Save size={16} />}
-                          {isLocked ? "Unlock Week" : "Lock Week"}
-                        </button>
-                        <button className="btn dark" type="button" onClick={() => saveWeek(week)} disabled={savingWeek === week || isLocked}>
-                          {savingWeek === week ? <Loader2 className="spin" size={16} /> : <Save size={16} />}
-                          {isLocked ? "Locked" : "Save Week"}
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="pill">
-                        <Clock3 size={14} />
-                        Collapsed
-                      </span>
-                    )}
-                  </div>
-
-                  {isOpen ? (
-                    <>
-                      <button
-                        className="section-toggle"
-                        type="button"
-                        onClick={() => toggleEntryWeek(week)}
-                        aria-expanded={isEntryOpen}
-                      >
-                        <span className="section-toggle-title">
-                          <Briefcase size={18} />
-                          {SOURCE_LABEL[source]} Hours Entry
-                        </span>
-                        {isEntryOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
-
-                      {isEntryOpen ? (
-                        <HoursTable
-                          assignments={filteredAssignments}
-                          days={days}
-                          entriesByKey={entriesByKey}
-                          source={source}
-                          onChange={updateLocalEntry}
-                          readOnly={isLocked}
-                        />
-                      ) : null}
-
-                      {isAdmin ? (
-                        <>
-                          <button
-                            className="section-toggle"
-                            type="button"
-                            onClick={() => toggleReconciliationWeek(week)}
-                            aria-expanded={isReconciliationOpen}
-                          >
-                            <span className="section-toggle-title">
-                              <Users size={18} />
-                              Reconciliation
-                            </span>
-                            {isReconciliationOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            <div className="empty"><Loader2 className="spin" size={18} /> Loading hours...</div>
+          ) : filteredRows.length ? (
+            <div className="table-scroll">
+              <table className="timesheet-table">
+                <thead>
+                  <tr>
+                    <th>Worker</th>
+                    <th>Project</th>
+                    {days.map((day, index) => <th key={day}>{DAY_LABELS[index]}<div style={{ marginTop: 4, color: "#64748b", fontWeight: 700 }}>{formatDate(day)}</div></th>)}
+                    <th style={{ textAlign: "right" }}>Total</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map(({ assignment, values, total, status }) => (
+                    <tr key={assignment.id}>
+                      <td>
+                        <div className="worker-name">{assignment.name}</div>
+                        <div className="worker-meta">{assignment.phone || "No phone"}{assignment.email ? <><br />{assignment.email}</> : null}</div>
+                      </td>
+                      <td>
+                        <div className="project">{assignment.project}</div>
+                        <div className="project-meta">{assignment.projectLocation || "No location"}</div>
+                      </td>
+                      {days.map((day) => (
+                        <td key={day}>
+                          <input
+                            className="hours-input"
+                            inputMode="decimal"
+                            value={values[day] ?? ""}
+                            onChange={(event) => updateHours(assignment.id, day, event.target.value)}
+                            aria-label={`${assignment.name} ${day} hours`}
+                          />
+                        </td>
+                      ))}
+                      <td className="total-cell">{formatHours(total)}</td>
+                      <td><span className={`status-pill ${status}`}>{status === "approved" ? <CheckCircle2 size={14} /> : null}{getStatusLabel(status)}</span></td>
+                      <td>
+                        <div className="row-actions">
+                          <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey}>
+                            {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
                           </button>
-
-                          {isReconciliationOpen ? (
-                            <>
-                              <p style={{ margin: "8px 0 0", color: "#64748b", fontWeight: 750 }}>
-                                Green means admin and client match. Orange means missing or different hours.
-                              </p>
-                              <ReconciliationTable assignments={filteredAssignments} days={days} entriesByKey={entriesByKey} />
-                            </>
-                          ) : null}
-                        </>
-                      ) : null}
-                    </>
-                  ) : null}
-                </div>
-              );
-            })
+                          <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Reviewed</button>
+                          <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Approve</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="empty">No placed workers match the current filters.</div>
           )}
-        </div>
-      </div>
+        </section>
+      </main>
       <GoToTopButton />
     </>
   );
