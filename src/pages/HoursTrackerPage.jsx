@@ -503,21 +503,6 @@ export default function HoursTrackerPage() {
             </div>
           </div>
 
-          {isAdmin && !loading ? (
-            <HoursReport
-              weeks={weeks}
-              selectedWeek={reportWeek}
-              setSelectedWeek={setReportWeek}
-              rows={weeklyReportRows}
-              summary={weeklyReportSummary}
-              statusFilter={reportStatusFilter}
-              setStatusFilter={setReportStatusFilter}
-              onConfirmRow={(row) => confirmReportRows([row])}
-              onConfirmVisible={confirmReportRows}
-              confirmingKey={confirmingReportKey}
-            />
-          ) : null}
-
           {loading ? (
             <div className="empty"><Loader2 className="spin" size={18} /> Loading hours...</div>
           ) : filteredRows.length ? (

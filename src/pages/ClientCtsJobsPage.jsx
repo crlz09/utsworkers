@@ -3,7 +3,6 @@ import {
   Briefcase,
   ChevronDown,
   ChevronUp,
-  Clock3,
   ExternalLink,
   Loader2,
   Users,
@@ -625,10 +624,6 @@ export default function ClientCtsJobsPage() {
                   Read-only view of sourced candidates and current CTS job orders.
                 </p>
               </div>
-              <button className="client-action-btn" type="button" onClick={() => navigate("/client/hours")}>
-                <Clock3 size={16} />
-                Hours Entry
-              </button>
             </div>
           </div>
 
