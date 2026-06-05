@@ -88,3 +88,37 @@ export function ClientRoute({ children }) {
 
   return children;
 }
+
+export function WorkerRoute({ children }) {
+  const [state, setState] = useState({ checking: true, access: null });
+
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      const access = await getCurrentUserAccess();
+      if (mounted) setState({ checking: false, access });
+    };
+
+    load();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      load();
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  if (state.checking) return <CheckingAccess />;
+  if (!state.access?.user) return <Navigate to="/login" replace />;
+  if (state.access.isAdmin) return <Navigate to="/admin" replace />;
+  if (state.access.isClient) return <Navigate to="/client/cts-jobs" replace />;
+  if (!state.access.isWorker) return <Navigate to="/login" replace />;
+
+  return children;
+}
