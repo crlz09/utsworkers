@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  AlertTriangle,
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
   Download,
   Link2,
   Loader2,
+  Printer,
   RefreshCw,
   Save,
 } from "lucide-react";
