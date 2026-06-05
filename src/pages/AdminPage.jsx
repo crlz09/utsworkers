@@ -2530,17 +2530,20 @@ export default function AdminPage() {
             </div>
 
             <div style={{ display: "grid", gap: 8 }}>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: "clamp(34px, 5vw, 42px)",
-                  lineHeight: 1.08,
-                  letterSpacing: 0,
-                }}
-                className="admin-heading"
-              >
-                Admin Panel
-              </h1>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <h1
+                  style={{
+                    margin: 0,
+                    fontSize: "clamp(34px, 5vw, 42px)",
+                    lineHeight: 1.08,
+                    letterSpacing: 0,
+                  }}
+                  className="admin-heading"
+                >
+                  Admin Panel
+                </h1>
+
+              </div>
 
               <p className="admin-subtitle" style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
                 Review, search, filter, sort, and manage workers by workflow status.
