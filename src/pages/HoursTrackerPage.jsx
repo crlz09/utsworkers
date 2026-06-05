@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Briefcase,
   CalendarDays,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock3,
@@ -12,6 +13,7 @@ import {
   RefreshCw,
   Save,
   Users,
+  X,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
@@ -25,6 +27,15 @@ const SOURCE_LABEL = {
   admin: "Admin",
   client: "Client",
 };
+const WORKER_HOUR_FIELDS = [
+  "monday_hours",
+  "tuesday_hours",
+  "wednesday_hours",
+  "thursday_hours",
+  "friday_hours",
+  "saturday_hours",
+  "sunday_hours",
+];
 
 function PageStyles() {
   return (
@@ -374,6 +385,52 @@ function PageStyles() {
         border: 1px solid #bbf7d0;
       }
 
+      .approval-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .approval-row {
+        border: 1px solid #dbeafe;
+        border-radius: 16px;
+        background: #f8fbff;
+        padding: 15px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: center;
+      }
+
+      .approval-days {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+
+      .approval-day {
+        min-width: 62px;
+        border: 1px solid #dbeafe;
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 8px;
+        text-align: center;
+      }
+
+      .approval-day-label {
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+
+      .approval-day-value {
+        margin-top: 3px;
+        color: #0f172a;
+        font-weight: 950;
+      }
+
       @media (max-width: 900px) {
         .hours-shell,
         .client-topbar-inner {
@@ -388,6 +445,10 @@ function PageStyles() {
 
         .filters-row,
         .summary-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .approval-row {
           grid-template-columns: 1fr;
         }
 
@@ -640,6 +701,7 @@ export default function HoursTrackerPage({ mode = "admin" }) {
   const isAdmin = mode === "admin";
   const [assignments, setAssignments] = useState([]);
   const [entriesByKey, setEntriesByKey] = useState(new Map());
+  const [pendingWorkerSubmissions, setPendingWorkerSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingWeek, setSavingWeek] = useState("");
   const [feedback, setFeedback] = useState({ error: "", success: "" });
@@ -671,7 +733,7 @@ export default function HoursTrackerPage({ mode = "admin" }) {
       setFeedback({ error: "", success: "" });
     }
 
-    const [candidateRes, jobsRes, workersRes, hoursRes] = await Promise.all([
+    const [candidateRes, jobsRes, workersRes, hoursRes, workerSubmissionsRes] = await Promise.all([
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
       supabase.from("cts_jobs").select("id, level_type, city, state, status").order("created_at", { ascending: false }),
       supabase.from("workers").select("id, name, phone, email, public_profile_slug"),
@@ -680,20 +742,29 @@ export default function HoursTrackerPage({ mode = "admin" }) {
         .select("*")
         .gte("work_date", dateRange.start)
         .lte("work_date", dateRange.end),
+      isAdmin
+        ? supabase
+            .from("worker_weekly_hours")
+            .select("*, workers(name, email), cts_jobs(level_type, city, state)")
+            .eq("status", "submitted")
+            .order("submitted_at", { ascending: true, nullsFirst: false })
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
-    if (candidateRes.error || jobsRes.error || workersRes.error || hoursRes.error) {
+    if (candidateRes.error || jobsRes.error || workersRes.error || hoursRes.error || workerSubmissionsRes.error) {
       setFeedback({
         error:
           candidateRes.error?.message ||
           jobsRes.error?.message ||
           workersRes.error?.message ||
           hoursRes.error?.message ||
+          workerSubmissionsRes.error?.message ||
           "Could not load hours tracker.",
         success: "",
       });
       setAssignments([]);
       setEntriesByKey(new Map());
+      setPendingWorkerSubmissions([]);
       setLoading(false);
       return;
     }
@@ -726,8 +797,9 @@ export default function HoursTrackerPage({ mode = "admin" }) {
       nextEntries.set(entryKey(entry.cts_job_candidate_id, entry.work_date, entry.source), entry);
     });
     setEntriesByKey(nextEntries);
+    setPendingWorkerSubmissions(workerSubmissionsRes.data || []);
     setLoading(false);
-  }, [dateRange.end, dateRange.start]);
+  }, [dateRange.end, dateRange.start, isAdmin]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());
@@ -901,6 +973,71 @@ export default function HoursTrackerPage({ mode = "admin" }) {
     });
   };
 
+  const approveWorkerSubmission = async (submission) => {
+    setSavingWeek(submission.week_start_date);
+    setFeedback({ error: "", success: "" });
+
+    const weekStartDate = parseDate(submission.week_start_date);
+    const rows = WORKER_HOUR_FIELDS.map((field, index) => ({
+      cts_job_candidate_id: submission.cts_job_candidate_id,
+      cts_job_id: submission.cts_job_id,
+      worker_id: submission.worker_id,
+      work_date: toDateInputValue(addDays(weekStartDate, index)),
+      week_start_date: submission.week_start_date,
+      source: "admin",
+      regular_hours: Number(submission[field] || 0),
+      notes: submission.notes || null,
+    }));
+
+    const { error: upsertError } = await supabase
+      .from("hours_entries")
+      .upsert(rows, { onConflict: "cts_job_candidate_id,work_date,source" });
+
+    if (upsertError) {
+      setFeedback({ error: upsertError.message || "Could not approve worker hours.", success: "" });
+      setSavingWeek("");
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from("worker_weekly_hours")
+      .update({
+        status: "approved",
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: (await supabase.auth.getUser()).data.user?.id || null,
+      })
+      .eq("id", submission.id);
+
+    if (updateError) {
+      setFeedback({ error: updateError.message || "Hours were copied, but the submission could not be marked approved.", success: "" });
+      setSavingWeek("");
+      return;
+    }
+
+    await load({ preserveFeedback: true });
+    setSavingWeek("");
+    setFeedback({ error: "", success: `${submission.workers?.name || "Worker"} hours approved and loaded into Hours Tracker.` });
+  };
+
+  const rejectWorkerSubmission = async (submission) => {
+    const { error } = await supabase
+      .from("worker_weekly_hours")
+      .update({
+        status: "rejected",
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: (await supabase.auth.getUser()).data.user?.id || null,
+      })
+      .eq("id", submission.id);
+
+    if (error) {
+      setFeedback({ error: error.message || "Could not reject worker hours.", success: "" });
+      return;
+    }
+
+    await load({ preserveFeedback: true });
+    setFeedback({ error: "", success: `${submission.workers?.name || "Worker"} hours rejected.` });
+  };
+
   const renderTopBar = () => (isAdmin ? <UtsTopNavBar /> : <UtsClientTopBar />);
 
   return (
@@ -961,6 +1098,70 @@ export default function HoursTrackerPage({ mode = "admin" }) {
 
           {feedback.error ? <div className="feedback-error">{feedback.error}</div> : null}
           {feedback.success ? <div className="feedback-success">{feedback.success}</div> : null}
+
+          {isAdmin && pendingWorkerSubmissions.length > 0 ? (
+            <div className="glass-card week-card">
+              <div className="week-top">
+                <div>
+                  <div style={{ fontWeight: 950, fontSize: 24 }}>Worker Hours Pending Approval</div>
+                  <div style={{ marginTop: 5, color: "#64748b", fontWeight: 800 }}>
+                    {pendingWorkerSubmissions.length} submitted week{pendingWorkerSubmissions.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <span className="pill">
+                  <Clock3 size={14} />
+                  Review
+                </span>
+              </div>
+
+              <div className="approval-list">
+                {pendingWorkerSubmissions.map((submission) => {
+                  const total = WORKER_HOUR_FIELDS.reduce((sum, field) => sum + Number(submission[field] || 0), 0);
+                  return (
+                    <div className="approval-row" key={submission.id}>
+                      <div>
+                        <div style={{ color: "#0f172a", fontWeight: 950, fontSize: 18 }}>
+                          {submission.workers?.name || "Worker"} · {formatWeekRange(submission.week_start_date)}
+                        </div>
+                        <div style={{ marginTop: 5, color: "#64748b", fontWeight: 800 }}>
+                          {[submission.cts_jobs?.level_type, submission.cts_jobs?.city, submission.cts_jobs?.state, `${formatHours(total)} hours`]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                        <div className="approval-days">
+                          {WORKER_HOUR_FIELDS.map((field, index) => (
+                            <div className="approval-day" key={field}>
+                              <div className="approval-day-label">{DAY_LABELS[index]}</div>
+                              <div className="approval-day-value">{formatHours(submission[field])}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {submission.notes ? (
+                          <div style={{ marginTop: 10, color: "#475569", fontWeight: 750 }}>{submission.notes}</div>
+                        ) : null}
+                      </div>
+
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        <button className="btn" type="button" onClick={() => rejectWorkerSubmission(submission)}>
+                          <X size={16} />
+                          Reject
+                        </button>
+                        <button
+                          className="btn dark"
+                          type="button"
+                          onClick={() => approveWorkerSubmission(submission)}
+                          disabled={savingWeek === submission.week_start_date}
+                        >
+                          {savingWeek === submission.week_start_date ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />}
+                          Accept
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           {loading ? (
             <div className="glass-card week-card empty-state">
