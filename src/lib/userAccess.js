@@ -11,11 +11,13 @@ export async function getCurrentUserAccess() {
       user: null,
       isAdmin: false,
       isClient: false,
+      isWorker: false,
       client: null,
+      worker: null,
     };
   }
 
-  const [adminRes, clientRes] = await Promise.all([
+  const [adminRes, clientRes, workerRes] = await Promise.all([
     supabase
       .from("admin_permissions")
       .select("user_id, can_edit_workers, can_delete_workers")
@@ -27,17 +29,28 @@ export async function getCurrentUserAccess() {
       .eq("user_id", user.id)
       .eq("is_active", true)
       .maybeSingle(),
+    supabase
+      .from("workers")
+      .select("id, name, email")
+      .ilike("email", user.email || "")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const client = clientRes.data || null;
+  const worker = workerRes.data || null;
   const isClient = !!client?.can_view_cts_jobs;
   const isAdmin =
     !!adminRes.data?.can_edit_workers || !!adminRes.data?.can_delete_workers;
+  const isWorker = !!worker?.id;
 
   return {
     user,
     isAdmin,
     isClient,
+    isWorker,
     client,
+    worker,
   };
 }
