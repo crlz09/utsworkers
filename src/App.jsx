@@ -58,6 +58,8 @@ export default function App() {
           }
         />
         <Route path="/profile/:slug" element={<WorkerProfilePage />} />
+        <Route path="/worker/hours" element={<Navigate to="/login" replace />} />
+        <Route path="/workers/hours" element={<Navigate to="/login" replace />} />
         <Route
           path="/client/cts-jobs"
           element={
@@ -79,6 +81,14 @@ export default function App() {
           element={
             <AdminRoute>
               <HoursTrackerPage mode="admin" />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/invoice"
+          element={
+            <AdminRoute>
+              <InvoicePage />
             </AdminRoute>
           }
         />
