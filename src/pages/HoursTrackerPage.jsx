@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Download,
+  Link2,
   Loader2,
   Printer,
   RefreshCw,
@@ -72,6 +73,7 @@ function PageStyles() {
       .status-pill.pending { background: #fff7ed; color: #9a3412; }
       .status-pill.reviewed { background: #eff6ff; color: #1d4ed8; }
       .status-pill.approved { background: #ecfdf5; color: #047857; }
+      .worker-hint { margin-top: 6px; color: #2563eb; font-size: 11px; font-weight: 800; white-space: nowrap; }
       .empty { border: 1px dashed #cbd5e1; background: #f8fafc; color: #475569; border-radius: 20px; padding: 28px; text-align: center; font-weight: 800; }
       @media (max-width: 980px) { .filters, .summary-grid { grid-template-columns: 1fr 1fr; } .hours-shell { width: min(100% - 28px, 1440px); } }
       @media (max-width: 640px) { .filters, .summary-grid { grid-template-columns: 1fr; } .card { padding: 18px; border-radius: 22px; } }
@@ -174,6 +176,7 @@ export default function HoursTrackerPage() {
   const navigate = useNavigate();
   const [assignments, setAssignments] = useState([]);
   const [entriesByKey, setEntriesByKey] = useState(new Map());
+  const [workerEntriesByKey, setWorkerEntriesByKey] = useState(new Map());
   const [draftHours, setDraftHours] = useState(new Map());
   const [reviewsByKey, setReviewsByKey] = useState(new Map());
   const [jobs, setJobs] = useState([]);
@@ -194,7 +197,7 @@ export default function HoursTrackerPage() {
     setLoading(true);
     if (!preserveFeedback) setFeedback({ error: "", success: "" });
 
-    const [candidateRes, jobsRes, workersRes, hoursRes, reviewsRes] = await Promise.all([
+    const [candidateRes, jobsRes, workersRes, hoursRes, workerHoursRes, reviewsRes] = await Promise.all([
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
       supabase.from("cts_jobs").select("id, level_type, city, state, status").order("created_at", { ascending: false }),
       supabase.from("workers").select("id, name, phone, email, public_profile_slug"),
@@ -205,24 +208,32 @@ export default function HoursTrackerPage() {
         .gte("work_date", weekStart)
         .lte("work_date", days[6]),
       supabase
+        .from("hours_entries")
+        .select("*")
+        .eq("source", "client")
+        .gte("work_date", weekStart)
+        .lte("work_date", days[6]),
+      supabase
         .from("weekly_hours_reviews")
         .select("*")
         .eq("week_start_date", weekStart),
     ]);
 
-    if (candidateRes.error || jobsRes.error || workersRes.error || hoursRes.error || reviewsRes.error) {
+    if (candidateRes.error || jobsRes.error || workersRes.error || hoursRes.error || workerHoursRes.error || reviewsRes.error) {
       setFeedback({
         error:
           candidateRes.error?.message ||
           jobsRes.error?.message ||
           workersRes.error?.message ||
           hoursRes.error?.message ||
+          workerHoursRes.error?.message ||
           reviewsRes.error?.message ||
           "Could not load hours control.",
         success: "",
       });
       setAssignments([]);
       setEntriesByKey(new Map());
+      setWorkerEntriesByKey(new Map());
       setDraftHours(new Map());
       setReviewsByKey(new Map());
       setLoading(false);
@@ -263,6 +274,11 @@ export default function HoursTrackerPage() {
       nextDraft.set(key, entry.regular_hours == null ? "" : String(entry.regular_hours));
     });
 
+    const nextWorkerEntries = new Map();
+    (workerHoursRes.data || []).forEach((entry) => {
+      nextWorkerEntries.set(entryKey(entry.cts_job_candidate_id, entry.work_date), entry);
+    });
+
     const nextReviews = new Map();
     (reviewsRes.data || []).forEach((review) => {
       nextReviews.set(reviewKey(review.cts_job_candidate_id, review.week_start_date), review);
@@ -271,6 +287,7 @@ export default function HoursTrackerPage() {
     setJobs(jobsRes.data || []);
     setAssignments(nextAssignments);
     setEntriesByKey(nextEntries);
+    setWorkerEntriesByKey(nextWorkerEntries);
     setDraftHours(nextDraft);
     setReviewsByKey(nextReviews);
     setLoading(false);
@@ -288,10 +305,17 @@ export default function HoursTrackerPage() {
       values[day] = value;
       total += Number(value || 0);
     });
+    const workerValues = {};
+    let workerTotal = 0;
+    days.forEach((day) => {
+      const workerValue = workerEntriesByKey.get(entryKey(assignment.id, day))?.regular_hours ?? "";
+      workerValues[day] = workerValue;
+      workerTotal += Number(workerValue || 0);
+    });
     const review = reviewsByKey.get(reviewKey(assignment.id, weekStart));
     const status = getRowStatus(total, review);
-    return { assignment, values, total, review, status };
-  }), [assignments, days, draftHours, reviewsByKey, weekStart]);
+    return { assignment, values, total, workerValues, workerTotal, review, status };
+  }), [assignments, days, draftHours, reviewsByKey, weekStart, workerEntriesByKey]);
 
   const filteredRows = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -417,6 +441,37 @@ export default function HoursTrackerPage() {
     }
   };
 
+  const generateWorkerLink = async (assignment) => {
+    setSavingKey(`link-${assignment.id}`);
+    setFeedback({ error: "", success: "" });
+    try {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 14);
+      const payload = {
+        cts_job_candidate_id: assignment.id,
+        cts_job_id: assignment.cts_job_id,
+        worker_id: assignment.worker_id,
+        week_start_date: weekStart,
+        expires_at: expiresAt.toISOString(),
+        revoked_at: null,
+      };
+      const { data, error } = await supabase
+        .from("worker_hours_links")
+        .upsert(payload, { onConflict: "cts_job_candidate_id,week_start_date" })
+        .select("token")
+        .single();
+      if (error) throw error;
+
+      const url = `${window.location.origin}/worker/hours/${data.token}`;
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);
+      setFeedback({ error: "", success: `Worker link copied for ${assignment.name}: ${url}` });
+    } catch (error) {
+      setFeedback({ error: error.message || "Could not generate worker link.", success: "" });
+    } finally {
+      setSavingKey("");
+    }
+  };
+
   const exportCsv = () => {
     downloadCsv(
       `weekly-hours-${weekStart}.csv`,
@@ -513,13 +568,14 @@ export default function HoursTrackerPage() {
                     <th>Worker</th>
                     <th>Project</th>
                     {days.map((day, index) => <th key={day}>{DAY_LABELS[index]}<div style={{ marginTop: 4, color: "#64748b", fontWeight: 700 }}>{formatDate(day)}</div></th>)}
-                    <th style={{ textAlign: "right" }}>Total</th>
+                    <th style={{ textAlign: "right" }}>Admin Total</th>
+                    <th style={{ textAlign: "right" }}>Worker Submitted</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map(({ assignment, values, total, status }) => (
+                  {filteredRows.map(({ assignment, values, total, workerValues, workerTotal, status }) => (
                     <tr key={assignment.id}>
                       <td>
                         <div className="worker-name">{assignment.name}</div>
@@ -538,14 +594,19 @@ export default function HoursTrackerPage() {
                             onChange={(event) => updateHours(assignment.id, day, event.target.value)}
                             aria-label={`${assignment.name} ${day} hours`}
                           />
+                          {Number(workerValues[day] || 0) > 0 ? <div className="worker-hint">Worker: {formatHours(workerValues[day])}</div> : null}
                         </td>
                       ))}
                       <td className="total-cell">{formatHours(total)}</td>
+                      <td className="total-cell">{workerTotal > 0 ? formatHours(workerTotal) : "—"}</td>
                       <td><span className={`status-pill ${status}`}>{status === "approved" ? <CheckCircle2 size={14} /> : null}{getStatusLabel(status)}</span></td>
                       <td>
                         <div className="row-actions">
                           <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey}>
                             {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
+                          </button>
+                          <button className="btn" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!savingKey}>
+                            {savingKey === `link-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Link
                           </button>
                           <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Reviewed</button>
                           <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Approve</button>

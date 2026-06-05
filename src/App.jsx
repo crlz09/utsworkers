@@ -14,6 +14,7 @@ const CtsJobDetailPage = lazy(() => import("./pages/CtsJobDetailPage"));
 const ClientCtsJobDetailPage = lazy(() => import("./pages/ClientCtsJobDetailPage"));
 const HoursTrackerPage = lazy(() => import("./pages/HoursTrackerPage"));
 const InvoicePage = lazy(() => import("./pages/InvoicePage"));
+const WorkerHoursPage = lazy(() => import("./pages/WorkerHoursPage"));
 
 function RouteFallback() {
   return (
@@ -58,8 +59,8 @@ export default function App() {
           }
         />
         <Route path="/profile/:slug" element={<WorkerProfilePage />} />
-        <Route path="/worker/hours" element={<Navigate to="/login" replace />} />
-        <Route path="/workers/hours" element={<Navigate to="/login" replace />} />
+        <Route path="/worker/hours/:token" element={<WorkerHoursPage />} />
+        <Route path="/workers/hours/:token" element={<WorkerHoursPage />} />
         <Route
           path="/client/cts-jobs"
           element={
@@ -81,14 +82,6 @@ export default function App() {
           element={
             <AdminRoute>
               <HoursTrackerPage mode="admin" />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/invoice"
-          element={
-            <AdminRoute>
-              <InvoicePage />
             </AdminRoute>
           }
         />

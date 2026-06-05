@@ -1,30 +1,53 @@
-import React, { useMemo, useState } from "react";
-import { ArrowLeft, Briefcase, Loader2, Save } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { CalendarDays, Loader2, Save } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function startOfWeek(date) {
-  const next = new Date(date);
-  const day = next.getDay() || 7;
-  next.setHours(0, 0, 0, 0);
-  next.setDate(next.getDate() - day + 1);
-  return next;
+function PageStyles() {
+  return (
+    <style>{`
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 100%; overflow-x: hidden; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4ff; color: #0f172a; }
+      input, button { font: inherit; }
+      .spin { animation: spin 1s linear infinite; }
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      .worker-topbar { background: linear-gradient(180deg, #1f2c40 0%, #1b2738 100%); border-bottom: 1px solid rgba(255,255,255,0.08); }
+      .worker-topbar-inner { width: min(1080px, calc(100% - 36px)); min-height: 86px; margin: 0 auto; display: flex; align-items: center; }
+      .worker-topbar img { height: 58px; width: auto; display: block; }
+      .worker-shell { width: min(1080px, calc(100% - 36px)); margin: 0 auto; padding: 26px 0 48px; display: grid; gap: 18px; }
+      .card { background: rgba(255,255,255,0.94); border: 1px solid #dbeafe; border-radius: 28px; box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08); padding: 24px; }
+      .hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      .kicker { display: inline-flex; align-items: center; gap: 8px; color: #1d4ed8; font-size: 12px; font-weight: 850; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+      .title { margin: 0; font-size: clamp(31px, 5vw, 48px); line-height: 1.05; font-weight: 900; letter-spacing: -0.04em; }
+      .subtitle { margin: 10px 0 0; color: #64748b; font-size: 15px; line-height: 1.65; max-width: 720px; }
+      .week-pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 999px; padding: 10px 14px; font-weight: 850; }
+      .feedback { border-radius: 16px; padding: 13px 14px; font-weight: 800; }
+      .feedback.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+      .feedback.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+      .table-scroll { width: 100%; overflow-x: auto; }
+      .hours-table { width: 100%; min-width: 780px; border-collapse: separate; border-spacing: 0; }
+      .hours-table th { background: #eff6ff; color: #1e3a8a; font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: 0.08em; padding: 12px; text-align: left; border-bottom: 1px solid #dbeafe; }
+      .hours-table td { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 12px; vertical-align: middle; }
+      .hours-input { width: 82px; min-height: 42px; border: 1px solid #cbd5e1; border-radius: 12px; padding: 8px; text-align: center; font-weight: 850; color: #0f172a; background: #fff; }
+      .total { text-align: right; font-size: 22px; font-weight: 900; letter-spacing: -0.03em; }
+      .btn { border: 1px solid #0f172a; border-radius: 14px; min-height: 46px; padding: 11px 16px; background: #0f172a; color: #fff; font-size: 14px; font-weight: 850; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+      .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+      .empty { border: 1px dashed #cbd5e1; border-radius: 20px; background: #f8fafc; color: #475569; padding: 28px; text-align: center; font-weight: 800; }
+    `}</style>
+  );
+}
+
+function parseDate(value) {
+  return new Date(`${value}T00:00:00`);
 }
 
 function addDays(date, days) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
-}
-
-function toDateInputValue(date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function parseDate(value) {
-  return new Date(`${value}T00:00:00`);
 }
 
 function formatDate(value) {
@@ -41,134 +64,54 @@ function normalizeHours(value) {
   if (value === "" || value == null) return "";
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return "";
-  return Math.min(parsed, 24).toString();
+  return String(Math.min(parsed, 24));
 }
 
-function PageStyles() {
-  return (
-    <style>{`
-      * { box-sizing: border-box; }
-      body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4ff; color: #0f172a; }
-      input, button, select { font: inherit; }
-      .spin { animation: spin 1s linear infinite; }
-      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      .worker-topbar { background: linear-gradient(180deg, #1f2c40 0%, #1b2738 100%); border-bottom: 1px solid rgba(255,255,255,0.08); }
-      .worker-topbar-inner { width: min(1120px, calc(100% - 36px)); min-height: 78px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-      .worker-topbar img { height: 56px; width: auto; display: block; }
-      .worker-shell { width: min(1120px, calc(100% - 36px)); margin: 0 auto; padding: 24px 0 44px; display: grid; gap: 18px; }
-      .card { background: rgba(255,255,255,0.92); border: 1px solid #dbeafe; border-radius: 26px; box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08); padding: 24px; }
-      .hero-title { margin: 0; font-size: clamp(30px, 5vw, 44px); line-height: 1.05; font-weight: 900; letter-spacing: -0.035em; }
-      .subtitle { margin: 10px 0 0; color: #64748b; line-height: 1.6; font-size: 15px; }
-      .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
-      .field { display: grid; gap: 7px; }
-      .label { color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-      .input { width: 100%; min-height: 46px; border: 1px solid #cbd5e1; border-radius: 14px; background: #fff; color: #0f172a; padding: 11px 13px; outline: none; }
-      .btn { border: 1px solid #cbd5e1; border-radius: 14px; min-height: 46px; padding: 11px 14px; background: #fff; color: #0f172a; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-      .btn.dark { background: #0f172a; border-color: #0f172a; color: #fff; }
-      .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-      .feedback { border-radius: 16px; padding: 13px 14px; font-weight: 800; }
-      .feedback.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
-      .feedback.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
-      .table-scroll { width: 100%; overflow-x: auto; margin-top: 18px; }
-      table { width: 100%; min-width: 860px; border-collapse: separate; border-spacing: 0; }
-      th, td { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 14px; text-align: left; vertical-align: middle; }
-      th { background: #eff6ff; color: #1e3a8a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
-      .hours-input { width: 76px; min-height: 40px; border: 1px solid #cbd5e1; border-radius: 12px; padding: 8px; text-align: center; font-weight: 800; }
-      .worker-name { color: #0f172a; font-weight: 900; }
-      .worker-meta { margin-top: 4px; color: #64748b; font-size: 13px; }
-      .empty { border: 1px dashed #cbd5e1; border-radius: 18px; background: #f8fafc; color: #475569; padding: 22px; text-align: center; font-weight: 800; }
-      @media (max-width: 760px) { .form-grid { grid-template-columns: 1fr; } .card { padding: 18px; border-radius: 20px; } }
-    `}</style>
-  );
+function formatHours(value) {
+  return Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function WorkerHoursPage() {
-  const currentWeek = toDateInputValue(startOfWeek(new Date()));
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [weekStart, setWeekStart] = useState(currentWeek);
+  const { token = "" } = useParams();
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [values, setValues] = useState({});
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
 
-  const weekOptions = useMemo(() => Array.from({ length: 10 }, (_, index) => {
-    const week = toDateInputValue(addDays(parseDate(currentWeek), index * -7));
-    return { value: week, label: formatWeekRange(week) };
-  }), [currentWeek]);
-
-  const days = useMemo(() => Array.from({ length: 7 }, (_, index) => toDateInputValue(addDays(parseDate(weekStart), index))), [weekStart]);
-
-  const groupedAssignments = useMemo(() => {
-    const map = new Map();
-    rows.forEach((row) => {
-      const key = row.candidate_id;
-      const current = map.get(key) || {
-        candidateId: row.candidate_id,
-        workerName: row.worker_name,
-        project: row.project,
-        projectLocation: row.project_location,
-        values: {},
-      };
-      current.values[row.work_date] = row.regular_hours ?? "";
-      map.set(key, current);
-    });
-    return [...map.values()];
-  }, [rows]);
-
-  const loadHours = async () => {
-    setFeedback({ error: "", success: "" });
-    if (!email.trim() || !phone.trim()) {
-      setFeedback({ error: "Enter the email and phone number we have on file.", success: "" });
-      return;
-    }
-
+  const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc("get_worker_hours_assignments", {
-      p_email: email.trim(),
-      p_phone: phone.trim(),
-      p_start: weekStart,
-      p_end: days[6],
-    });
+    setFeedback({ error: "", success: "" });
+    const { data, error } = await supabase.rpc("get_worker_hours_link", { p_token: token });
     setLoading(false);
 
     if (error) {
-      setFeedback({ error: error.message || "Could not load your assignments.", success: "" });
       setRows([]);
+      setValues({});
+      setFeedback({ error: error.message || "Could not load this hours link.", success: "" });
       return;
     }
 
     setRows(data || []);
-    if (!data?.length) setFeedback({ error: "No active placed assignments found for this email and phone number.", success: "" });
-  };
+    setValues(Object.fromEntries((data || []).map((row) => [row.work_date, row.regular_hours == null ? "" : String(row.regular_hours)])));
+    if (!data?.length) setFeedback({ error: "This hours link is invalid, expired, or no longer available.", success: "" });
+  }, [token]);
 
-  const updateHours = (candidateId, workDate, value) => {
-    setRows((prev) => prev.map((row) => (
-      row.candidate_id === candidateId && row.work_date === workDate
-        ? { ...row, regular_hours: value }
-        : row
-    )));
-  };
+  useEffect(() => {
+    void Promise.resolve().then(() => load());
+  }, [load]);
+
+  const first = rows[0] || {};
+  const total = useMemo(() => Object.values(values).reduce((sum, value) => sum + Number(value || 0), 0), [values]);
 
   const saveHours = async () => {
-    setFeedback({ error: "", success: "" });
-    const entries = [];
-    groupedAssignments.forEach((assignment) => {
-      days.forEach((day) => {
-        entries.push({
-          candidate_id: assignment.candidateId,
-          work_date: day,
-          regular_hours: assignment.values[day] === "" || assignment.values[day] == null ? null : Number(assignment.values[day] || 0),
-        });
-      });
-    });
-
     setSaving(true);
-    const { error } = await supabase.rpc("upsert_worker_weekly_hours", {
-      p_email: email.trim(),
-      p_phone: phone.trim(),
-      p_entries: entries,
-    });
+    setFeedback({ error: "", success: "" });
+    const entries = rows.map((row) => ({
+      work_date: row.work_date,
+      regular_hours: values[row.work_date] === "" ? null : Number(values[row.work_date] || 0),
+    }));
+    const { error } = await supabase.rpc("submit_worker_hours_link", { p_token: token, p_entries: entries });
     setSaving(false);
 
     if (error) {
@@ -176,8 +119,8 @@ export default function WorkerHoursPage() {
       return;
     }
 
-    setFeedback({ error: "", success: `Hours saved for ${formatWeekRange(weekStart)}.` });
-    await loadHours();
+    setFeedback({ error: "", success: `Hours submitted for ${formatWeekRange(first.week_start_date)}.` });
+    await load();
   };
 
   return (
@@ -189,43 +132,61 @@ export default function WorkerHoursPage() {
         </div>
       </header>
       <main className="worker-shell">
-        <section className="card">
-          <button className="btn" type="button" onClick={() => window.location.href = "/login"}>
-            <ArrowLeft size={16} /> Portal Login
-          </button>
-          <h1 className="hero-title" style={{ marginTop: 18 }}>Worker Hours Entry</h1>
-          <p className="subtitle">Enter the same email and phone number we have on file. Phone formatting does not matter.</p>
-          <div className="form-grid">
-            <div className="field"><label className="label">Email</label><input className="input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></div>
-            <div className="field"><label className="label">Phone</label><input className="input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="(555) 123-4567" /></div>
-            <div className="field"><label className="label">Week</label><select className="input" value={weekStart} onChange={(event) => setWeekStart(event.target.value)}>{weekOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+        <section className="card hero">
+          <div>
+            <div className="kicker"><CalendarDays size={15} /> Worker Hours</div>
+            <h1 className="title">Weekly Hours</h1>
+            <p className="subtitle">
+              Submit your hours from the secure weekly link provided by UTS. Your submission is reviewed by an admin before billing.
+            </p>
           </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-            <button className="btn dark" type="button" onClick={loadHours} disabled={loading}>{loading ? <Loader2 className="spin" size={16} /> : <Briefcase size={16} />} Load Assignments</button>
-            <button className="btn" type="button" onClick={saveHours} disabled={saving || !groupedAssignments.length}>{saving ? <Loader2 className="spin" size={16} /> : <Save size={16} />} Save Hours</button>
-          </div>
+          {first.week_start_date ? <div className="week-pill">{formatWeekRange(first.week_start_date)}</div> : null}
         </section>
 
         {feedback.error ? <div className="feedback error">{feedback.error}</div> : null}
         {feedback.success ? <div className="feedback success">{feedback.success}</div> : null}
 
         <section className="card">
-          <h2 style={{ margin: 0, fontSize: 24 }}>Week of {formatWeekRange(weekStart)}</h2>
-          {groupedAssignments.length ? (
-            <div className="table-scroll">
-              <table>
-                <thead><tr><th>Assignment</th>{days.map((day, index) => <th key={day}>{DAY_LABELS[index]}<div style={{ marginTop: 4, color: "#64748b", letterSpacing: 0, textTransform: "none" }}>{formatDate(day)}</div></th>)}</tr></thead>
-                <tbody>
-                  {groupedAssignments.map((assignment) => (
-                    <tr key={assignment.candidateId}>
-                      <td><div className="worker-name">{assignment.workerName}</div><div className="worker-meta">{assignment.project}{assignment.projectLocation ? ` · ${assignment.projectLocation}` : ""}</div></td>
-                      {days.map((day) => <td key={day}><input className="hours-input" type="number" min="0" max="24" step="0.25" value={assignment.values[day] ?? ""} onChange={(event) => updateHours(assignment.candidateId, day, normalizeHours(event.target.value))} /></td>)}
+          {loading ? (
+            <div className="empty"><Loader2 className="spin" size={18} /> Loading hours link...</div>
+          ) : rows.length ? (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <h2 style={{ margin: 0, fontSize: 24 }}>{first.worker_name}</h2>
+                <p className="subtitle" style={{ marginTop: 6 }}>{[first.project, first.project_location].filter(Boolean).join(" · ")}</p>
+              </div>
+              <div className="table-scroll">
+                <table className="hours-table">
+                  <thead>
+                    <tr>{rows.map((row, index) => <th key={row.work_date}>{DAY_LABELS[index]}<div style={{ marginTop: 4, color: "#64748b" }}>{formatDate(row.work_date)}</div></th>)}<th style={{ textAlign: "right" }}>Total</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      {rows.map((row) => (
+                        <td key={row.work_date}>
+                          <input
+                            className="hours-input"
+                            inputMode="decimal"
+                            value={values[row.work_date] ?? ""}
+                            onChange={(event) => setValues((prev) => ({ ...prev, [row.work_date]: normalizeHours(event.target.value) }))}
+                            aria-label={`${row.work_date} hours`}
+                          />
+                        </td>
+                      ))}
+                      <td className="total">{formatHours(total)}</td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : <div className="empty" style={{ marginTop: 18 }}>Load your assignments to enter hours.</div>}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+                <button className="btn" type="button" onClick={saveHours} disabled={saving}>
+                  {saving ? <Loader2 className="spin" size={16} /> : <Save size={16} />} Submit Hours
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="empty">No active hours link found.</div>
+          )}
         </section>
       </main>
     </>
