@@ -9,11 +9,12 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 const InterviewMiniApp = lazy(() => import("./pages/InterviewMiniApp"));
 const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
 const WorkerProfilePage = lazy(() => import("./pages/WorkerProfilePage"));
-const CtsJobsPage = lazy(() => import("./pages/CtsJobsPage"));
+const JobsPageTest = lazy(() => import("./pages/JobsPageTest"));
 const CtsJobDetailPage = lazy(() => import("./pages/CtsJobDetailPage"));
-const ClientCtsJobsPage = lazy(() => import("./pages/ClientCtsJobsPage"));
 const ClientCtsJobDetailPage = lazy(() => import("./pages/ClientCtsJobDetailPage"));
 const HoursTrackerPage = lazy(() => import("./pages/HoursTrackerPage"));
+const InvoicePage = lazy(() => import("./pages/InvoicePage"));
+const WorkerHoursPage = lazy(() => import("./pages/WorkerHoursPage"));
 
 function RouteFallback() {
   return (
@@ -58,11 +59,13 @@ export default function App() {
           }
         />
         <Route path="/profile/:slug" element={<WorkerProfilePage />} />
+        <Route path="/workers/hours" element={<WorkerHoursPage />} />
+        <Route path="/worker/hours" element={<Navigate to="/workers/hours" replace />} />
         <Route
           path="/client/cts-jobs"
           element={
             <ClientRoute>
-              <ClientCtsJobsPage />
+              <JobsPageTest mode="client" />
             </ClientRoute>
           }
         />
@@ -91,10 +94,26 @@ export default function App() {
           }
         />
         <Route
+          path="/invoice"
+          element={
+            <AdminRoute>
+              <InvoicePage />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="/cts-jobs"
           element={
             <AdminRoute>
-              <CtsJobsPage />
+              <JobsPageTest />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/cts-jobs-test"
+          element={
+            <AdminRoute>
+              <Navigate to="/cts-jobs" replace />
             </AdminRoute>
           }
         />

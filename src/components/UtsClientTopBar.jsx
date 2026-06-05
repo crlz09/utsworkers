@@ -1,9 +1,38 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
 
 export default function UtsClientTopBar() {
+  const [recruiterName, setRecruiterName] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    const loadRecruiterName = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("client_users")
+        .select("recruiter_name")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (active) setRecruiterName(data?.recruiter_name?.trim() || "");
+    };
+
+    loadRecruiterName();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -44,6 +73,23 @@ export default function UtsClientTopBar() {
           display: block;
         }
 
+        .uts-client-actions {
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+
+        .uts-client-welcome {
+          color: rgba(255,255,255,0.86);
+          font-size: 14px;
+          font-weight: 700;
+          line-height: 1.2;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
         .uts-client-logout {
           border: 1px solid rgba(255,255,255,0.2);
           background: rgba(255,255,255,0.06);
@@ -74,6 +120,11 @@ export default function UtsClientTopBar() {
             height: 42px;
           }
 
+          .uts-client-welcome {
+            max-width: 150px;
+            font-size: 12px;
+          }
+
           .uts-client-logout span {
             display: none;
           }
@@ -97,10 +148,13 @@ export default function UtsClientTopBar() {
             <img src={utsLogo} alt="UTS" />
           </a>
 
-          <button className="uts-client-logout" type="button" onClick={handleLogout}>
-            <LogOut size={18} />
-            <span>Logout</span>
-          </button>
+          <div className="uts-client-actions">
+            {recruiterName ? <span className="uts-client-welcome">Welcome, {recruiterName}</span> : null}
+            <button className="uts-client-logout" type="button" onClick={handleLogout}>
+              <LogOut size={18} />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </div>
     </>
