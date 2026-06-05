@@ -59,6 +59,8 @@ export default function App() {
           }
         />
         <Route path="/profile/:slug" element={<WorkerProfilePage />} />
+        <Route path="/workers/hours" element={<WorkerHoursPage />} />
+        <Route path="/worker/hours" element={<Navigate to="/workers/hours" replace />} />
         <Route
           path="/client/cts-jobs"
           element={

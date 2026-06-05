@@ -1,15 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  AlertTriangle,
   ArrowLeft,
   Briefcase,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  CheckCircle2,
   Clock3,
+  Download,
   ExternalLink,
   Loader2,
+  Printer,
   RefreshCw,
   Save,
   Users,
@@ -66,36 +70,6 @@ function PageStyles() {
         padding: 24px 0 48px;
         display: grid;
         gap: 20px;
-      }
-
-      .client-topbar {
-        position: sticky;
-        top: 0;
-        z-index: 40;
-        padding-top: env(safe-area-inset-top);
-        background: linear-gradient(180deg, #1f2c40 0%, #1b2738 100%);
-        border-bottom: 1px solid rgba(255,255,255,0.08);
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
-      }
-
-      .client-topbar-inner {
-        width: min(1440px, calc(100% - 48px));
-        margin: 0 auto;
-        min-height: 74px;
-        display: flex;
-        align-items: center;
-      }
-
-      .client-logo {
-        display: inline-flex;
-        align-items: center;
-        cursor: pointer;
-      }
-
-      .client-logo img {
-        height: 56px;
-        width: auto;
-        display: block;
       }
 
       .glass-card {
@@ -356,6 +330,79 @@ function PageStyles() {
         font-weight: 950;
       }
 
+      .report-card {
+        padding: 24px;
+      }
+
+      .report-toolbar {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: minmax(180px, 0.8fr) minmax(200px, 1fr) minmax(160px, 0.7fr) minmax(160px, 0.7fr);
+        gap: 10px;
+        align-items: center;
+      }
+
+      .report-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+
+      .status-chip.confirmed { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+      .status-chip.pending { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+      .status-chip.missing { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+      .status-chip.neutral { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+      .report-table {
+        width: 100%;
+        min-width: 980px;
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+
+      .report-table th,
+      .report-table td {
+        padding: 14px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #ffffff;
+        text-align: left;
+        vertical-align: middle;
+      }
+
+      .report-table th {
+        background: #eff6ff;
+        color: #1e3a8a;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .report-table tbody tr:hover td { background: #f8fbff; }
+
+      .report-worker {
+        font-weight: 950;
+        color: #0f172a;
+      }
+
+      .report-meta {
+        margin-top: 4px;
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
       .empty-state {
         border: 1px dashed #cbd5e1;
         background: rgba(248, 250, 252, 0.9);
@@ -432,8 +479,7 @@ function PageStyles() {
       }
 
       @media (max-width: 900px) {
-        .hours-shell,
-        .client-topbar-inner {
+        .hours-shell {
           width: min(100% - 24px, 1440px);
         }
 
@@ -444,17 +490,11 @@ function PageStyles() {
         }
 
         .filters-row,
+        .report-toolbar,
         .summary-grid {
           grid-template-columns: 1fr;
         }
 
-        .approval-row {
-          grid-template-columns: 1fr;
-        }
-
-        .client-logo img {
-          height: 42px;
-        }
       }
     `}</style>
   );
@@ -523,6 +563,68 @@ function normalizeHours(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return "";
   return Math.min(parsed, 24).toString();
+}
+
+function normalizePhoneDigits(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
+  return digits;
+}
+
+function getWeekDays(weekStart) {
+  return Array.from({ length: 7 }, (_, index) => toDateInputValue(addDays(parseDate(weekStart), index)));
+}
+
+function csvEscape(value) {
+  const text = String(value ?? "");
+  if (![",", "\n", '"'].some((char) => text.includes(char))) return text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadCsv(filename, headers, rows) {
+  const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function getReportStatus({ adminTotal, clientTotal, hasUnreviewedClientHours }) {
+  if (clientTotal > 0 && adminTotal === 0) return "missing_admin";
+  if (adminTotal > 0 && clientTotal === 0) return "missing_client";
+  if (adminTotal !== clientTotal) return "difference";
+  if (clientTotal > 0 && hasUnreviewedClientHours) return "pending";
+  if (adminTotal > 0 || clientTotal > 0) return "confirmed";
+  return "empty";
+}
+
+function getReportStatusLabel(status) {
+  switch (status) {
+    case "confirmed":
+      return "Confirmed";
+    case "pending":
+      return "Pending review";
+    case "missing_admin":
+      return "Missing admin";
+    case "missing_client":
+      return "Missing worker";
+    case "difference":
+      return "Difference";
+    default:
+      return "No hours";
+  }
+}
+
+function getReportStatusClass(status) {
+  if (status === "confirmed") return "confirmed";
+  if (status === "pending" || status === "difference") return "pending";
+  if (status === "missing_admin" || status === "missing_client") return "missing";
+  return "neutral";
 }
 
 function compareClass(adminValue, clientValue) {
@@ -695,6 +797,129 @@ function ReconciliationTable({ assignments, days, entriesByKey }) {
   );
 }
 
+function HoursReport({
+  weeks,
+  selectedWeek,
+  setSelectedWeek,
+  rows,
+  summary,
+  statusFilter,
+  setStatusFilter,
+  onConfirmRow,
+  onConfirmVisible,
+  confirmingKey,
+}) {
+  const exportReport = () => {
+    downloadCsv(
+      `hours-report-${selectedWeek}.csv`,
+      ["Week", "Worker", "Phone", "Email", "Project", "Admin Hours", "Client Hours", "Difference", "Status"],
+      rows.map((row) => [
+        formatWeekRange(selectedWeek),
+        row.name,
+        row.phone,
+        row.email,
+        row.project,
+        formatHours(row.adminTotal),
+        formatHours(row.clientTotal),
+        formatHours(row.difference),
+        getReportStatusLabel(row.status),
+      ])
+    );
+  };
+
+  return (
+    <div className="glass-card report-card">
+      <div className="hero-top">
+        <div>
+          <h2 style={{ margin: 0, fontSize: 26, fontWeight: 950, letterSpacing: "-0.03em" }}>Weekly Hours Report</h2>
+          <p className="hero-subtitle" style={{ marginTop: 8 }}>
+            Review worker-submitted hours, compare them against admin hours, and confirm rows that are ready for billing.
+          </p>
+        </div>
+        <div className="report-actions">
+          <button className="btn" type="button" onClick={exportReport} disabled={!rows.length}>
+            <Download size={16} /> Export CSV
+          </button>
+          <button className="btn" type="button" onClick={() => window.print()} disabled={!rows.length}>
+            <Printer size={16} /> Print
+          </button>
+          <button className="btn dark" type="button" onClick={() => onConfirmVisible(rows)} disabled={!rows.some((row) => row.canConfirm) || !!confirmingKey}>
+            <CheckCircle2 size={16} /> Confirm Visible
+          </button>
+        </div>
+      </div>
+
+      <div className="summary-grid">
+        <div className="metric-card"><div className="metric-label">Pending Review</div><div className="metric-value">{summary.pending}</div></div>
+        <div className="metric-card"><div className="metric-label">Admin Hours</div><div className="metric-value">{formatHours(summary.adminHours)}</div></div>
+        <div className="metric-card"><div className="metric-label">Worker Hours</div><div className="metric-value">{formatHours(summary.clientHours)}</div></div>
+        <div className="metric-card"><div className="metric-label">Differences</div><div className="metric-value">{summary.differences}</div></div>
+      </div>
+
+      <div className="report-toolbar">
+        <select className="select" value={selectedWeek} onChange={(event) => setSelectedWeek(event.target.value)}>
+          {weeks.map((week) => <option key={week} value={week}>{formatWeekRange(week)}</option>)}
+        </select>
+        <select className="select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="all">All statuses</option>
+          <option value="pending">Pending review</option>
+          <option value="difference">Differences</option>
+          <option value="missing_admin">Missing admin</option>
+          <option value="missing_client">Missing worker</option>
+          <option value="confirmed">Confirmed</option>
+        </select>
+        <div className="status-chip pending"><AlertTriangle size={14} /> {summary.needsAttention} need attention</div>
+        <div className="status-chip confirmed"><CheckCircle2 size={14} /> {summary.confirmed} confirmed</div>
+      </div>
+
+      {rows.length ? (
+        <div className="table-scroll">
+          <table className="report-table">
+            <thead>
+              <tr>
+                <th>Worker / Project</th>
+                <th style={{ textAlign: "right" }}>Admin</th>
+                <th style={{ textAlign: "right" }}>Worker</th>
+                <th style={{ textAlign: "right" }}>Difference</th>
+                <th>Status</th>
+                <th style={{ textAlign: "right" }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.key}>
+                  <td>
+                    <div className="report-worker">{row.name}</div>
+                    <div className="report-meta">{row.project || "Unlinked project"}{row.projectLocation ? ` · ${row.projectLocation}` : ""}</div>
+                    <div className="report-meta">{[row.phone, row.email].filter(Boolean).join(" · ") || "No contact"}</div>
+                  </td>
+                  <td style={{ textAlign: "right", fontWeight: 950 }}>{formatHours(row.adminTotal)}</td>
+                  <td style={{ textAlign: "right", fontWeight: 950 }}>{formatHours(row.clientTotal)}</td>
+                  <td style={{ textAlign: "right", fontWeight: 950 }}>{formatHours(row.difference)}</td>
+                  <td>
+                    <span className={`status-chip ${getReportStatusClass(row.status)}`}>
+                      {row.status === "confirmed" ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                      {getReportStatusLabel(row.status)}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <button className="btn" type="button" onClick={() => onConfirmRow(row)} disabled={!row.canConfirm || confirmingKey === row.key}>
+                      {confirmingKey === row.key ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />}
+                      Confirm
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="empty-state" style={{ marginTop: 18 }}>No hours report rows match the selected filters.</div>
+      )}
+    </div>
+  );
+}
+
 export default function HoursTrackerPage({ mode = "admin" }) {
   const navigate = useNavigate();
   const source = mode === "client" ? "client" : "admin";
@@ -707,6 +932,9 @@ export default function HoursTrackerPage({ mode = "admin" }) {
   const [feedback, setFeedback] = useState({ error: "", success: "" });
   const [search, setSearch] = useState("");
   const [jobFilter, setJobFilter] = useState("");
+  const [reportWeek, setReportWeek] = useState(() => toDateInputValue(startOfWeek(new Date())));
+  const [reportStatusFilter, setReportStatusFilter] = useState("pending");
+  const [confirmingReportKey, setConfirmingReportKey] = useState("");
   const [openWeeks, setOpenWeeks] = useState(() => new Set([toDateInputValue(startOfWeek(new Date()))]));
   const [closedEntryWeeks, setClosedEntryWeeks] = useState(() => new Set());
   const [openReconciliationWeeks, setOpenReconciliationWeeks] = useState(() => new Set());
@@ -788,6 +1016,7 @@ export default function HoursTrackerPage({ mode = "admin" }) {
             project: job.level_type || "",
             project_location: [job.city, job.state].filter(Boolean).join(", "),
             job_status: job.status || "",
+            phone_digits: normalizePhoneDigits(candidate.phone_snapshot || worker.phone || ""),
           };
         })
     );
@@ -807,6 +1036,7 @@ export default function HoursTrackerPage({ mode = "admin" }) {
 
   const filteredAssignments = useMemo(() => {
     const needle = search.trim().toLowerCase();
+    const phoneNeedle = normalizePhoneDigits(search);
     return assignments
       .filter((assignment) => {
         const haystack = [
@@ -819,7 +1049,7 @@ export default function HoursTrackerPage({ mode = "admin" }) {
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
-        const matchesSearch = !needle || haystack.includes(needle);
+        const matchesSearch = !needle || haystack.includes(needle) || (phoneNeedle && assignment.phone_digits?.includes(phoneNeedle));
         const matchesJob = !jobFilter || assignment.cts_job_id === jobFilter;
         return matchesSearch && matchesJob;
       })
@@ -851,6 +1081,101 @@ export default function HoursTrackerPage({ mode = "admin" }) {
 
     return { totalHours };
   }, [entriesByKey, source]);
+
+  const weeklyReportRows = useMemo(() => {
+    const days = getWeekDays(reportWeek);
+
+    return filteredAssignments
+      .map((assignment) => {
+        let adminTotal = 0;
+        let clientTotal = 0;
+        const clientEntryIds = [];
+        let hasUnreviewedClientHours = false;
+
+        days.forEach((day) => {
+          const adminEntry = entriesByKey.get(entryKey(assignment.id, day, "admin"));
+          const clientEntry = entriesByKey.get(entryKey(assignment.id, day, "client"));
+          adminTotal += Number(adminEntry?.regular_hours || 0);
+          clientTotal += Number(clientEntry?.regular_hours || 0);
+
+          if (clientEntry?.id && Number(clientEntry.regular_hours || 0) > 0) {
+            clientEntryIds.push(clientEntry.id);
+            if (!clientEntry.admin_reviewed_at) hasUnreviewedClientHours = true;
+          }
+        });
+
+        const status = getReportStatus({ adminTotal, clientTotal, hasUnreviewedClientHours });
+        const difference = adminTotal - clientTotal;
+
+        return {
+          key: `${assignment.id}|${reportWeek}`,
+          assignmentId: assignment.id,
+          name: assignment.name,
+          phone: assignment.phone,
+          email: assignment.email,
+          project: assignment.project,
+          projectLocation: assignment.project_location,
+          ctsJobId: assignment.cts_job_id,
+          adminTotal,
+          clientTotal,
+          difference,
+          status,
+          clientEntryIds,
+          canConfirm: clientEntryIds.length > 0 && status !== "confirmed" && status !== "missing_admin" && status !== "missing_client" && Math.abs(difference) < 0.0001,
+        };
+      })
+      .filter((row) => {
+        if (reportStatusFilter === "all") return row.adminTotal > 0 || row.clientTotal > 0;
+        if (reportStatusFilter === "pending") return row.status === "pending" || row.status === "difference" || row.status === "missing_admin" || row.status === "missing_client";
+        return row.status === reportStatusFilter;
+      })
+      .sort((a, b) => {
+        const projectCompare = (a.project || "Unlinked project").localeCompare(b.project || "Unlinked project");
+        if (projectCompare !== 0) return projectCompare;
+        return (a.name || "").localeCompare(b.name || "");
+      });
+  }, [entriesByKey, filteredAssignments, reportStatusFilter, reportWeek]);
+
+  const weeklyReportSummary = useMemo(() => {
+    const allRows = weeklyReportRows;
+    return {
+      adminHours: allRows.reduce((sum, row) => sum + row.adminTotal, 0),
+      clientHours: allRows.reduce((sum, row) => sum + row.clientTotal, 0),
+      pending: allRows.filter((row) => row.status === "pending").length,
+      differences: allRows.filter((row) => row.status === "difference").length,
+      confirmed: allRows.filter((row) => row.status === "confirmed").length,
+      needsAttention: allRows.filter((row) => ["pending", "difference", "missing_admin", "missing_client"].includes(row.status)).length,
+    };
+  }, [weeklyReportRows]);
+
+  const confirmReportRows = async (rows) => {
+    if (!isAdmin) return;
+    const ids = [...new Set(rows.filter((row) => row.canConfirm).flatMap((row) => row.clientEntryIds))];
+    if (!ids.length) return;
+
+    setConfirmingReportKey(rows.length === 1 ? rows[0].key : "visible");
+    setFeedback({ error: "", success: "" });
+    const reviewedAt = new Date().toISOString();
+    const { error } = await supabase
+      .from("hours_entries")
+      .update({ admin_reviewed_at: reviewedAt })
+      .in("id", ids);
+
+    setConfirmingReportKey("");
+    if (error) {
+      setFeedback({ error: error.message || "Could not confirm hours.", success: "" });
+      return;
+    }
+
+    setEntriesByKey((prev) => {
+      const next = new Map(prev);
+      next.forEach((entry, key) => {
+        if (ids.includes(entry.id)) next.set(key, { ...entry, admin_reviewed_at: reviewedAt });
+      });
+      return next;
+    });
+    setFeedback({ error: "", success: `${ids.length} worker hour entries confirmed for ${formatWeekRange(reportWeek)}.` });
+  };
 
   const updateLocalEntry = (assignment, workDate, value) => {
     setEntriesByKey((prev) => {
@@ -907,6 +1232,7 @@ export default function HoursTrackerPage({ mode = "admin" }) {
           week_start_date: weekStart,
           source,
           regular_hours: Number(entry.regular_hours || 0),
+          ...(source === "client" ? { admin_reviewed_at: null } : {}),
         });
       });
     });
@@ -1076,7 +1402,7 @@ export default function HoursTrackerPage({ mode = "admin" }) {
                 className="input"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search worker, phone, email or project..."
+                placeholder="Search worker, phone digits, email or project..."
               />
               <select className="select" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
                 <option value="">All Projects</option>
@@ -1099,68 +1425,19 @@ export default function HoursTrackerPage({ mode = "admin" }) {
           {feedback.error ? <div className="feedback-error">{feedback.error}</div> : null}
           {feedback.success ? <div className="feedback-success">{feedback.success}</div> : null}
 
-          {isAdmin && pendingWorkerSubmissions.length > 0 ? (
-            <div className="glass-card week-card">
-              <div className="week-top">
-                <div>
-                  <div style={{ fontWeight: 950, fontSize: 24 }}>Worker Hours Pending Approval</div>
-                  <div style={{ marginTop: 5, color: "#64748b", fontWeight: 800 }}>
-                    {pendingWorkerSubmissions.length} submitted week{pendingWorkerSubmissions.length === 1 ? "" : "s"}
-                  </div>
-                </div>
-                <span className="pill">
-                  <Clock3 size={14} />
-                  Review
-                </span>
-              </div>
-
-              <div className="approval-list">
-                {pendingWorkerSubmissions.map((submission) => {
-                  const total = WORKER_HOUR_FIELDS.reduce((sum, field) => sum + Number(submission[field] || 0), 0);
-                  return (
-                    <div className="approval-row" key={submission.id}>
-                      <div>
-                        <div style={{ color: "#0f172a", fontWeight: 950, fontSize: 18 }}>
-                          {submission.workers?.name || "Worker"} · {formatWeekRange(submission.week_start_date)}
-                        </div>
-                        <div style={{ marginTop: 5, color: "#64748b", fontWeight: 800 }}>
-                          {[submission.cts_jobs?.level_type, submission.cts_jobs?.city, submission.cts_jobs?.state, `${formatHours(total)} hours`]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </div>
-                        <div className="approval-days">
-                          {WORKER_HOUR_FIELDS.map((field, index) => (
-                            <div className="approval-day" key={field}>
-                              <div className="approval-day-label">{DAY_LABELS[index]}</div>
-                              <div className="approval-day-value">{formatHours(submission[field])}</div>
-                            </div>
-                          ))}
-                        </div>
-                        {submission.notes ? (
-                          <div style={{ marginTop: 10, color: "#475569", fontWeight: 750 }}>{submission.notes}</div>
-                        ) : null}
-                      </div>
-
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                        <button className="btn" type="button" onClick={() => rejectWorkerSubmission(submission)}>
-                          <X size={16} />
-                          Reject
-                        </button>
-                        <button
-                          className="btn dark"
-                          type="button"
-                          onClick={() => approveWorkerSubmission(submission)}
-                          disabled={savingWeek === submission.week_start_date}
-                        >
-                          {savingWeek === submission.week_start_date ? <Loader2 className="spin" size={16} /> : <CheckCircle2 size={16} />}
-                          Accept
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+          {isAdmin && !loading ? (
+            <HoursReport
+              weeks={weeks}
+              selectedWeek={reportWeek}
+              setSelectedWeek={setReportWeek}
+              rows={weeklyReportRows}
+              summary={weeklyReportSummary}
+              statusFilter={reportStatusFilter}
+              setStatusFilter={setReportStatusFilter}
+              onConfirmRow={(row) => confirmReportRows([row])}
+              onConfirmVisible={confirmReportRows}
+              confirmingKey={confirmingReportKey}
+            />
           ) : null}
 
           {loading ? (

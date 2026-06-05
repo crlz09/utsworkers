@@ -9,14 +9,6 @@ const SOURCE_OPTIONS = [
   { value: "admin", label: "Admin hours" },
 ];
 
-const UTS_CONTACT = {
-  company: "UNIVERSAL TALENT SOURCE LLC",
-  emailPrimary: "cmolina@universaltalentsource.com",
-  phonePrimary: "(863) 254-1402",
-  emailSecondary: "ealana@universaltalentsource.com",
-  phoneSecondary: "(317) 516-8043",
-};
-
 function InvoiceStyles() {
   return (
     <style>{`
@@ -202,22 +194,6 @@ function InvoiceStyles() {
         box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08);
       }
 
-      .invoice-check {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        color: #334155;
-        font-size: 13px;
-        font-weight: 750;
-        user-select: none;
-      }
-
-      .invoice-check input {
-        width: 18px;
-        height: 18px;
-        accent-color: #0f172a;
-      }
-
       .invoice-date-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -261,80 +237,61 @@ function InvoiceStyles() {
 
       .invoice-document {
         background: #ffffff;
-        border: 1px solid #d7dde5;
-        border-radius: 6px;
+        border: 1px solid #dbeafe;
+        border-radius: 24px;
         overflow: hidden;
-        padding: 52px 34px 34px;
-        color: #050505;
       }
 
       .invoice-doc-header {
-        display: grid;
-        grid-template-columns: minmax(220px, 1fr) minmax(220px, 370px);
-        gap: 36px;
-        align-items: start;
-        padding: 0 54px 12px;
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        flex-wrap: wrap;
+        padding: 24px;
+        border-bottom: 1px solid #eef2f7;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
       }
 
       .invoice-doc-title {
         margin: 0;
-        font-size: 20px;
-        font-weight: 800;
-        letter-spacing: 0;
+        font-size: 30px;
+        font-weight: 850;
+        letter-spacing: -0.04em;
       }
 
       .invoice-doc-meta {
         display: grid;
-        grid-template-columns: 140px 1fr;
-        gap: 7px 18px;
-        color: #050505;
-        font-size: 15px;
-        line-height: 1.15;
+        gap: 5px;
+        text-align: right;
+        color: #64748b;
+        font-size: 13px;
       }
 
       .invoice-bill-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 24px;
-        margin: 0 0 40px;
-        padding: 28px 54px;
-        background: #eaf2fb;
-        border: none;
+        gap: 18px;
+        padding: 22px 24px;
+        border-bottom: 1px solid #eef2f7;
       }
 
       .bill-box {
         display: grid;
-        gap: 8px;
+        gap: 6px;
       }
 
       .bill-heading {
-        color: #050505;
-        font-size: 15px;
+        color: #64748b;
+        font-size: 11px;
         font-weight: 800;
-        letter-spacing: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
       }
 
       .bill-main {
-        color: #050505;
-        font-size: 15px;
-        font-weight: 400;
-        line-height: 1.45;
-      }
-
-      .bill-main strong {
-        font-weight: 800;
-      }
-
-      .uts-logo {
-        display: block;
-        width: min(100%, 310px);
-        margin-left: auto;
-      }
-
-      .uts-contact {
-        text-align: right;
-        font-size: 15px;
-        line-height: 1.45;
+        color: #0f172a;
+        font-size: 17px;
+        font-weight: 750;
       }
 
       .invoice-table-wrap {
@@ -344,47 +301,38 @@ function InvoiceStyles() {
 
       .invoice-table {
         width: 100%;
-        min-width: 920px;
+        min-width: 860px;
         border-collapse: collapse;
-        table-layout: fixed;
-        border: 2px solid #111111;
       }
 
       .invoice-table th,
       .invoice-table td {
-        padding: 4px 4px;
-        border: 2px solid #111111;
+        padding: 14px 16px;
+        border-bottom: 1px solid #eef2f7;
         text-align: left;
         vertical-align: middle;
-        color: #050505;
-        font-size: 14px;
-        line-height: 1.15;
       }
 
       .invoice-table th {
-        background: #d9d9d9;
-        color: #050505;
-        font-size: 14px;
+        background: #f8fbff;
+        color: #334155;
+        font-size: 11px;
         font-weight: 800;
-        text-transform: none;
-        letter-spacing: 0;
-      }
-
-      .invoice-table tbody tr:nth-child(odd) td {
-        background: #f3f3f3;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
       }
 
       .line-primary {
-        color: #050505;
+        color: #0f172a;
         font-size: 14px;
-        font-weight: 400;
+        font-weight: 750;
       }
 
       .line-secondary {
-        margin-top: 3px;
-        color: #050505;
-        font-size: 14px;
-        line-height: 1.15;
+        margin-top: 4px;
+        color: #94a3b8;
+        font-size: 12px;
+        line-height: 1.45;
       }
 
       .rate-input {
@@ -400,45 +348,31 @@ function InvoiceStyles() {
       .invoice-total-panel {
         display: grid;
         justify-content: end;
-        padding: 26px 0 0;
+        padding: 20px 24px 24px;
       }
 
       .total-box {
-        min-width: 420px;
+        min-width: 320px;
         display: grid;
-        gap: 0;
+        gap: 10px;
       }
 
       .total-row {
-        display: grid;
-        grid-template-columns: 1fr 100px 140px;
-        gap: 12px;
-        color: #050505;
-        font-size: 15px;
-        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        color: #475569;
+        font-size: 14px;
       }
 
       .total-row.grand {
-        margin-top: 2px;
-        padding-top: 0;
-        border-top: none;
-        color: #050505;
-        font-size: 16px;
-        font-weight: 800;
-        letter-spacing: 0;
-      }
-
-      .total-label {
-        text-align: right;
-        font-weight: 800;
-      }
-
-      .total-qty {
-        text-align: right;
-      }
-
-      .total-amount {
-        text-align: right;
+        margin-top: 8px;
+        padding-top: 14px;
+        border-top: 1px solid #cbd5e1;
+        color: #0f172a;
+        font-size: 22px;
+        font-weight: 850;
+        letter-spacing: -0.03em;
       }
 
       .empty-state {
@@ -517,33 +451,11 @@ function formatHours(value) {
   });
 }
 
-function formatQty(item) {
-  if (item.kind === "placement") {
-    return Number(item.qty || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
-  }
-  return formatHours(item.qty);
-}
-
-function formatCount(value) {
-  return Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
-}
-
-function formatInvoiceDate(value) {
+function formatDate(value) {
   if (!value) return "—";
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-US");
-}
-
-function getDatePart(value) {
-  if (!value) return "";
-  return String(value).slice(0, 10);
-}
-
-function isDateInRange(value, from, to) {
-  const date = getDatePart(value);
-  if (!date) return false;
-  return (!from || date >= from) && (!to || date <= to);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function parseRate(value) {
@@ -570,17 +482,11 @@ export default function InvoicePage() {
   const [source, setSource] = useState("client");
   const [dateFrom, setDateFrom] = useState(toDateInputValue(startOfMonth(today)));
   const [dateTo, setDateTo] = useState(toDateInputValue(endOfMonth(today)));
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState(toDateInputValue(today));
-  const [terms, setTerms] = useState("Due on receipt");
-  const [billToName, setBillToName] = useState("");
-  const [billToAddress, setBillToAddress] = useState("");
-  const [billToCityStateZip, setBillToCityStateZip] = useState("");
-  const [placementRate, setPlacementRate] = useState("50.00");
-  const [hourlyRate, setHourlyRate] = useState("1.00");
-  const [includePlacementFees, setIncludePlacementFees] = useState(true);
+  const [invoiceNumber, setInvoiceNumber] = useState(() => `INV-${toDateInputValue(today).replace(/-/g, "")}`);
+  const [dueDate, setDueDate] = useState(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 15)));
   const [search, setSearch] = useState("");
   const [notes, setNotes] = useState("Thank you for your business.");
+  const [lineRates, setLineRates] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -636,12 +542,6 @@ export default function InvoicePage() {
   }, [jobs]);
 
   const selectedClient = clientFilter || clients[0] || "";
-  const billToCompany = billToName || selectedClient;
-
-  const handleClientChange = (value) => {
-    setClientFilter(value);
-    setBillToName(value);
-  };
 
   const invoiceRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -681,11 +581,10 @@ export default function InvoicePage() {
         projectLocation,
         jobCode: job.job_code || "",
         clientName,
-        candidateStatus: candidate.candidate_status || "",
-        placedAt: candidate.placed_at || "",
         hours: 0,
         firstDate: entry.work_date,
         lastDate: entry.work_date,
+        defaultRate: parseRate(candidate.bill_rate_snapshot || candidate.rate_snapshot),
       };
 
       existing.hours += hours;
@@ -701,85 +600,43 @@ export default function InvoicePage() {
     });
   }, [candidatesById, hoursEntries, jobsById, search, selectedClient, source, workersById]);
 
-  const invoiceItems = useMemo(() => {
-    const items = [];
-    const placementRateValue = parseRate(placementRate);
-    const hourlyRateValue = parseRate(hourlyRate);
-
-    invoiceRows.forEach((row) => {
-      const details = [row.projectName, row.projectLocation].filter(Boolean).join("\n");
-      const isPlaced = row.candidateStatus === "placed";
-      const placedInPeriod = isDateInRange(row.placedAt, dateFrom, dateTo);
-
-      if (includePlacementFees && isPlaced && (!row.placedAt || placedInPeriod)) {
-        items.push({
-          key: `${row.key}|placement`,
-          product: "Job Placement",
-          name: row.candidateName,
-          details,
-          qty: 1,
-          rate: placementRateValue,
-          amount: placementRateValue,
-          kind: "placement",
-        });
-      }
-
-      items.push({
-        key: `${row.key}|hourly`,
-        product: "Hourly Fee",
-        name: row.candidateName,
-        details,
-        qty: row.hours,
-        rate: hourlyRateValue,
-        amount: row.hours * hourlyRateValue,
-        kind: "hourly",
-      });
-    });
-
-    return items.map((item, index) => ({ ...item, itemNumber: index + 1 }));
-  }, [dateFrom, dateTo, hourlyRate, includePlacementFees, invoiceRows, placementRate]);
+  const rowsWithTotals = useMemo(
+    () => invoiceRows.map((row) => {
+      const rate = Number(lineRates[row.key] ?? row.defaultRate ?? 0);
+      return {
+        ...row,
+        rate,
+        amount: row.hours * rate,
+      };
+    }),
+    [invoiceRows, lineRates]
+  );
 
   const summary = useMemo(() => {
-    const totalHours = invoiceItems
-      .filter((item) => item.kind === "hourly")
-      .reduce((total, item) => total + item.qty, 0);
-    const totalPlacements = invoiceItems
-      .filter((item) => item.kind === "placement")
-      .reduce((total, item) => total + item.qty, 0);
-    const hourlyTotal = invoiceItems
-      .filter((item) => item.kind === "hourly")
-      .reduce((total, item) => total + item.amount, 0);
-    const placementTotal = invoiceItems
-      .filter((item) => item.kind === "placement")
-      .reduce((total, item) => total + item.amount, 0);
-    const subtotal = hourlyTotal + placementTotal;
+    const totalHours = rowsWithTotals.reduce((total, row) => total + row.hours, 0);
+    const subtotal = rowsWithTotals.reduce((total, row) => total + row.amount, 0);
     return {
       totalHours,
-      totalPlacements,
-      hourlyTotal,
-      placementTotal,
       subtotal,
       total: subtotal,
-      lineCount: invoiceItems.length,
+      lineCount: rowsWithTotals.length,
     };
-  }, [invoiceItems]);
+  }, [rowsWithTotals]);
 
   const refreshData = async () => {
     await load();
   };
 
   const exportCsv = () => {
-    const headers = ["Item#", "Invoice no.", "Terms", "Invoice date", "Client", "Product or service", "Name", "Details", "Qty", "Rate", "Amount"];
-    const rows = invoiceItems.map((row) => [
-      row.itemNumber,
+    const headers = ["Invoice", "Client", "Date From", "Date To", "Project", "Candidate", "Hours", "Rate", "Amount"];
+    const rows = rowsWithTotals.map((row) => [
       invoiceNumber,
-      terms,
-      invoiceDate,
-      billToCompany,
-      row.product,
-      row.name,
-      row.details,
-      formatQty(row),
+      row.clientName,
+      dateFrom,
+      dateTo,
+      row.projectName,
+      row.candidateName,
+      formatHours(row.hours),
       row.rate.toFixed(2),
       row.amount.toFixed(2),
     ]);
@@ -812,10 +669,10 @@ export default function InvoicePage() {
             <button className="invoice-btn" type="button" onClick={refreshData} disabled={loading}>
               <RefreshCw size={15} /> Refresh
             </button>
-            <button className="invoice-btn" type="button" onClick={exportCsv} disabled={!invoiceItems.length}>
+            <button className="invoice-btn" type="button" onClick={exportCsv} disabled={!rowsWithTotals.length}>
               <Download size={15} /> Export CSV
             </button>
-            <button className="invoice-btn dark" type="button" onClick={() => window.print()} disabled={!invoiceItems.length}>
+            <button className="invoice-btn dark" type="button" onClick={() => window.print()} disabled={!rowsWithTotals.length}>
               <Printer size={15} /> Print Invoice
             </button>
           </div>
@@ -831,7 +688,7 @@ export default function InvoicePage() {
             <div className="invoice-form">
               <div className="invoice-field">
                 <label className="invoice-label">Client</label>
-                <select className="invoice-select" value={selectedClient} onChange={(event) => handleClientChange(event.target.value)}>
+                <select className="invoice-select" value={selectedClient} onChange={(event) => setClientFilter(event.target.value)}>
                   {clients.length ? clients.map((client) => <option key={client} value={client}>{client}</option>) : <option value="">No clients found</option>}
                 </select>
               </div>
@@ -862,49 +719,13 @@ export default function InvoicePage() {
               <div className="invoice-date-grid">
                 <div className="invoice-field">
                   <label className="invoice-label">Invoice #</label>
-                  <input className="invoice-input" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} placeholder="102" />
+                  <input className="invoice-input" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} />
                 </div>
                 <div className="invoice-field">
-                  <label className="invoice-label">Invoice Date</label>
-                  <input className="invoice-input" type="date" value={invoiceDate} onChange={(event) => setInvoiceDate(event.target.value)} />
+                  <label className="invoice-label">Due Date</label>
+                  <input className="invoice-input" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
                 </div>
               </div>
-
-              <div className="invoice-field">
-                <label className="invoice-label">Terms</label>
-                <input className="invoice-input" value={terms} onChange={(event) => setTerms(event.target.value)} />
-              </div>
-
-              <div className="invoice-field">
-                <label className="invoice-label">Company Name</label>
-                <input className="invoice-input" value={billToName} onChange={(event) => setBillToName(event.target.value)} />
-              </div>
-
-              <div className="invoice-field">
-                <label className="invoice-label">Address</label>
-                <input className="invoice-input" value={billToAddress} onChange={(event) => setBillToAddress(event.target.value)} placeholder="3924 Pendleton Way" />
-              </div>
-
-              <div className="invoice-field">
-                <label className="invoice-label">City, State ZIP</label>
-                <input className="invoice-input" value={billToCityStateZip} onChange={(event) => setBillToCityStateZip(event.target.value)} placeholder="Indianapolis, Indiana, 46226" />
-              </div>
-
-              <div className="invoice-date-grid">
-                <div className="invoice-field">
-                  <label className="invoice-label">Placement Rate</label>
-                  <input className="invoice-input" type="number" min="0" step="0.01" value={placementRate} onChange={(event) => setPlacementRate(event.target.value)} />
-                </div>
-                <div className="invoice-field">
-                  <label className="invoice-label">Hourly Fee Rate</label>
-                  <input className="invoice-input" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => setHourlyRate(event.target.value)} />
-                </div>
-              </div>
-
-              <label className="invoice-check">
-                <input type="checkbox" checked={includePlacementFees} onChange={(event) => setIncludePlacementFees(event.target.checked)} />
-                Include job placement lines
-              </label>
 
               <div className="invoice-field">
                 <label className="invoice-label">Search Lines</label>
@@ -931,78 +752,66 @@ export default function InvoicePage() {
               <div className="invoice-document">
                 <div className="invoice-doc-header">
                   <div>
-                    <h2 className="invoice-doc-title">Invoice details</h2>
-                    <div className="invoice-doc-meta" style={{ marginTop: 10 }}>
-                      <span>Invoice no.</span><span>{invoiceNumber || "—"}</span>
-                      <span>Terms</span><span>{terms || "—"}</span>
-                      <span>Invoice date</span><span>{formatInvoiceDate(invoiceDate)}</span>
-                    </div>
+                    <h2 className="invoice-doc-title">Invoice</h2>
+                    <div className="invoice-muted" style={{ marginTop: 8 }}>Universal Talent Source</div>
                   </div>
-                  <div>
-                    <img className="uts-logo" src="/logo.png" alt="UTS" />
+                  <div className="invoice-doc-meta">
+                    <div><strong>Invoice #:</strong> {invoiceNumber || "—"}</div>
+                    <div><strong>Invoice Date:</strong> {formatDate(toDateInputValue(today))}</div>
+                    <div><strong>Due Date:</strong> {formatDate(dueDate)}</div>
                   </div>
                 </div>
 
                 <div className="invoice-bill-grid">
                   <div className="bill-box">
                     <div className="bill-heading">Bill To</div>
-                    <div className="bill-main">
-                      <div><strong>Company Name:</strong> {billToCompany || "Select a client"}</div>
-                      <div><strong>Address:</strong> {billToAddress || "—"}</div>
-                      <div><strong>City, State ZIP:</strong> {billToCityStateZip || "—"}</div>
-                    </div>
+                    <div className="bill-main">{selectedClient || "Select a client"}</div>
+                    <div className="invoice-muted">Client billing contact</div>
                   </div>
                   <div className="bill-box">
-                    <div className="uts-contact">
-                      <div><strong>{UTS_CONTACT.company}</strong></div>
-                      <div>{UTS_CONTACT.emailPrimary}</div>
-                      <div>{UTS_CONTACT.phonePrimary}</div>
-                      <div>{UTS_CONTACT.emailSecondary}</div>
-                      <div>{UTS_CONTACT.phoneSecondary}</div>
-                    </div>
+                    <div className="bill-heading">Service Period</div>
+                    <div className="bill-main">{formatDate(dateFrom)} – {formatDate(dateTo)}</div>
+                    <div className="invoice-muted">{SOURCE_OPTIONS.find((option) => option.value === source)?.label}</div>
                   </div>
                 </div>
 
-                {invoiceItems.length ? (
+                {rowsWithTotals.length ? (
                   <>
                     <div className="invoice-table-wrap">
                       <table className="invoice-table">
-                        <colgroup>
-                          <col style={{ width: "56px" }} />
-                          <col style={{ width: "150px" }} />
-                          <col style={{ width: "205px" }} />
-                          <col style={{ width: "250px" }} />
-                          <col style={{ width: "92px" }} />
-                          <col style={{ width: "120px" }} />
-                          <col style={{ width: "135px" }} />
-                        </colgroup>
                         <thead>
                           <tr>
-                            <th>Item#</th>
-                            <th>Product or service</th>
-                            <th>Name</th>
-                            <th>Details</th>
-                            <th>Qty</th>
-                            <th>Rate</th>
+                            <th>Project</th>
+                            <th>Candidate</th>
+                            <th>Dates</th>
+                            <th style={{ textAlign: "right" }}>Hours</th>
+                            <th style={{ textAlign: "right" }}>Rate</th>
                             <th style={{ textAlign: "right" }}>Amount</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {invoiceItems.map((row) => (
+                          {rowsWithTotals.map((row) => (
                             <tr key={row.key}>
-                              <td style={{ textAlign: "right" }}>{row.itemNumber}</td>
                               <td>
-                                <div className="line-primary">{row.product}</div>
+                                <div className="line-primary">{row.projectName}</div>
+                                <div className="line-secondary">{[row.projectLocation, row.jobCode ? `Code: ${row.jobCode}` : ""].filter(Boolean).join(" · ") || "No location"}</div>
                               </td>
                               <td>
-                                <div className="line-primary">{row.name}</div>
+                                <div className="line-primary">{row.candidateName}</div>
+                                <div className="line-secondary">{[row.workerPhone, row.workerEmail].filter(Boolean).join(" · ") || "No contact"}</div>
                               </td>
-                              <td>
-                                {row.details.split("\n").map((line) => <div className="line-secondary" key={`${row.key}-${line}`}>{line}</div>)}
-                              </td>
-                              <td style={{ textAlign: "right" }}>{formatQty(row)}</td>
+                              <td className="invoice-muted">{formatDate(row.firstDate)} – {formatDate(row.lastDate)}</td>
+                              <td style={{ textAlign: "right" }}>{formatHours(row.hours)}</td>
                               <td style={{ textAlign: "right" }}>
-                                {formatCurrency(row.rate)}
+                                <input
+                                  className="rate-input"
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={lineRates[row.key] ?? row.defaultRate ?? 0}
+                                  onChange={(event) => setLineRates((prev) => ({ ...prev, [row.key]: event.target.value }))}
+                                  aria-label={`Rate for ${row.candidateName}`}
+                                />
                               </td>
                               <td style={{ textAlign: "right", fontWeight: 750 }}>{formatCurrency(row.amount)}</td>
                             </tr>
@@ -1013,21 +822,9 @@ export default function InvoicePage() {
 
                     <div className="invoice-total-panel">
                       <div className="total-box">
-                        <div className="total-row">
-                          <span className="total-label">Total Hours</span>
-                          <span className="total-qty">{formatHours(summary.totalHours)}</span>
-                          <span className="total-amount">{formatCurrency(summary.hourlyTotal)}</span>
-                        </div>
-                        <div className="total-row">
-                          <span className="total-label">Total Placements</span>
-                          <span className="total-qty">{formatCount(summary.totalPlacements)}</span>
-                          <span className="total-amount">{formatCurrency(summary.placementTotal)}</span>
-                        </div>
-                        <div className="total-row grand">
-                          <span className="total-label">Amount Due</span>
-                          <span />
-                          <span className="total-amount">{formatCurrency(summary.total)}</span>
-                        </div>
+                        <div className="total-row"><span>Total Hours</span><strong>{formatHours(summary.totalHours)}</strong></div>
+                        <div className="total-row"><span>Subtotal</span><strong>{formatCurrency(summary.subtotal)}</strong></div>
+                        <div className="total-row grand"><span>Total Due</span><span>{formatCurrency(summary.total)}</span></div>
                       </div>
                     </div>
                   </>
@@ -1038,7 +835,7 @@ export default function InvoicePage() {
                 )}
 
                 {notes ? (
-                  <div style={{ padding: "24px 0 0" }}>
+                  <div style={{ padding: "0 24px 24px" }}>
                     <div className="bill-heading">Notes</div>
                     <div className="invoice-muted" style={{ marginTop: 6 }}>{notes}</div>
                   </div>
