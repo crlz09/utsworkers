@@ -12,6 +12,7 @@ const HOUR_STEP = 0.25;
 function PageStyles() {
   return (
     <style>{`
+      * { box-sizing: border-box; }
       html, body {
         margin: 0;
         width: 100%;
@@ -22,12 +23,412 @@ function PageStyles() {
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
       input, button, select { font: inherit; }
+      button { -webkit-tap-highlight-color: transparent; }
       .spin { animation: spin 1s linear infinite; }
       @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+      .worker-topbar {
+        background: linear-gradient(180deg, #1f2c40 0%, #1b2738 100%);
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+      .worker-topbar-inner {
+        width: min(980px, calc(100vw - 32px));
+        min-height: 82px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+      }
+      .worker-logo { width: auto; height: 54px; display: block; object-fit: contain; }
+      .worker-shell {
+        width: min(980px, calc(100vw - 32px));
+        max-width: calc(100vw - 32px);
+        margin: 0 auto;
+        padding: 22px 0 112px;
+        display: grid;
+        gap: 16px;
+      }
+      .worker-card {
+        min-width: 0;
+        overflow: hidden;
+        background: rgba(255,255,255,0.96);
+        border: 1px solid #dbeafe;
+        border-radius: 28px;
+        box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+        padding: 20px;
+      }
+      .worker-hero {
+        display: grid;
+        gap: 18px;
+      }
+      .worker-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        color: #1d4ed8;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .worker-title {
+        margin: 0;
+        color: #0f172a;
+        font-size: clamp(30px, 7vw, 44px);
+        line-height: 1.04;
+        font-weight: 950;
+        letter-spacing: -0.045em;
+      }
+      .worker-copy {
+        margin: 10px 0 0;
+        color: #64748b;
+        font-size: 14px;
+        line-height: 1.65;
+        max-width: 680px;
+      }
+      .week-panel {
+        display: grid;
+        gap: 8px;
+      }
+      .field-label {
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .week-select {
+        width: 100%;
+        min-height: 48px;
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        color: #0f172a;
+        border-radius: 16px;
+        padding: 10px 12px;
+        font-size: 14px;
+        font-weight: 800;
+        outline: none;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+      }
+      .week-select:focus {
+        border-color: #60a5fa;
+        box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.18);
+      }
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 9px 13px;
+        font-size: 13px;
+        font-weight: 900;
+      }
+      .status-pill.editable { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+      .status-pill.locked { border: 1px solid #bbf7d0; background: #ecfdf5; color: #047857; }
+      .feedback {
+        border-radius: 18px;
+        padding: 13px 14px;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.45;
+      }
+      .feedback.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+      .feedback.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+      .empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px dashed #cbd5e1;
+        border-radius: 22px;
+        background: #f8fafc;
+        color: #475569;
+        padding: 28px;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .summary-card {
+        margin-bottom: 16px;
+        border-radius: 24px;
+        background: #f8fafc;
+        padding: 16px;
+      }
+      .summary-grid {
+        display: grid;
+        gap: 12px;
+      }
+      .worker-name {
+        margin: 0;
+        color: #0f172a;
+        font-size: 24px;
+        line-height: 1.1;
+        font-weight: 950;
+        letter-spacing: -0.035em;
+      }
+      .project-line {
+        margin: 8px 0 0;
+        color: #64748b;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .week-line {
+        margin: 5px 0 0;
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .total-box {
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        background: #fff;
+        padding: 12px 14px;
+      }
+      .total-label {
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .total-value {
+        margin-top: 2px;
+        color: #0f172a;
+        font-size: 28px;
+        font-weight: 950;
+        letter-spacing: -0.04em;
+      }
+      .approved-note {
+        margin: 12px 0 0;
+        border: 1px solid #bbf7d0;
+        border-radius: 18px;
+        background: #ecfdf5;
+        color: #166534;
+        padding: 12px 14px;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.5;
+      }
+      .days-list {
+        display: grid;
+        gap: 12px;
+      }
+      .day-card {
+        border: 1px solid #dbeafe;
+        border-radius: 24px;
+        background: #fff;
+        padding: 15px;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+        transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+      }
+      .day-card:not(.disabled):hover {
+        transform: translateY(-2px);
+        border-color: #bfdbfe;
+        box-shadow: 0 16px 30px rgba(30, 64, 175, 0.08);
+      }
+      .day-card.disabled {
+        border-color: #e2e8f0;
+        background: #f8fafc;
+      }
+      .day-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .day-name {
+        color: #0f172a;
+        font-size: 18px;
+        font-weight: 950;
+        letter-spacing: -0.02em;
+      }
+      .day-date {
+        margin-top: 2px;
+        color: #94a3b8;
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .day-status {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 11px;
+        font-weight: 900;
+      }
+      .day-status.open { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+      .day-status.future { border: 1px solid #e2e8f0; background: #fff; color: #94a3b8; }
+      .day-status.locked { border: 1px solid #bbf7d0; background: #ecfdf5; color: #047857; }
+      .stepper {
+        display: grid;
+        grid-template-columns: 56px minmax(0, 1fr) 56px;
+        gap: 10px;
+        align-items: center;
+        margin-top: 14px;
+      }
+      .step-btn {
+        width: 56px;
+        height: 56px;
+        border: 1px solid #cbd5e1;
+        border-radius: 18px;
+        background: #fff;
+        color: #0f172a;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
+        transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+      }
+      .step-btn:not(:disabled):hover { border-color: #93c5fd; background: #eff6ff; transform: translateY(-1px); }
+      .step-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      .hours-input {
+        width: 100%;
+        min-width: 0;
+        height: 56px;
+        border: 1px solid #cbd5e1;
+        border-radius: 18px;
+        background: #fff;
+        color: #0f172a;
+        text-align: center;
+        font-size: 24px;
+        font-weight: 950;
+        letter-spacing: -0.03em;
+        outline: none;
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
+      }
+      .hours-input::placeholder { color: #cbd5e1; }
+      .hours-input:focus { border-color: #60a5fa; box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.18); }
+      .hours-input:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; box-shadow: none; }
+      .preset-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .preset-btn {
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        background: #f8fafc;
+        color: #475569;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 900;
+        cursor: pointer;
+        transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+      }
+      .preset-btn:not(:disabled):hover { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+      .preset-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+      .submit-row {
+        display: none;
+        justify-content: flex-end;
+        margin-top: 18px;
+      }
+      .primary-btn, .secondary-btn {
+        min-height: 48px;
+        border-radius: 16px;
+        padding: 11px 16px;
+        font-size: 14px;
+        font-weight: 950;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
+      }
+      .primary-btn { border: 1px solid #0f172a; background: #0f172a; color: #fff; box-shadow: 0 12px 22px rgba(15, 23, 42, 0.15); }
+      .primary-btn:not(:disabled):hover { transform: translateY(-1px); background: #1e293b; }
+      .secondary-btn { border: 1px solid #cbd5e1; background: #fff; color: #0f172a; }
+      .secondary-btn:not(:disabled):hover { background: #f8fafc; }
+      .primary-btn:disabled, .secondary-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+      .sticky-submit {
+        position: fixed;
+        inset-inline: 0;
+        bottom: 0;
+        z-index: 40;
+        border-top: 1px solid #e2e8f0;
+        background: rgba(255,255,255,0.96);
+        box-shadow: 0 -18px 40px rgba(15, 23, 42, 0.14);
+        backdrop-filter: blur(14px);
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      }
+      .sticky-inner {
+        width: min(980px, 100%);
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .sticky-total { flex: 1 1 auto; min-width: 0; }
+      .sticky-label { color: #94a3b8; font-size: 11px; font-weight: 950; letter-spacing: 0.14em; text-transform: uppercase; }
+      .sticky-value { color: #0f172a; font-size: 24px; font-weight: 950; letter-spacing: -0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .submission-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: grid;
+        place-items: center;
+        padding: 18px;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(8px);
+      }
+      .submission-modal {
+        width: min(440px, 100%);
+        border: 1px solid #dbeafe;
+        border-radius: 28px;
+        background: #fff;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+        padding: 26px;
+        text-align: center;
+      }
+      .submission-icon {
+        width: 62px;
+        height: 62px;
+        margin: 0 auto 14px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        color: #047857;
+        background: #ecfdf5;
+        border: 1px solid #bbf7d0;
+      }
+      .submission-title { margin: 0; color: #0f172a; font-size: 30px; line-height: 1.1; letter-spacing: -0.035em; font-weight: 950; }
+      .submission-copy { margin: 10px auto 0; color: #64748b; font-size: 14px; line-height: 1.55; max-width: 340px; }
+      .submission-actions { margin-top: 22px; display: flex; flex-direction: column; gap: 10px; }
+      .exit-screen { min-height: calc(100vh - 82px); display: grid; place-items: center; padding: 24px 0 48px; }
+      .exit-card { width: min(520px, 100%); text-align: center; }
+
+      @media (min-width: 720px) {
+        .worker-shell { padding-bottom: 42px; }
+        .worker-card { padding: 24px; }
+        .worker-hero { grid-template-columns: minmax(0, 1fr) 310px; align-items: start; }
+        .summary-grid { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+        .total-box { min-width: 190px; text-align: right; }
+        .days-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .submit-row { display: flex; }
+        .sticky-submit { display: none; }
+        .submission-actions { flex-direction: row; justify-content: center; }
+      }
+
+      @media (min-width: 1024px) {
+        .days-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      }
     `}</style>
   );
 }
-
 function parseDate(value) {
   return new Date(`${value}T00:00:00`);
 }
@@ -223,102 +624,90 @@ export default function WorkerHoursPage() {
   return (
     <>
       <PageStyles />
-      <header className="bg-[#1f2c40] shadow-sm">
-        <div className="mx-auto flex min-h-20 w-full max-w-4xl items-center px-4 sm:px-6">
-          <img className="h-12 w-auto sm:h-14" src={utsLogo} alt="UTS" />
+      <header className="worker-topbar">
+        <div className="worker-topbar-inner">
+          <img className="worker-logo" src={utsLogo} alt="UTS" />
         </div>
       </header>
       {exited ? (
-        <main className="mx-auto grid min-h-[calc(100vh-80px)] w-full max-w-xl place-items-center px-4 py-8">
-          <section className="w-full rounded-[28px] border border-blue-100 bg-white p-7 text-center shadow-xl shadow-slate-900/10">
-            <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700"><CheckCircle2 size={32} /></div>
-            <h1 className="m-0 text-3xl font-black tracking-[-0.035em] text-slate-900">Thank you!</h1>
-            <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-500">Your hours were submitted. You can safely close this tab now.</p>
+        <main className="worker-shell exit-screen">
+          <section className="worker-card exit-card">
+            <div className="submission-icon"><CheckCircle2 size={32} /></div>
+            <h1 className="submission-title">Thank you!</h1>
+            <p className="submission-copy">Your hours were submitted. You can safely close this tab now.</p>
           </section>
         </main>
       ) : (
-        <main className="mx-auto grid w-full max-w-4xl gap-4 px-4 pb-32 pt-5 sm:px-6 sm:pb-10 sm:pt-7">
-          <section className="rounded-[28px] border border-blue-100 bg-white/95 p-5 shadow-xl shadow-slate-900/10 sm:p-6">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="mb-3 inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-blue-700"><CalendarDays size={15} /> Worker Hours</div>
-                <h1 className="m-0 text-3xl font-black leading-tight tracking-[-0.04em] text-slate-950 sm:text-4xl">Weekly Hours</h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-                  Use the secure UTS link to submit hours for the current week or previous week. Future dates stay locked until they become available.
-                </p>
-              </div>
-              <div className="flex flex-col gap-2 sm:min-w-72">
-                <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400" htmlFor="worker-week">Week</label>
-                <select
-                  className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-                  id="worker-week"
-                  value={weekStart}
-                  onChange={(event) => setWeekStart(event.target.value)}
-                >
-                  {weekOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-                {isApproved ? (
-                  <div className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700"><Lock size={15} /> Approved / Locked</div>
-                ) : (
-                  <div className="inline-flex items-center justify-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-extrabold text-blue-700">Editable</div>
-                )}
-              </div>
+        <main className="worker-shell">
+          <section className="worker-card worker-hero">
+            <div>
+              <div className="worker-kicker"><CalendarDays size={15} /> Worker Hours</div>
+              <h1 className="worker-title">Weekly Hours</h1>
+              <p className="worker-copy">
+                Use the secure UTS link to submit hours for the current week or previous week. Future dates stay locked until they become available.
+              </p>
+            </div>
+            <div className="week-panel">
+              <label className="field-label" htmlFor="worker-week">Week</label>
+              <select className="week-select" id="worker-week" value={weekStart} onChange={(event) => setWeekStart(event.target.value)}>
+                {weekOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              {isApproved ? (
+                <div className="status-pill locked"><Lock size={15} /> Approved / Locked</div>
+              ) : (
+                <div className="status-pill editable">Editable</div>
+              )}
             </div>
           </section>
 
-          {feedback.error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-800">{feedback.error}</div> : null}
-          {feedback.success ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{feedback.success}</div> : null}
+          {feedback.error ? <div className="feedback error">{feedback.error}</div> : null}
+          {feedback.success ? <div className="feedback success">{feedback.success}</div> : null}
 
-          <section className="rounded-[28px] border border-blue-100 bg-white/95 p-4 shadow-xl shadow-slate-900/10 sm:p-6">
+          <section className="worker-card">
             {loading ? (
-              <div className="flex items-center justify-center gap-2 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm font-bold text-slate-600"><Loader2 className="spin" size={18} /> Loading hours link...</div>
+              <div className="empty"><Loader2 className="spin" size={18} /> Loading hours link...</div>
             ) : rows.length ? (
               <>
-                <div className="mb-5 rounded-3xl bg-slate-50 p-4 sm:p-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <h2 className="m-0 truncate text-2xl font-black tracking-[-0.035em] text-slate-950">{first.worker_name}</h2>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                        {[first.project, first.project_location].filter(Boolean).join(" · ")}
-                      </p>
-                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{formatWeekRange(weekStart)}</p>
+                <div className="summary-card">
+                  <div className="summary-grid">
+                    <div className="summary-copy">
+                      <h2 className="worker-name">{first.worker_name}</h2>
+                      <p className="project-line">{[first.project, first.project_location].filter(Boolean).join(" · ")}</p>
+                      <p className="week-line">{formatWeekRange(weekStart)}</p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left sm:text-right">
-                      <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400">Total</div>
-                      <div className="text-3xl font-black tracking-[-0.04em] text-slate-950">{formatHours(total)} hrs</div>
+                    <div className="total-box">
+                      <div className="total-label">Total</div>
+                      <div className="total-value">{formatHours(total)} hrs</div>
                     </div>
                   </div>
-                  {isApproved ? <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">This week has been approved by UTS and can no longer be edited.</p> : null}
+                  {isApproved ? <p className="approved-note">This week has been approved by UTS and can no longer be edited.</p> : null}
                 </div>
 
-                <div className="grid gap-3">
+                <div className="days-list">
                   {rows.map((row, index) => {
                     const disabled = isDayDisabled(row.work_date);
                     const value = values[row.work_date] ?? "";
                     const isFuture = row.work_date > today;
                     return (
-                      <article
-                        className={`rounded-3xl border p-4 shadow-sm transition ${disabled ? "border-slate-200 bg-slate-50" : "border-blue-100 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-900/5"}`}
-                        key={row.work_date}
-                      >
-                        <div className="flex items-start justify-between gap-3">
+                      <article className={`day-card ${disabled ? "disabled" : ""}`} key={row.work_date}>
+                        <div className="day-header">
                           <div>
-                            <div className="text-lg font-black tracking-[-0.02em] text-slate-950">{DAY_NAMES[index]}</div>
-                            <div className="text-sm font-bold text-slate-400">{DAY_LABELS[index]} · {formatDate(row.work_date)}</div>
+                            <div className="day-name">{DAY_NAMES[index]}</div>
+                            <div className="day-date">{DAY_LABELS[index]} · {formatDate(row.work_date)}</div>
                           </div>
                           {isFuture ? (
-                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-400">Available on this date</span>
+                            <span className="day-status future">Available on this date</span>
                           ) : isApproved ? (
-                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Locked</span>
+                            <span className="day-status locked">Locked</span>
                           ) : (
-                            <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">Open</span>
+                            <span className="day-status open">Open</span>
                           )}
                         </div>
 
-                        <div className="mt-4 grid grid-cols-[56px_1fr_56px] items-center gap-3">
+                        <div className="stepper">
                           <button
                             aria-label={`Decrease ${DAY_NAMES[index]} hours`}
-                            className="grid h-14 w-14 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45"
+                            className="step-btn"
                             disabled={disabled}
                             type="button"
                             onClick={() => stepDayHours(row.work_date, -HOUR_STEP)}
@@ -327,7 +716,7 @@ export default function WorkerHoursPage() {
                           </button>
                           <label className="sr-only" htmlFor={`hours-${row.work_date}`}>{DAY_NAMES[index]} hours</label>
                           <input
-                            className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-3 text-center text-2xl font-black tracking-[-0.03em] text-slate-950 shadow-sm outline-none transition placeholder:text-slate-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                            className="hours-input"
                             disabled={disabled}
                             id={`hours-${row.work_date}`}
                             inputMode="decimal"
@@ -343,7 +732,7 @@ export default function WorkerHoursPage() {
                           />
                           <button
                             aria-label={`Increase ${DAY_NAMES[index]} hours`}
-                            className="grid h-14 w-14 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45"
+                            className="step-btn"
                             disabled={disabled}
                             type="button"
                             onClick={() => stepDayHours(row.work_date, HOUR_STEP)}
@@ -352,10 +741,10 @@ export default function WorkerHoursPage() {
                           </button>
                         </div>
 
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="preset-row">
                           {PRESET_HOURS.map((preset) => (
                             <button
-                              className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-extrabold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-45"
+                              className="preset-btn"
                               disabled={disabled}
                               key={preset}
                               type="button"
@@ -370,27 +759,27 @@ export default function WorkerHoursPage() {
                   })}
                 </div>
 
-                <div className="mt-5 hidden justify-end sm:flex">
-                  <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-950 bg-slate-950 px-5 text-sm font-black text-white shadow-lg shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-55" type="button" onClick={saveHours} disabled={!canSubmit}>
+                <div className="submit-row">
+                  <button className="primary-btn" type="button" onClick={saveHours} disabled={!canSubmit}>
                     {saving ? <Loader2 className="spin" size={16} /> : <Save size={16} />} {isApproved ? "Approved" : "Submit Hours"}
                   </button>
                 </div>
               </>
             ) : (
-              <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm font-bold text-slate-600">No active hours link found.</div>
+              <div className="empty">No active hours link found.</div>
             )}
           </section>
         </main>
       )}
 
       {!exited && rows.length ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-2xl shadow-slate-900/20 backdrop-blur sm:hidden">
-          <div className="mx-auto flex max-w-4xl items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Total</div>
-              <div className="truncate text-2xl font-black tracking-[-0.04em] text-slate-950">{formatHours(total)} hrs</div>
+        <div className="sticky-submit">
+          <div className="sticky-inner">
+            <div className="sticky-total">
+              <div className="sticky-label">Total</div>
+              <div className="sticky-value">{formatHours(total)} hrs</div>
             </div>
-            <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-950 bg-slate-950 px-4 text-sm font-black text-white shadow-lg shadow-slate-900/15 disabled:cursor-not-allowed disabled:opacity-55" type="button" onClick={saveHours} disabled={!canSubmit}>
+            <button className="primary-btn" type="button" onClick={saveHours} disabled={!canSubmit}>
               {saving ? <Loader2 className="spin" size={16} /> : <Save size={16} />} {isApproved ? "Approved" : "Enviar Horas"}
             </button>
           </div>
@@ -398,16 +787,16 @@ export default function WorkerHoursPage() {
       ) : null}
 
       {submittedOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-5 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="hours-submitted-title">
-          <div className="w-full max-w-md rounded-[28px] border border-blue-100 bg-white p-7 text-center shadow-2xl shadow-slate-950/25">
-            <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700"><CheckCircle2 size={32} /></div>
-            <h2 className="m-0 text-3xl font-black tracking-[-0.035em] text-slate-950" id="hours-submitted-title">Hours Submitted!</h2>
-            <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-500">
+        <div className="submission-backdrop" role="dialog" aria-modal="true" aria-labelledby="hours-submitted-title">
+          <div className="submission-modal">
+            <div className="submission-icon"><CheckCircle2 size={32} /></div>
+            <h2 className="submission-title" id="hours-submitted-title">Hours Submitted!</h2>
+            <p className="submission-copy">
               Your hours for {formatWeekRange(weekStart)} have been sent to UTS. You can keep editing if you need to make a correction before approval.
             </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <button className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-900 transition hover:bg-slate-50" type="button" onClick={() => setSubmittedOpen(false)}>Seguir editando</button>
-              <button className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-slate-950 bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-slate-800" type="button" onClick={exitPage}>Salir</button>
+            <div className="submission-actions">
+              <button className="secondary-btn" type="button" onClick={() => setSubmittedOpen(false)}>Seguir editando</button>
+              <button className="primary-btn" type="button" onClick={exitPage}>Salir</button>
             </div>
           </div>
         </div>
