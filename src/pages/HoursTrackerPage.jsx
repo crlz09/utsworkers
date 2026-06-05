@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Download,
+  Link2,
   Loader2,
   Printer,
   RefreshCw,
@@ -28,55 +29,302 @@ function PageStyles() {
   return (
     <style>{`
       * { box-sizing: border-box; }
-      html, body { margin: 0; width: 100%; max-width: 100%; overflow-x: hidden; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4ff; color: #0f172a; }
+      html, body {
+        margin: 0;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
       input, select, button { font: inherit; }
       .spin { animation: spin 1s linear infinite; }
       @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      .hours-shell { width: min(1440px, calc(100vw - 32px)); max-width: calc(100vw - 32px); margin: 0 auto; padding: 24px 0 48px; display: grid; gap: 18px; }
-      .card { min-width: 0; overflow: hidden; background: rgba(255,255,255,0.92); border: 1px solid #dbeafe; border-radius: 28px; box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08); padding: 24px; }
-      .hero { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-      .kicker { display: inline-flex; align-items: center; gap: 8px; color: #1d4ed8; font-size: 12px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
-      .title { margin: 0; font-size: clamp(31px, 4vw, 46px); line-height: 1.05; font-weight: 850; letter-spacing: -0.035em; }
-      .subtitle { margin: 10px 0 0; color: #64748b; font-size: 15px; line-height: 1.65; max-width: 760px; }
-      .btn { white-space: nowrap; border: 1px solid #cbd5e1; border-radius: 14px; min-height: 44px; padding: 10px 14px; background: #fff; color: #0f172a; font-size: 13px; font-weight: 750; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: 0.18s ease; text-decoration: none; }
-      .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08); }
-      .btn.dark { background: #0f172a; border-color: #0f172a; color: #fff; }
-      .btn.success { background: #16a34a; border-color: #16a34a; color: #fff; }
+
+      .hours-shell {
+        width: min(100% - 32px, 1380px);
+        margin: 0 auto;
+        padding: 22px 0 44px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .card {
+        min-width: 0;
+        overflow: hidden;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 22px;
+        box-shadow: 0 16px 38px rgba(15, 23, 42, 0.06);
+      }
+
+      .top-summary {
+        padding: 18px 20px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #2563eb;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 7px;
+      }
+
+      .title {
+        margin: 0;
+        color: #0f172a;
+        font-size: clamp(26px, 3vw, 36px);
+        line-height: 1.06;
+        font-weight: 850;
+        letter-spacing: -0.035em;
+      }
+
+      .subtitle {
+        margin: 7px 0 0;
+        color: #64748b;
+        font-size: 13px;
+        line-height: 1.55;
+        max-width: 780px;
+      }
+
+      .top-actions, .row-actions, .table-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .summary-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(92px, auto));
+        gap: 8px;
+      }
+
+      .summary-chip {
+        min-width: 104px;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        background: #f8fafc;
+        padding: 10px 12px;
+      }
+
+      .summary-chip strong {
+        display: block;
+        color: #0f172a;
+        font-size: 20px;
+        line-height: 1;
+        letter-spacing: -0.03em;
+      }
+
+      .summary-chip span {
+        display: block;
+        margin-top: 5px;
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .filters-card { padding: 14px; }
+      .filters {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: minmax(220px, 1.4fr) minmax(150px, 0.7fr) minmax(180px, 0.9fr) minmax(150px, 0.7fr) auto;
+        gap: 10px;
+        align-items: end;
+      }
+
+      .field { min-width: 0; display: grid; gap: 6px; }
+      .label {
+        color: #64748b;
+        font-size: 10px;
+        font-weight: 850;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .input, .select {
+        width: 100%;
+        min-height: 40px;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #0f172a;
+        padding: 9px 11px;
+        outline: none;
+        font-size: 13px;
+      }
+      .input:focus, .select:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+      }
+
+      .btn {
+        white-space: nowrap;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        min-height: 38px;
+        padding: 9px 11px;
+        background: #ffffff;
+        color: #0f172a;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+        text-decoration: none;
+      }
+      .btn:hover:not(:disabled) { transform: translateY(-1px); border-color: #94a3b8; box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08); }
+      .btn.dark { background: #0f172a; border-color: #0f172a; color: #ffffff; }
+      .btn.success { background: #16a34a; border-color: #16a34a; color: #ffffff; }
+      .btn.link { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
       .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
-      .hero-actions, .row-actions { max-width: 100%; display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-      .filters { min-width: 0; display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.55fr) minmax(170px, 0.75fr) minmax(140px, 0.55fr); gap: 10px; align-items: end; }
-      .field { display: grid; gap: 7px; }
-      .label { color: #64748b; font-size: 11px; font-weight: 850; letter-spacing: 0.09em; text-transform: uppercase; }
-      .input, .select { width: 100%; min-height: 44px; border: 1px solid #cbd5e1; border-radius: 13px; background: #fff; color: #0f172a; padding: 10px 12px; outline: none; }
-      .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-      .metric { border: 1px solid #dbeafe; border-radius: 18px; background: #f8fbff; padding: 16px; }
-      .metric-label { color: #64748b; font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: 0.08em; }
-      .metric-value { margin-top: 6px; color: #0f172a; font-size: 28px; line-height: 1; font-weight: 850; letter-spacing: -0.035em; }
-      .feedback { border-radius: 16px; padding: 13px 14px; font-weight: 800; }
+
+      .feedback { border-radius: 16px; padding: 12px 14px; font-size: 13px; font-weight: 800; }
       .feedback.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
       .feedback.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
-      .table-scroll { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-      .timesheet-table { width: 100%; min-width: 1120px; border-collapse: separate; border-spacing: 0; }
-      .timesheet-table th { background: #eff6ff; color: #1e3a8a; font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: 0.08em; padding: 12px; text-align: left; border-bottom: 1px solid #dbeafe; }
-      .timesheet-table td { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 12px; vertical-align: middle; }
-      .timesheet-table tbody tr:nth-child(even) td { background: #fbfdff; }
-      .worker-name { font-weight: 850; color: #0f172a; }
-      .worker-meta { margin-top: 4px; color: #64748b; font-size: 12px; line-height: 1.45; }
-      .project { font-weight: 850; color: #0f172a; }
-      .project-meta { margin-top: 4px; color: #64748b; font-size: 12px; }
-      .hours-input { width: 72px; min-height: 38px; border: 1px solid #cbd5e1; border-radius: 12px; padding: 8px; text-align: center; font-weight: 750; color: #0f172a; background: #fff; }
-      .hours-input:disabled { background: #f1f5f9; color: #94a3b8; }
-      .total-cell { text-align: right; font-weight: 850; color: #0f172a; }
-      .status-pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 7px 10px; font-size: 12px; font-weight: 850; white-space: nowrap; }
-      .status-pill.missing { background: #fef2f2; color: #991b1b; }
-      .status-pill.pending { background: #fff7ed; color: #9a3412; }
+
+      .timesheet-section { padding: 16px; }
+      .section-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+      .section-title { margin: 0; color: #0f172a; font-size: 20px; line-height: 1.1; letter-spacing: -0.03em; }
+      .section-subtitle { margin: 5px 0 0; color: #64748b; font-size: 12px; }
+
+      .desktop-table-wrap { display: block; width: 100%; overflow: visible; }
+      .mobile-cards { display: none; }
+      .timesheet-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+      .timesheet-table th {
+        background: #f8fafc;
+        color: #475569;
+        font-size: 10px;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        padding: 9px 6px;
+        text-align: left;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .timesheet-table td {
+        background: #ffffff;
+        border-bottom: 1px solid #eef2f7;
+        padding: 10px 6px;
+        vertical-align: middle;
+      }
+      .timesheet-table tbody tr { transition: background 0.16s ease, box-shadow 0.16s ease; }
+      .timesheet-table tbody tr:hover td { background: #f8fafc; }
+      .col-worker { width: 18%; }
+      .col-project { width: 16%; }
+      .col-day { width: 5.5%; text-align: center; }
+      .col-total { width: 7%; text-align: right; }
+      .col-status { width: 9%; }
+      .col-actions { width: 19.5%; }
+
+      .worker-name { font-weight: 850; color: #0f172a; font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
+      .worker-meta { margin-top: 4px; color: #64748b; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
+      .project { font-weight: 850; color: #0f172a; font-size: 12px; line-height: 1.25; overflow-wrap: anywhere; }
+      .project-meta { margin-top: 4px; color: #64748b; font-size: 11px; line-height: 1.3; }
+      .day-head-date { margin-top: 3px; color: #94a3b8; font-size: 10px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+      .hours-input {
+        width: 42px;
+        min-height: 34px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 6px 4px;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 750;
+        color: #0f172a;
+        background: #ffffff;
+        outline: none;
+      }
+      .hours-input::placeholder { color: #cbd5e1; }
+      .hours-input.missing { border-color: #fecaca; background: #fff7f7; }
+      .hours-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+      .worker-hint { margin-top: 4px; color: #2563eb; font-size: 10px; font-weight: 800; white-space: nowrap; }
+      .total-cell { text-align: right; font-weight: 850; color: #0f172a; font-size: 13px; }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border-radius: 999px;
+        padding: 6px 9px;
+        font-size: 11px;
+        font-weight: 850;
+        white-space: nowrap;
+      }
+      .status-pill.missing { background: #fef2f2; color: #b91c1c; }
+      .status-pill.pending { background: #fef9c3; color: #a16207; }
       .status-pill.reviewed { background: #eff6ff; color: #1d4ed8; }
       .status-pill.approved { background: #ecfdf5; color: #047857; }
-      .worker-hint { margin-top: 6px; color: #2563eb; font-size: 11px; font-weight: 800; white-space: nowrap; }
-      .empty { border: 1px dashed #cbd5e1; background: #f8fafc; color: #475569; border-radius: 20px; padding: 28px; text-align: center; font-weight: 800; }
-      @media (max-width: 980px) { .filters, .summary-grid { grid-template-columns: 1fr 1fr; } .hours-shell { width: min(100% - 24px, 1440px); max-width: calc(100vw - 24px); } .hero-actions { justify-content: flex-start; } }
-      @media (max-width: 640px) { .filters, .summary-grid { grid-template-columns: 1fr; } .card { padding: 18px; border-radius: 22px; } }
-      @media print { .uts-topbar, .hero-actions, .filters-card, .row-actions, .btn, .go-to-top-button { display: none !important; } body { background: #fff; } .hours-shell { width: 100%; padding: 0; } .card { box-shadow: none; border-color: #e2e8f0; } }
+
+      .empty { border: 1px dashed #cbd5e1; background: #f8fafc; color: #475569; border-radius: 18px; padding: 28px; text-align: center; font-weight: 800; }
+
+      .worker-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        background: #ffffff;
+        padding: 14px;
+        display: grid;
+        gap: 13px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+        transition: transform 0.16s ease, box-shadow 0.16s ease;
+      }
+      .worker-card:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(15, 23, 42, 0.07); }
+      .worker-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+      .card-project-grid { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+      .mobile-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
+      .mobile-day { min-width: 0; display: grid; gap: 5px; justify-items: center; }
+      .mobile-day-label { color: #64748b; font-size: 10px; font-weight: 850; text-transform: uppercase; }
+      .mobile-card-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 12px; }
+
+      @media (max-width: 1180px) {
+        .desktop-table-wrap { display: none; }
+        .mobile-cards { display: grid; gap: 12px; }
+        .top-summary { grid-template-columns: 1fr; }
+        .summary-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .filters { grid-template-columns: 1fr 1fr; }
+        .filters .top-actions { justify-content: flex-start; }
+      }
+
+      @media (max-width: 680px) {
+        .hours-shell { width: min(100% - 20px, 1380px); padding-top: 14px; }
+        .top-summary, .timesheet-section { padding: 14px; border-radius: 18px; }
+        .filters { grid-template-columns: 1fr; }
+        .summary-strip { grid-template-columns: 1fr; }
+        .mobile-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .top-actions, .table-actions, .mobile-card-actions { justify-content: stretch; }
+        .btn { flex: 1 1 auto; }
+      }
+
+      @media print {
+        .uts-topbar, .top-actions, .filters-card, .row-actions, .mobile-card-actions, .btn, .go-to-top-button { display: none !important; }
+        body { background: #ffffff; }
+        .hours-shell { width: 100%; padding: 0; }
+        .card { box-shadow: none; border-color: #e2e8f0; }
+        .desktop-table-wrap { display: block; }
+        .mobile-cards { display: none; }
+      }
     `}</style>
   );
 }
@@ -185,6 +433,7 @@ export default function HoursTrackerPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState("");
+  const [linkSavingKey, setLinkSavingKey] = useState("");
   const [feedback, setFeedback] = useState({ error: "", success: "" });
 
   const days = useMemo(
@@ -434,6 +683,59 @@ export default function HoursTrackerPage() {
     }
   };
 
+
+  const generateWorkerLink = async (assignment) => {
+    setLinkSavingKey(assignment.id);
+    setFeedback({ error: "", success: "" });
+
+    try {
+      const nowIso = new Date().toISOString();
+      const { data: existingLink, error: existingError } = await supabase
+        .from("worker_hours_links")
+        .select("token")
+        .eq("cts_job_candidate_id", assignment.id)
+        .is("revoked_at", null)
+        .gt("expires_at", nowIso)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      let token = existingLink?.token;
+      if (!token) {
+        const { data: createdLink, error: createError } = await supabase
+          .from("worker_hours_links")
+          .insert({
+            cts_job_candidate_id: assignment.id,
+            cts_job_id: assignment.cts_job_id,
+            worker_id: assignment.worker_id,
+            week_start_date: toDateInputValue(startOfWeek(new Date())),
+          })
+          .select("token")
+          .single();
+
+        if (createError) throw createError;
+        token = createdLink?.token;
+      }
+
+      if (!token) throw new Error("Could not generate a worker hours link.");
+
+      const url = `${window.location.origin}/worker/hours/${token}`;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        setFeedback({ error: "", success: `Worker hours link copied for ${assignment.name}.` });
+      } else {
+        window.prompt("Copy worker hours link", url);
+        setFeedback({ error: "", success: `Worker hours link ready for ${assignment.name}.` });
+      }
+    } catch (error) {
+      setFeedback({ error: error.message || "Could not generate worker hours link.", success: "" });
+    } finally {
+      setLinkSavingKey("");
+    }
+  };
+
   const saveVisible = async () => {
     for (const row of filteredRows) {
       await saveRow(row.assignment);
@@ -462,18 +764,21 @@ export default function HoursTrackerPage() {
       <PageStyles />
       <UtsTopNavBar />
       <main className="hours-shell">
-        <section className="card hero">
+        <section className="card top-summary">
           <div>
             <div className="kicker"><CalendarDays size={15} /> Admin Hours Control</div>
             <h1 className="title">Weekly Timesheets</h1>
             <p className="subtitle">
-              Track employee hours from one admin dashboard. Enter hours, review each worker week, approve completed timesheets, and send only approved hours to invoicing.
+              Enter employee hours, review weekly totals, approve completed timesheets, and generate optional worker links without making worker submissions the billing source of truth.
             </p>
           </div>
-          <div className="hero-actions">
-            <button className="btn" type="button" onClick={() => navigate("/admin")}> <ArrowLeft size={15} /> Admin Panel</button>
-            <button className="btn" type="button" onClick={() => load()} disabled={loading}>{loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />} Refresh</button>
-            <button className="btn" type="button" onClick={exportCsv} disabled={!filteredRows.length}><Download size={15} /> Export CSV</button>
+          <div className="top-actions">
+            <div className="summary-strip" aria-label="Weekly timesheet summary">
+              <div className="summary-chip"><strong>{formatHours(summary.totalHours)}</strong><span>Total hours</span></div>
+              <div className="summary-chip"><strong>{summary.pending + summary.missing}</strong><span>Pending</span></div>
+              <div className="summary-chip"><strong>{summary.approved}</strong><span>Approved</span></div>
+            </div>
+            <button className="btn" type="button" onClick={() => navigate("/admin")}><ArrowLeft size={15} /> Admin</button>
           </div>
         </section>
 
@@ -484,7 +789,7 @@ export default function HoursTrackerPage() {
           <div className="filters">
             <div className="field">
               <label className="label">Search</label>
-              <input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search worker, phone, email, or project" />
+              <input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Worker, phone, email, or project" />
             </div>
             <div className="field">
               <label className="label">Week</label>
@@ -503,23 +808,20 @@ export default function HoursTrackerPage() {
                 {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </div>
+            <div className="top-actions">
+              <button className="btn" type="button" onClick={() => load()} disabled={loading}>{loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />} Refresh</button>
+              <button className="btn" type="button" onClick={exportCsv} disabled={!filteredRows.length}><Download size={15} /> CSV</button>
+            </div>
           </div>
         </section>
 
-        <section className="summary-grid">
-          <div className="metric"><div className="metric-label">Total Hours</div><div className="metric-value">{formatHours(summary.totalHours)}</div></div>
-          <div className="metric"><div className="metric-label">Pending</div><div className="metric-value">{summary.pending}</div></div>
-          <div className="metric"><div className="metric-label">Reviewed</div><div className="metric-value">{summary.reviewed}</div></div>
-          <div className="metric"><div className="metric-label">Approved</div><div className="metric-value">{summary.approved}</div></div>
-        </section>
-
-        <section className="card">
-          <div className="hero" style={{ marginBottom: 14 }}>
+        <section className="card timesheet-section">
+          <div className="section-head">
             <div>
-              <h2 style={{ margin: 0, fontSize: 24, letterSpacing: "-0.03em" }}>Week of {formatWeekRange(weekStart)}</h2>
-              <p className="subtitle" style={{ marginTop: 6 }}>{filteredRows.length} workers shown · {summary.missing} missing hours</p>
+              <h2 className="section-title">Week of {formatWeekRange(weekStart)}</h2>
+              <p className="section-subtitle">{filteredRows.length} workers shown · {summary.missing} missing hours · {summary.reviewed} reviewed</p>
             </div>
-            <div className="hero-actions">
+            <div className="table-actions">
               <button className="btn dark" type="button" onClick={saveVisible} disabled={loading || !filteredRows.length || !!savingKey}>
                 {savingKey ? <Loader2 className="spin" size={15} /> : <Save size={15} />} Save Visible
               </button>
@@ -529,59 +831,110 @@ export default function HoursTrackerPage() {
           {loading ? (
             <div className="empty"><Loader2 className="spin" size={18} /> Loading hours...</div>
           ) : filteredRows.length ? (
-            <div className="table-scroll">
-              <table className="timesheet-table">
-                <thead>
-                  <tr>
-                    <th>Worker</th>
-                    <th>Project</th>
-                    {days.map((day, index) => <th key={day}>{DAY_LABELS[index]}<div style={{ marginTop: 4, color: "#64748b", fontWeight: 700 }}>{formatDate(day)}</div></th>)}
-                    <th style={{ textAlign: "right" }}>Admin Total</th>
-                    <th style={{ textAlign: "right" }}>Worker Submitted</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map(({ assignment, values, total, workerValues, workerTotal, status }) => (
-                    <tr key={assignment.id}>
-                      <td>
+            <>
+              <div className="desktop-table-wrap">
+                <table className="timesheet-table">
+                  <thead>
+                    <tr>
+                      <th className="col-worker">Worker</th>
+                      <th className="col-project">Project</th>
+                      {days.map((day, index) => <th className="col-day" key={day}>{DAY_LABELS[index]}<div className="day-head-date">{formatDate(day)}</div></th>)}
+                      <th className="col-total">Total</th>
+                      <th className="col-status">Status</th>
+                      <th className="col-actions">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRows.map(({ assignment, values, total, workerValues, workerTotal, status }) => (
+                      <tr key={assignment.id}>
+                        <td>
+                          <div className="worker-name">{assignment.name}</div>
+                          <div className="worker-meta">{assignment.phone || "No phone"}{assignment.email ? <><br />{assignment.email}</> : null}</div>
+                        </td>
+                        <td>
+                          <div className="project">{assignment.project}</div>
+                          <div className="project-meta">{assignment.projectLocation || "No location"}</div>
+                        </td>
+                        {days.map((day) => (
+                          <td className="col-day" key={day}>
+                            <input
+                              className={`hours-input ${status === "missing" ? "missing" : ""}`}
+                              inputMode="decimal"
+                              placeholder="—"
+                              value={values[day] ?? ""}
+                              onChange={(event) => updateHours(assignment.id, day, event.target.value)}
+                              aria-label={`${assignment.name} ${day} hours`}
+                            />
+                            {Number(workerValues[day] || 0) > 0 ? <div className="worker-hint">W {formatHours(workerValues[day])}</div> : null}
+                          </td>
+                        ))}
+                        <td className="total-cell">{formatHours(total)}{workerTotal > 0 ? <div className="worker-hint">Worker {formatHours(workerTotal)}</div> : null}</td>
+                        <td><span className={`status-pill ${status}`}>{status === "approved" ? <CheckCircle2 size={13} /> : null}{getStatusLabel(status)}</span></td>
+                        <td>
+                          <div className="row-actions">
+                            <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey}>
+                              {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
+                            </button>
+                            <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Reviewed</button>
+                            <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Approve</button>
+                            <button className="btn link" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!linkSavingKey} title="Generate and copy worker hours link">
+                              {linkSavingKey === assignment.id ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Link
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mobile-cards">
+                {filteredRows.map(({ assignment, values, total, workerValues, workerTotal, status }) => (
+                  <article className="worker-card" key={assignment.id}>
+                    <div className="worker-card-head">
+                      <div>
                         <div className="worker-name">{assignment.name}</div>
                         <div className="worker-meta">{assignment.phone || "No phone"}{assignment.email ? <><br />{assignment.email}</> : null}</div>
-                      </td>
-                      <td>
+                      </div>
+                      <span className={`status-pill ${status}`}>{status === "approved" ? <CheckCircle2 size={13} /> : null}{getStatusLabel(status)}</span>
+                    </div>
+                    <div className="card-project-grid">
+                      <div>
                         <div className="project">{assignment.project}</div>
                         <div className="project-meta">{assignment.projectLocation || "No location"}</div>
-                      </td>
-                      {days.map((day) => (
-                        <td key={day}>
+                      </div>
+                      <div className="total-cell">{formatHours(total)} hrs{workerTotal > 0 ? <div className="worker-hint">Worker {formatHours(workerTotal)}</div> : null}</div>
+                    </div>
+                    <div className="mobile-days">
+                      {days.map((day, index) => (
+                        <label className="mobile-day" key={day}>
+                          <span className="mobile-day-label">{DAY_LABELS[index]}</span>
                           <input
-                            className="hours-input"
+                            className={`hours-input ${status === "missing" ? "missing" : ""}`}
                             inputMode="decimal"
+                            placeholder="—"
                             value={values[day] ?? ""}
                             onChange={(event) => updateHours(assignment.id, day, event.target.value)}
                             aria-label={`${assignment.name} ${day} hours`}
                           />
-                          {Number(workerValues[day] || 0) > 0 ? <div className="worker-hint">Worker: {formatHours(workerValues[day])}</div> : null}
-                        </td>
+                          {Number(workerValues[day] || 0) > 0 ? <span className="worker-hint">W {formatHours(workerValues[day])}</span> : null}
+                        </label>
                       ))}
-                      <td className="total-cell">{formatHours(total)}</td>
-                      <td className="total-cell">{workerTotal > 0 ? formatHours(workerTotal) : "—"}</td>
-                      <td><span className={`status-pill ${status}`}>{status === "approved" ? <CheckCircle2 size={14} /> : null}{getStatusLabel(status)}</span></td>
-                      <td>
-                        <div className="row-actions">
-                          <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey}>
-                            {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
-                          </button>
-                          <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Reviewed</button>
-                          <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Approve</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                    </div>
+                    <div className="mobile-card-actions">
+                      <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey}>
+                        {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
+                      </button>
+                      <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Reviewed</button>
+                      <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Approve</button>
+                      <button className="btn link" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!linkSavingKey}>
+                        {linkSavingKey === assignment.id ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Link
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="empty">No placed workers match the current filters.</div>
           )}
