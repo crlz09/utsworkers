@@ -9,11 +9,11 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 const InterviewMiniApp = lazy(() => import("./pages/InterviewMiniApp"));
 const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
 const WorkerProfilePage = lazy(() => import("./pages/WorkerProfilePage"));
-const CtsJobsPage = lazy(() => import("./pages/CtsJobsPage"));
+const JobsPageTest = lazy(() => import("./pages/JobsPageTest"));
 const CtsJobDetailPage = lazy(() => import("./pages/CtsJobDetailPage"));
-const ClientCtsJobsPage = lazy(() => import("./pages/ClientCtsJobsPage"));
 const ClientCtsJobDetailPage = lazy(() => import("./pages/ClientCtsJobDetailPage"));
 const HoursTrackerPage = lazy(() => import("./pages/HoursTrackerPage"));
+const InvoicePage = lazy(() => import("./pages/InvoicePage"));
 
 function RouteFallback() {
   return (
@@ -58,11 +58,13 @@ export default function App() {
           }
         />
         <Route path="/profile/:slug" element={<WorkerProfilePage />} />
+        <Route path="/worker/hours" element={<Navigate to="/login" replace />} />
+        <Route path="/workers/hours" element={<Navigate to="/login" replace />} />
         <Route
           path="/client/cts-jobs"
           element={
             <ClientRoute>
-              <ClientCtsJobsPage />
+              <JobsPageTest mode="client" />
             </ClientRoute>
           }
         />
@@ -78,7 +80,7 @@ export default function App() {
           path="/client/hours"
           element={
             <ClientRoute>
-              <HoursTrackerPage mode="client" />
+              <Navigate to="/client/cts-jobs" replace />
             </ClientRoute>
           }
         />
@@ -91,10 +93,26 @@ export default function App() {
           }
         />
         <Route
+          path="/invoice"
+          element={
+            <AdminRoute>
+              <InvoicePage />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="/cts-jobs"
           element={
             <AdminRoute>
-              <CtsJobsPage />
+              <JobsPageTest />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/cts-jobs-test"
+          element={
+            <AdminRoute>
+              <Navigate to="/cts-jobs" replace />
             </AdminRoute>
           }
         />
