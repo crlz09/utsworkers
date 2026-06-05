@@ -13,6 +13,7 @@ const JobsPageTest = lazy(() => import("./pages/JobsPageTest"));
 const CtsJobDetailPage = lazy(() => import("./pages/CtsJobDetailPage"));
 const ClientCtsJobDetailPage = lazy(() => import("./pages/ClientCtsJobDetailPage"));
 const HoursTrackerPage = lazy(() => import("./pages/HoursTrackerPage"));
+const WorkerHoursPage = lazy(() => import("./pages/WorkerHoursPage"));
 const InvoicePage = lazy(() => import("./pages/InvoicePage"));
 
 function RouteFallback() {
