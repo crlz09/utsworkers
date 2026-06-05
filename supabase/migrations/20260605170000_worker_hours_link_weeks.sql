@@ -183,3 +183,6 @@ end;
 $$;
 
 grant execute on function public.submit_worker_hours_link(text, date, jsonb) to anon, authenticated;
+
+-- Ask PostgREST/Supabase API to refresh function signatures immediately after migration.
+notify pgrst, 'reload schema';

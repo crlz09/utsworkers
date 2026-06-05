@@ -89,6 +89,11 @@ function formatHours(value) {
   return Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function isRpcSignatureMissing(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("could not find the function") || message.includes("schema cache");
+}
+
 export default function WorkerHoursPage() {
   const { token = "" } = useParams();
   const today = toDateInputValue(new Date());
@@ -110,21 +115,40 @@ export default function WorkerHoursPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setFeedback({ error: "", success: "" });
-    const { data, error } = await supabase.rpc("get_worker_hours_link", { p_token: token, p_week_start: weekStart });
+
+    let response = await supabase.rpc("get_worker_hours_link", { p_token: token, p_week_start: weekStart });
+    let fallbackMode = false;
+
+    if (response.error && isRpcSignatureMissing(response.error)) {
+      response = await supabase.rpc("get_worker_hours_link", { p_token: token });
+      fallbackMode = true;
+    }
+
     setLoading(false);
 
-    if (error) {
+    if (response.error) {
       setRows([]);
       setValues({});
       setReviewStatus("pending");
-      setFeedback({ error: error.message || "Could not load this hours link.", success: "" });
+      setFeedback({ error: response.error.message || "Could not load this hours link.", success: "" });
       return;
     }
 
-    setRows(data || []);
-    setValues(Object.fromEntries((data || []).map((row) => [row.work_date, row.regular_hours == null ? "" : String(row.regular_hours)])));
-    setReviewStatus(data?.[0]?.review_status || "pending");
-    if (!data?.length) setFeedback({ error: "This hours link is invalid, expired, or no longer available.", success: "" });
+    const nextRows = response.data || [];
+    setRows(nextRows);
+    setValues(Object.fromEntries(nextRows.map((row) => [row.work_date, row.regular_hours == null ? "" : String(row.regular_hours)])));
+    setReviewStatus(nextRows[0]?.review_status || "pending");
+    if (fallbackMode && nextRows[0]?.week_start_date && nextRows[0].week_start_date !== weekStart) {
+      setWeekStart(nextRows[0].week_start_date);
+    }
+    if (!nextRows.length) {
+      setFeedback({ error: "This hours link is invalid, expired, or no longer available.", success: "" });
+    } else if (fallbackMode) {
+      setFeedback({
+        error: "",
+        success: "Loaded the original link week. Ask UTS to apply the latest hours-link migration to enable current/previous week switching.",
+      });
+    }
   }, [token, weekStart]);
 
   useEffect(() => {
@@ -144,11 +168,14 @@ export default function WorkerHoursPage() {
         work_date: row.work_date,
         regular_hours: values[row.work_date] === "" ? null : Number(values[row.work_date] || 0),
       }));
-    const { error } = await supabase.rpc("submit_worker_hours_link", { p_token: token, p_week_start: weekStart, p_entries: entries });
+    let response = await supabase.rpc("submit_worker_hours_link", { p_token: token, p_week_start: weekStart, p_entries: entries });
+    if (response.error && isRpcSignatureMissing(response.error)) {
+      response = await supabase.rpc("submit_worker_hours_link", { p_token: token, p_entries: entries });
+    }
     setSaving(false);
 
-    if (error) {
-      setFeedback({ error: error.message || "Could not save hours.", success: "" });
+    if (response.error) {
+      setFeedback({ error: response.error.message || "Could not save hours.", success: "" });
       return;
     }
 
