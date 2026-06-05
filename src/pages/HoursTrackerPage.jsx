@@ -367,9 +367,32 @@ function formatHours(value) {
 
 function normalizeHours(value) {
   if (value === "" || value == null) return "";
-  const parsed = Number(value);
+
+  const raw = String(value).replace(",", ".").trim();
+  if (!raw || raw.startsWith("-")) return "";
+
+  let normalized = "";
+  let hasDecimal = false;
+  for (const char of raw) {
+    if (/\d/.test(char)) {
+      normalized += char;
+    } else if (char === "." && !hasDecimal) {
+      normalized += char;
+      hasDecimal = true;
+    }
+  }
+
+  if (!normalized) return "";
+  if (normalized === ".") return "0.";
+
+  const [wholePart, decimalPart = ""] = normalized.split(".");
+  const whole = wholePart.replace(/^0+(?=\d)/, "") || "0";
+  const nextValue = hasDecimal ? `${whole}.${decimalPart.slice(0, 2)}` : whole;
+  const parsed = Number(nextValue);
+
   if (!Number.isFinite(parsed) || parsed < 0) return "";
-  return String(Math.min(parsed, 24));
+  if (parsed > 24) return "24";
+  return nextValue;
 }
 
 function normalizePhoneDigits(value) {
@@ -860,6 +883,7 @@ export default function HoursTrackerPage() {
                             <input
                               className={`hours-input ${status === "missing" ? "missing" : ""}`}
                               inputMode="decimal"
+                              pattern="[0-9]*[.,]?[0-9]{0,2}"
                               placeholder="—"
                               value={values[day] ?? ""}
                               onChange={(event) => updateHours(assignment.id, day, event.target.value)}
@@ -912,6 +936,7 @@ export default function HoursTrackerPage() {
                           <input
                             className={`hours-input ${status === "missing" ? "missing" : ""}`}
                             inputMode="decimal"
+                            pattern="[0-9]*[.,]?[0-9]{0,2}"
                             placeholder="—"
                             value={values[day] ?? ""}
                             onChange={(event) => updateHours(assignment.id, day, event.target.value)}
