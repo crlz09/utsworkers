@@ -16,13 +16,13 @@ import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const STATUS_OPTIONS = [
-  { value: "all", label: "All statuses" },
-  { value: "missing", label: "Missing hours" },
-  { value: "pending", label: "Pending" },
-  { value: "reviewed", label: "Reviewed" },
-  { value: "approved", label: "Approved" },
+  { value: "all", label: "Todos" },
+  { value: "missing", label: "Sin horas" },
+  { value: "pending", label: "Pendiente" },
+  { value: "reviewed", label: "Revisado" },
+  { value: "approved", label: "Confirmado" },
 ];
 
 function PageStyles() {
@@ -352,13 +352,13 @@ function parseDate(value) {
 }
 
 function formatDate(value) {
-  return parseDate(value).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return parseDate(value).toLocaleDateString("es-US", { month: "short", day: "numeric" });
 }
 
 function formatWeekRange(weekStart) {
   const start = parseDate(weekStart);
   const end = addDays(start, 6);
-  return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  return `${start.toLocaleDateString("es-US", { month: "short", day: "numeric" })} - ${end.toLocaleDateString("es-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 function formatHours(value) {
@@ -435,11 +435,11 @@ function getRowStatus(total, review) {
 
 function getStatusLabel(status) {
   return {
-    missing: "Missing hours",
-    pending: "Pending",
-    reviewed: "Reviewed",
-    approved: "Approved",
-  }[status] || "Pending";
+    missing: "Sin horas",
+    pending: "Pendiente",
+    reviewed: "Revisado",
+    approved: "Confirmado",
+  }[status] || "Pendiente";
 }
 
 export default function HoursTrackerPage() {
@@ -499,7 +499,7 @@ export default function HoursTrackerPage() {
           hoursRes.error?.message ||
           workerHoursRes.error?.message ||
           reviewsRes.error?.message ||
-          "Could not load hours control.",
+          "No se pudo cargar el control de horas.",
         success: "",
       });
       setAssignments([]);
@@ -521,11 +521,11 @@ export default function HoursTrackerPage() {
         const worker = workersById.get(candidate.worker_id) || {};
         return {
           ...candidate,
-          name: candidate.name_snapshot || worker.name || "Unnamed worker",
+          name: candidate.name_snapshot || worker.name || "Trabajador sin nombre",
           phone: candidate.phone_snapshot || worker.phone || "",
           email: worker.email || "",
           public_profile_slug: worker.public_profile_slug || "",
-          project: job.level_type || "Untitled project",
+          project: job.level_type || "Proyecto sin título",
           projectLocation: [job.city, job.state].filter(Boolean).join(", "),
           jobStatus: job.status || "",
           phoneDigits: normalizePhoneDigits(candidate.phone_snapshot || worker.phone || ""),
@@ -685,9 +685,9 @@ export default function HoursTrackerPage() {
         await upsertReview(assignment, "pending");
       }
       await load({ preserveFeedback: true });
-      setFeedback({ error: "", success: `Hours saved for ${assignment.name}.` });
+      setFeedback({ error: "", success: `Horas guardadas para ${assignment.name}.` });
     } catch (error) {
-      setFeedback({ error: error.message || "Could not save hours.", success: "" });
+      setFeedback({ error: error.message || "No se pudieron guardar las horas.", success: "" });
     } finally {
       setSavingKey("");
     }
@@ -698,9 +698,9 @@ export default function HoursTrackerPage() {
     setFeedback({ error: "", success: "" });
     try {
       await upsertReview(assignment, status);
-      setFeedback({ error: "", success: `${assignment.name} marked as ${getStatusLabel(status).toLowerCase()} for ${formatWeekRange(weekStart)}.` });
+      setFeedback({ error: "", success: `${assignment.name} marcado como ${getStatusLabel(status).toLowerCase()} para ${formatWeekRange(weekStart)}.` });
     } catch (error) {
-      setFeedback({ error: error.message || "Could not update review status.", success: "" });
+      setFeedback({ error: error.message || "No se pudo actualizar el estado de revisión.", success: "" });
     } finally {
       setSavingKey("");
     }
@@ -742,18 +742,18 @@ export default function HoursTrackerPage() {
         token = createdLink?.token;
       }
 
-      if (!token) throw new Error("Could not generate a worker hours link.");
+      if (!token) throw new Error("No se pudo generar el enlace de horas del trabajador.");
 
       const url = `${window.location.origin}/worker/hours/${token}`;
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
-        setFeedback({ error: "", success: `Worker hours link copied for ${assignment.name}.` });
+        setFeedback({ error: "", success: `Enlace de horas copiado para ${assignment.name}.` });
       } else {
-        window.prompt("Copy worker hours link", url);
-        setFeedback({ error: "", success: `Worker hours link ready for ${assignment.name}.` });
+        window.prompt("Copiar enlace de horas", url);
+        setFeedback({ error: "", success: `Enlace de horas listo para ${assignment.name}.` });
       }
     } catch (error) {
-      setFeedback({ error: error.message || "Could not generate worker hours link.", success: "" });
+      setFeedback({ error: error.message || "No se pudo generar el enlace de horas del trabajador.", success: "" });
     } finally {
       setLinkSavingKey("");
     }
@@ -768,7 +768,7 @@ export default function HoursTrackerPage() {
   const exportCsv = () => {
     downloadCsv(
       `weekly-hours-${weekStart}.csv`,
-      ["Week", "Worker", "Phone", "Email", "Project", ...DAY_LABELS, "Total", "Status"],
+      ["Semana", "Trabajador", "Teléfono", "Email", "Proyecto", ...DAY_LABELS, "Total", "Estado"],
       filteredRows.map(({ assignment, values, total, status }) => [
         formatWeekRange(weekStart),
         assignment.name,
@@ -789,17 +789,17 @@ export default function HoursTrackerPage() {
       <main className="hours-shell">
         <section className="card top-summary">
           <div>
-            <div className="kicker"><CalendarDays size={15} /> Admin Hours Control</div>
-            <h1 className="title">Weekly Timesheets</h1>
+            <div className="kicker"><CalendarDays size={15} /> Control de Horas Admin</div>
+            <h1 className="title">Hojas de Tiempo Semanales</h1>
             <p className="subtitle">
-              Enter employee hours, review weekly totals, approve completed timesheets, and generate optional worker links without making worker submissions the billing source of truth.
+              Ingresa las horas de tus empleados, revisa los totales semanales, aprueba las hojas confirmadas y genera enlaces opcionales para trabajadores sin que esos envíos sean la fuente final de facturación.
             </p>
           </div>
           <div className="top-actions">
             <div className="summary-strip" aria-label="Weekly timesheet summary">
-              <div className="summary-chip"><strong>{formatHours(summary.totalHours)}</strong><span>Total hours</span></div>
-              <div className="summary-chip"><strong>{summary.pending + summary.missing}</strong><span>Pending</span></div>
-              <div className="summary-chip"><strong>{summary.approved}</strong><span>Approved</span></div>
+              <div className="summary-chip"><strong>{formatHours(summary.totalHours)}</strong><span>Horas totales</span></div>
+              <div className="summary-chip"><strong>{summary.pending + summary.missing}</strong><span>Pendientes</span></div>
+              <div className="summary-chip"><strong>{summary.approved}</strong><span>Confirmadas</span></div>
             </div>
             <button className="btn" type="button" onClick={() => navigate("/admin")}><ArrowLeft size={15} /> Admin</button>
           </div>
@@ -811,28 +811,28 @@ export default function HoursTrackerPage() {
         <section className="card filters-card">
           <div className="filters">
             <div className="field">
-              <label className="label">Search</label>
-              <input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Worker, phone, email, or project" />
+              <label className="label">Buscar</label>
+              <input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Trabajador, teléfono, email o proyecto" />
             </div>
             <div className="field">
-              <label className="label">Week</label>
+              <label className="label">Semana</label>
               <input className="input" type="date" value={weekStart} onChange={(event) => setWeekStart(toDateInputValue(startOfWeek(parseDate(event.target.value))))} />
             </div>
             <div className="field">
-              <label className="label">Project</label>
+              <label className="label">Proyecto</label>
               <select className="select" value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}>
-                <option value="">All projects</option>
-                {jobs.map((job) => <option key={job.id} value={job.id}>{job.level_type || "Untitled project"}</option>)}
+                <option value="">Todos los proyectos</option>
+                {jobs.map((job) => <option key={job.id} value={job.id}>{job.level_type || "Proyecto sin título"}</option>)}
               </select>
             </div>
             <div className="field">
-              <label className="label">Status</label>
+              <label className="label">Estado</label>
               <select className="select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                 {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </div>
             <div className="top-actions">
-              <button className="btn" type="button" onClick={() => load()} disabled={loading}>{loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />} Refresh</button>
+              <button className="btn" type="button" onClick={() => load()} disabled={loading}>{loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />} Actualizar</button>
               <button className="btn" type="button" onClick={exportCsv} disabled={!filteredRows.length}><Download size={15} /> CSV</button>
             </div>
           </div>
@@ -841,30 +841,30 @@ export default function HoursTrackerPage() {
         <section className="card timesheet-section">
           <div className="section-head">
             <div>
-              <h2 className="section-title">Week of {formatWeekRange(weekStart)}</h2>
-              <p className="section-subtitle">{filteredRows.length} workers shown · {summary.missing} missing hours · {summary.reviewed} reviewed</p>
+              <h2 className="section-title">Semana de {formatWeekRange(weekStart)}</h2>
+              <p className="section-subtitle">{filteredRows.length} trabajadores visibles · {summary.missing} sin horas · {summary.reviewed} revisados</p>
             </div>
             <div className="table-actions">
               <button className="btn dark" type="button" onClick={saveVisible} disabled={loading || !filteredRows.length || !!savingKey}>
-                {savingKey ? <Loader2 className="spin" size={15} /> : <Save size={15} />} Save Visible
+                {savingKey ? <Loader2 className="spin" size={15} /> : <Save size={15} />} Guardar visibles
               </button>
             </div>
           </div>
 
           {loading ? (
-            <div className="empty"><Loader2 className="spin" size={18} /> Loading hours...</div>
+            <div className="empty"><Loader2 className="spin" size={18} /> Cargando horas...</div>
           ) : filteredRows.length ? (
             <>
               <div className="desktop-table-wrap">
                 <table className="timesheet-table">
                   <thead>
                     <tr>
-                      <th className="col-worker">Worker</th>
-                      <th className="col-project">Project</th>
+                      <th className="col-worker">Trabajador</th>
+                      <th className="col-project">Proyecto</th>
                       {days.map((day, index) => <th className="col-day" key={day}>{DAY_LABELS[index]}<div className="day-head-date">{formatDate(day)}</div></th>)}
                       <th className="col-total">Total</th>
-                      <th className="col-status">Status</th>
-                      <th className="col-actions">Actions</th>
+                      <th className="col-status">Estado</th>
+                      <th className="col-actions">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -872,11 +872,11 @@ export default function HoursTrackerPage() {
                       <tr key={assignment.id}>
                         <td>
                           <div className="worker-name">{assignment.name}</div>
-                          <div className="worker-meta">{assignment.phone || "No phone"}{assignment.email ? <><br />{assignment.email}</> : null}</div>
+                          <div className="worker-meta">{assignment.phone || "Sin teléfono"}{assignment.email ? <><br />{assignment.email}</> : null}</div>
                         </td>
                         <td>
                           <div className="project">{assignment.project}</div>
-                          <div className="project-meta">{assignment.projectLocation || "No location"}</div>
+                          <div className="project-meta">{assignment.projectLocation || "Sin ubicación"}</div>
                         </td>
                         {days.map((day) => (
                           <td className="col-day" key={day}>
@@ -887,22 +887,22 @@ export default function HoursTrackerPage() {
                               placeholder="—"
                               value={values[day] ?? ""}
                               onChange={(event) => updateHours(assignment.id, day, event.target.value)}
-                              aria-label={`${assignment.name} ${day} hours`}
+                              aria-label={`Horas de ${assignment.name} para ${day}`}
                             />
-                            {Number(workerValues[day] || 0) > 0 ? <div className="worker-hint">W {formatHours(workerValues[day])}</div> : null}
+                            {Number(workerValues[day] || 0) > 0 ? <div className="worker-hint">Trabajador {formatHours(workerValues[day])}</div> : null}
                           </td>
                         ))}
-                        <td className="total-cell">{formatHours(total)}{workerTotal > 0 ? <div className="worker-hint">Worker {formatHours(workerTotal)}</div> : null}</td>
+                        <td className="total-cell">{formatHours(total)}{workerTotal > 0 ? <div className="worker-hint">Trabajador {formatHours(workerTotal)}</div> : null}</td>
                         <td><span className={`status-pill ${status}`}>{status === "approved" ? <CheckCircle2 size={13} /> : null}{getStatusLabel(status)}</span></td>
                         <td>
                           <div className="row-actions">
                             <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey}>
-                              {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
+                              {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Guardar
                             </button>
-                            <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Reviewed</button>
-                            <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Approve</button>
-                            <button className="btn link" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!linkSavingKey} title="Generate and copy worker hours link">
-                              {linkSavingKey === assignment.id ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Link
+                            <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Revisado</button>
+                            <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Confirmar</button>
+                            <button className="btn link" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!linkSavingKey} title="Generar y copiar enlace de horas">
+                              {linkSavingKey === assignment.id ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Enlace
                             </button>
                           </div>
                         </td>
@@ -918,16 +918,16 @@ export default function HoursTrackerPage() {
                     <div className="worker-card-head">
                       <div>
                         <div className="worker-name">{assignment.name}</div>
-                        <div className="worker-meta">{assignment.phone || "No phone"}{assignment.email ? <><br />{assignment.email}</> : null}</div>
+                        <div className="worker-meta">{assignment.phone || "Sin teléfono"}{assignment.email ? <><br />{assignment.email}</> : null}</div>
                       </div>
                       <span className={`status-pill ${status}`}>{status === "approved" ? <CheckCircle2 size={13} /> : null}{getStatusLabel(status)}</span>
                     </div>
                     <div className="card-project-grid">
                       <div>
                         <div className="project">{assignment.project}</div>
-                        <div className="project-meta">{assignment.projectLocation || "No location"}</div>
+                        <div className="project-meta">{assignment.projectLocation || "Sin ubicación"}</div>
                       </div>
-                      <div className="total-cell">{formatHours(total)} hrs{workerTotal > 0 ? <div className="worker-hint">Worker {formatHours(workerTotal)}</div> : null}</div>
+                      <div className="total-cell">{formatHours(total)} hrs{workerTotal > 0 ? <div className="worker-hint">Trabajador {formatHours(workerTotal)}</div> : null}</div>
                     </div>
                     <div className="mobile-days">
                       {days.map((day, index) => (
@@ -940,20 +940,20 @@ export default function HoursTrackerPage() {
                             placeholder="—"
                             value={values[day] ?? ""}
                             onChange={(event) => updateHours(assignment.id, day, event.target.value)}
-                            aria-label={`${assignment.name} ${day} hours`}
+                            aria-label={`Horas de ${assignment.name} para ${day}`}
                           />
-                          {Number(workerValues[day] || 0) > 0 ? <span className="worker-hint">W {formatHours(workerValues[day])}</span> : null}
+                          {Number(workerValues[day] || 0) > 0 ? <span className="worker-hint">Trabajador {formatHours(workerValues[day])}</span> : null}
                         </label>
                       ))}
                     </div>
                     <div className="mobile-card-actions">
                       <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey}>
-                        {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
+                        {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Guardar
                       </button>
-                      <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Reviewed</button>
-                      <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Approve</button>
+                      <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Revisado</button>
+                      <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Confirmar</button>
                       <button className="btn link" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!linkSavingKey}>
-                        {linkSavingKey === assignment.id ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Link
+                        {linkSavingKey === assignment.id ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Enlace
                       </button>
                     </div>
                   </article>
@@ -961,7 +961,7 @@ export default function HoursTrackerPage() {
               </div>
             </>
           ) : (
-            <div className="empty">No placed workers match the current filters.</div>
+            <div className="empty">No hay trabajadores colocados que coincidan con los filtros actuales.</div>
           )}
         </section>
       </main>

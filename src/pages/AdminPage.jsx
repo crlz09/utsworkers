@@ -513,11 +513,11 @@ function formatStatus(status) {
     case "rejected":
       return "Rejected";
     case "completed":
-      return "Completed";
+      return "Available";
     case "working":
       return "Working";
     default:
-      return "Completed";
+      return "Available";
   }
 }
 
@@ -1925,7 +1925,7 @@ function WorkerCard({
                     cursor: savingStatus || !canEditWorkers ? "not-allowed" : "pointer",
                   }}
                   >
-                  <option value="completed">Completed</option>
+                  <option value="completed">Available</option>
                   <option value="rejected">Rejected</option>
                   <option value="hold">Hold</option>
                   <option value="working">Working</option>
@@ -2488,7 +2488,7 @@ export default function AdminPage() {
     (w) => !String(w.phone || "").trim() || !String(w.email || "").trim()
   ).length;
   const workflowStatusBadges = [
-    { value: "completed", label: "Completed", count: completedCount },
+    { value: "completed", label: "Available", count: completedCount },
     { value: "rejected", label: "Rejected", count: rejectedCount },
     { value: "hold", label: "Hold", count: holdCount },
     { value: "working", label: "Working", count: workingCount },
@@ -2819,7 +2819,7 @@ export default function AdminPage() {
 
                     <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={inputStyle}>
                       <option value="">All Statuses</option>
-                      <option value="completed">Completed</option>
+                      <option value="completed">Available</option>
                       <option value="rejected">Rejected</option>
                       <option value="hold">Hold</option>
                       <option value="working">Working</option>

@@ -482,7 +482,7 @@ export default function InvoicePage() {
   const [weeklyReviews, setWeeklyReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
-  const [clientFilter, setClientFilter] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
   const [dateFrom, setDateFrom] = useState(toDateInputValue(startOfMonth(today)));
   const [dateTo, setDateTo] = useState(toDateInputValue(endOfMonth(today)));
   const [invoiceNumber, setInvoiceNumber] = useState(() => `INV-${toDateInputValue(today).replace(/-/g, "")}`);
@@ -551,12 +551,29 @@ export default function InvoicePage() {
   const candidatesById = useMemo(() => new Map(candidates.map((candidate) => [candidate.id, candidate])), [candidates]);
   const approvedReviewKeys = useMemo(() => new Set(weeklyReviews.map((review) => `${review.cts_job_candidate_id}|${review.week_start_date}`)), [weeklyReviews]);
 
-  const clients = useMemo(() => {
-    const set = new Set(jobs.map((job) => (job.client_name || "CTS").trim() || "CTS"));
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [jobs]);
+  const projectOptions = useMemo(() => {
+    const placedCandidates = candidates.filter((candidate) => String(candidate.candidate_status || "").toLowerCase() === "placed");
+    const countsByJobId = new Map();
+    placedCandidates.forEach((candidate) => {
+      if (!candidate.cts_job_id) return;
+      countsByJobId.set(candidate.cts_job_id, (countsByJobId.get(candidate.cts_job_id) || 0) + 1);
+    });
 
-  const selectedClient = clientFilter || clients[0] || "";
+    return jobs
+      .filter((job) => countsByJobId.has(job.id))
+      .map((job) => ({
+        ...job,
+        placedCount: countsByJobId.get(job.id) || 0,
+        projectName: job.level_type || "Untitled project",
+        projectLocation: [job.city, job.state].filter(Boolean).join(", "),
+      }))
+      .sort((a, b) => a.projectName.localeCompare(b.projectName));
+  }, [candidates, jobs]);
+
+  const requestedProjectId = projectFilter || "";
+  const selectedProject = projectOptions.find((project) => project.id === requestedProjectId) || projectOptions[0] || null;
+  const selectedProjectId = selectedProject?.id || "";
+  const selectedClient = (selectedProject?.client_name || "CTS").trim() || "CTS";
 
   const invoiceRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -570,10 +587,11 @@ export default function InvoicePage() {
 
       const candidate = candidatesById.get(entry.cts_job_candidate_id);
       if (!candidate) return;
+      if (String(candidate.candidate_status || "").toLowerCase() !== "placed") return;
       const job = jobsById.get(entry.cts_job_id || candidate.cts_job_id);
       if (!job) return;
+      if (selectedProjectId && job.id !== selectedProjectId) return;
       const clientName = (job.client_name || "CTS").trim() || "CTS";
-      if (selectedClient && clientName !== selectedClient) return;
 
       const worker = workersById.get(entry.worker_id || candidate.worker_id) || {};
       const candidateName = candidate.name_snapshot || worker.name || "Unnamed worker";
@@ -600,7 +618,8 @@ export default function InvoicePage() {
         hours: 0,
         firstDate: entry.work_date,
         lastDate: entry.work_date,
-        defaultRate: parseRate(candidate.bill_rate_snapshot || candidate.rate_snapshot),
+        serviceName: "Hourly Fee",
+        defaultRate: parseRate(candidate.bill_rate_snapshot || candidate.rate_snapshot) || 1,
       };
 
       existing.hours += hours;
@@ -614,7 +633,7 @@ export default function InvoicePage() {
       if (projectCompare !== 0) return projectCompare;
       return a.candidateName.localeCompare(b.candidateName);
     });
-  }, [approvedReviewKeys, candidatesById, hoursEntries, jobsById, search, selectedClient, workersById]);
+  }, [approvedReviewKeys, candidatesById, hoursEntries, jobsById, search, selectedProjectId, workersById]);
 
   const rowsWithTotals = useMemo(
     () => invoiceRows.map((row) => {
@@ -644,14 +663,16 @@ export default function InvoicePage() {
   };
 
   const exportCsv = () => {
-    const headers = ["Invoice", "Client", "Date From", "Date To", "Project", "Candidate", "Hours", "Rate", "Amount"];
-    const rows = rowsWithTotals.map((row) => [
+    const headers = ["Invoice", "Client", "Date From", "Date To", "Item #", "Product or Service", "Name", "Details", "Qty", "Rate", "Amount"];
+    const rows = rowsWithTotals.map((row, index) => [
       invoiceNumber,
       row.clientName,
       dateFrom,
       dateTo,
-      row.projectName,
+      index + 1,
+      row.serviceName,
       row.candidateName,
+      [row.projectName, row.projectLocation].filter(Boolean).join(" · "),
       formatHours(row.hours),
       row.rate.toFixed(2),
       row.amount.toFixed(2),
@@ -678,7 +699,7 @@ export default function InvoicePage() {
             <div className="invoice-kicker"><FileText size={15} /> Billing</div>
             <h1 className="invoice-title">Invoice</h1>
             <p className="invoice-subtitle">
-              Generate client invoices from approved admin timesheets. Select a client and date range, then review line items before printing or exporting.
+              Generate client invoices from confirmed HoursTracker weeks. Select a project with placed workers, then review the employees and confirmed hours before printing or exporting.
             </p>
           </div>
           <div className="invoice-actions">
@@ -699,14 +720,19 @@ export default function InvoicePage() {
         <section className="invoice-grid">
           <aside className="invoice-card invoice-controls">
             <h2 className="invoice-panel-title">Invoice Builder</h2>
-            <p className="invoice-muted">Invoices now use approved admin timesheets only, so draft or pending hours are never billed accidentally.</p>
+            <p className="invoice-muted">Invoices use only weeks confirmed in HoursTracker. Choose a project to load all placed employees with confirmed hours in the selected period.</p>
 
             <div className="invoice-form">
               <div className="invoice-field">
-                <label className="invoice-label">Client</label>
-                <select className="invoice-select" value={selectedClient} onChange={(event) => setClientFilter(event.target.value)}>
-                  {clients.length ? clients.map((client) => <option key={client} value={client}>{client}</option>) : <option value="">No clients found</option>}
+                <label className="invoice-label">Project</label>
+                <select className="invoice-select" value={selectedProjectId} onChange={(event) => setProjectFilter(event.target.value)}>
+                  {projectOptions.length ? projectOptions.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.projectName}{project.projectLocation ? ` · ${project.projectLocation}` : ""} ({project.placedCount})
+                    </option>
+                  )) : <option value="">No placed-worker projects found</option>}
                 </select>
+                <div className="invoice-muted">Client: {selectedClient || "—"}</div>
               </div>
 
               <div className="invoice-date-grid">
@@ -774,13 +800,13 @@ export default function InvoicePage() {
                 <div className="invoice-bill-grid">
                   <div className="bill-box">
                     <div className="bill-heading">Bill To</div>
-                    <div className="bill-main">{selectedClient || "Select a client"}</div>
+                    <div className="bill-main">{selectedClient || "Select a project"}</div>
                     <div className="invoice-muted">Client billing contact</div>
                   </div>
                   <div className="bill-box">
                     <div className="bill-heading">Service Period</div>
                     <div className="bill-main">{formatDate(dateFrom)} – {formatDate(dateTo)}</div>
-                    <div className="invoice-muted">Approved admin timesheets only</div>
+                    <div className="invoice-muted">Confirmed HoursTracker weeks only</div>
                   </div>
                 </div>
 
@@ -790,26 +816,28 @@ export default function InvoicePage() {
                       <table className="invoice-table">
                         <thead>
                           <tr>
-                            <th>Project</th>
-                            <th>Candidate</th>
-                            <th>Dates</th>
-                            <th style={{ textAlign: "right" }}>Hours</th>
+                            <th style={{ width: 70, textAlign: "right" }}>Item #</th>
+                            <th>Product or service</th>
+                            <th>Name</th>
+                            <th>Details</th>
+                            <th style={{ textAlign: "right" }}>Qty</th>
                             <th style={{ textAlign: "right" }}>Rate</th>
                             <th style={{ textAlign: "right" }}>Amount</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {rowsWithTotals.map((row) => (
+                          {rowsWithTotals.map((row, index) => (
                             <tr key={row.key}>
-                              <td>
-                                <div className="line-primary">{row.projectName}</div>
-                                <div className="line-secondary">{[row.projectLocation, row.jobCode ? `Code: ${row.jobCode}` : ""].filter(Boolean).join(" · ") || "No location"}</div>
-                              </td>
+                              <td style={{ textAlign: "right" }}>{index + 1}</td>
+                              <td>{row.serviceName}</td>
                               <td>
                                 <div className="line-primary">{row.candidateName}</div>
                                 <div className="line-secondary">{[row.workerPhone, row.workerEmail].filter(Boolean).join(" · ") || "No contact"}</div>
                               </td>
-                              <td className="invoice-muted">{formatDate(row.firstDate)} – {formatDate(row.lastDate)}</td>
+                              <td>
+                                <div className="line-primary">{row.projectName}</div>
+                                <div className="line-secondary">{[row.projectLocation, `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}`, row.jobCode ? `Code: ${row.jobCode}` : ""].filter(Boolean).join(" · ") || "No location"}</div>
+                              </td>
                               <td style={{ textAlign: "right" }}>{formatHours(row.hours)}</td>
                               <td style={{ textAlign: "right" }}>
                                 <input
@@ -839,7 +867,7 @@ export default function InvoicePage() {
                   </>
                 ) : (
                   <div style={{ padding: 24 }}>
-                    <div className="empty-state">No approved invoice lines found for the selected client and date range.</div>
+                    <div className="empty-state">No confirmed HoursTracker hours found for the selected project and date range.</div>
                   </div>
                 )}
 
