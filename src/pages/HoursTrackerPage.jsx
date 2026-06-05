@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  AlertTriangle,
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
   Download,
   Loader2,
+  Printer,
   RefreshCw,
   Save,
 } from "lucide-react";
@@ -500,6 +502,21 @@ export default function HoursTrackerPage() {
               </button>
             </div>
           </div>
+
+          {isAdmin && !loading ? (
+            <HoursReport
+              weeks={weeks}
+              selectedWeek={reportWeek}
+              setSelectedWeek={setReportWeek}
+              rows={weeklyReportRows}
+              summary={weeklyReportSummary}
+              statusFilter={reportStatusFilter}
+              setStatusFilter={setReportStatusFilter}
+              onConfirmRow={(row) => confirmReportRows([row])}
+              onConfirmVisible={confirmReportRows}
+              confirmingKey={confirmingReportKey}
+            />
+          ) : null}
 
           {loading ? (
             <div className="empty"><Loader2 className="spin" size={18} /> Loading hours...</div>

@@ -85,6 +85,10 @@ export default function App() {
           }
         />
         <Route
+          path="/worker/hours"
+          element={<WorkerHoursPage />}
+        />
+        <Route
           path="/hours"
           element={
             <AdminRoute>
