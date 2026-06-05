@@ -6,7 +6,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Download,
-  Link2,
   Loader2,
   Printer,
   RefreshCw,
@@ -29,23 +28,23 @@ function PageStyles() {
   return (
     <style>{`
       * { box-sizing: border-box; }
-      html, body { margin: 0; width: 100%; overflow-x: hidden; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4ff; color: #0f172a; }
+      html, body { margin: 0; width: 100%; max-width: 100%; overflow-x: hidden; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef4ff; color: #0f172a; }
       input, select, button { font: inherit; }
       .spin { animation: spin 1s linear infinite; }
       @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      .hours-shell { width: min(1440px, calc(100% - 48px)); margin: 0 auto; padding: 24px 0 48px; display: grid; gap: 18px; }
-      .card { background: rgba(255,255,255,0.92); border: 1px solid #dbeafe; border-radius: 28px; box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08); padding: 24px; }
-      .hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      .hours-shell { width: min(1440px, calc(100vw - 32px)); max-width: calc(100vw - 32px); margin: 0 auto; padding: 24px 0 48px; display: grid; gap: 18px; }
+      .card { min-width: 0; overflow: hidden; background: rgba(255,255,255,0.92); border: 1px solid #dbeafe; border-radius: 28px; box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08); padding: 24px; }
+      .hero { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
       .kicker { display: inline-flex; align-items: center; gap: 8px; color: #1d4ed8; font-size: 12px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
       .title { margin: 0; font-size: clamp(31px, 4vw, 46px); line-height: 1.05; font-weight: 850; letter-spacing: -0.035em; }
       .subtitle { margin: 10px 0 0; color: #64748b; font-size: 15px; line-height: 1.65; max-width: 760px; }
-      .btn { border: 1px solid #cbd5e1; border-radius: 14px; min-height: 44px; padding: 10px 14px; background: #fff; color: #0f172a; font-size: 13px; font-weight: 750; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: 0.18s ease; text-decoration: none; }
+      .btn { white-space: nowrap; border: 1px solid #cbd5e1; border-radius: 14px; min-height: 44px; padding: 10px 14px; background: #fff; color: #0f172a; font-size: 13px; font-weight: 750; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: 0.18s ease; text-decoration: none; }
       .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08); }
       .btn.dark { background: #0f172a; border-color: #0f172a; color: #fff; }
       .btn.success { background: #16a34a; border-color: #16a34a; color: #fff; }
       .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
-      .hero-actions, .row-actions { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-      .filters { display: grid; grid-template-columns: minmax(220px, 1.2fr) minmax(150px, 0.55fr) minmax(190px, 0.75fr) minmax(150px, 0.55fr); gap: 10px; align-items: end; }
+      .hero-actions, .row-actions { max-width: 100%; display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .filters { min-width: 0; display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.55fr) minmax(170px, 0.75fr) minmax(140px, 0.55fr); gap: 10px; align-items: end; }
       .field { display: grid; gap: 7px; }
       .label { color: #64748b; font-size: 11px; font-weight: 850; letter-spacing: 0.09em; text-transform: uppercase; }
       .input, .select { width: 100%; min-height: 44px; border: 1px solid #cbd5e1; border-radius: 13px; background: #fff; color: #0f172a; padding: 10px 12px; outline: none; }
@@ -56,8 +55,8 @@ function PageStyles() {
       .feedback { border-radius: 16px; padding: 13px 14px; font-weight: 800; }
       .feedback.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
       .feedback.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
-      .table-scroll { width: 100%; overflow-x: auto; }
-      .timesheet-table { width: 100%; min-width: 1220px; border-collapse: separate; border-spacing: 0; }
+      .table-scroll { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .timesheet-table { width: 100%; min-width: 1120px; border-collapse: separate; border-spacing: 0; }
       .timesheet-table th { background: #eff6ff; color: #1e3a8a; font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: 0.08em; padding: 12px; text-align: left; border-bottom: 1px solid #dbeafe; }
       .timesheet-table td { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 12px; vertical-align: middle; }
       .timesheet-table tbody tr:nth-child(even) td { background: #fbfdff; }
@@ -75,7 +74,7 @@ function PageStyles() {
       .status-pill.approved { background: #ecfdf5; color: #047857; }
       .worker-hint { margin-top: 6px; color: #2563eb; font-size: 11px; font-weight: 800; white-space: nowrap; }
       .empty { border: 1px dashed #cbd5e1; background: #f8fafc; color: #475569; border-radius: 20px; padding: 28px; text-align: center; font-weight: 800; }
-      @media (max-width: 980px) { .filters, .summary-grid { grid-template-columns: 1fr 1fr; } .hours-shell { width: min(100% - 28px, 1440px); } }
+      @media (max-width: 980px) { .filters, .summary-grid { grid-template-columns: 1fr 1fr; } .hours-shell { width: min(100% - 24px, 1440px); max-width: calc(100vw - 24px); } .hero-actions { justify-content: flex-start; } }
       @media (max-width: 640px) { .filters, .summary-grid { grid-template-columns: 1fr; } .card { padding: 18px; border-radius: 22px; } }
       @media print { .uts-topbar, .hero-actions, .filters-card, .row-actions, .btn, .go-to-top-button { display: none !important; } body { background: #fff; } .hours-shell { width: 100%; padding: 0; } .card { box-shadow: none; border-color: #e2e8f0; } }
     `}</style>
@@ -441,37 +440,6 @@ export default function HoursTrackerPage() {
     }
   };
 
-  const generateWorkerLink = async (assignment) => {
-    setSavingKey(`link-${assignment.id}`);
-    setFeedback({ error: "", success: "" });
-    try {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 14);
-      const payload = {
-        cts_job_candidate_id: assignment.id,
-        cts_job_id: assignment.cts_job_id,
-        worker_id: assignment.worker_id,
-        week_start_date: weekStart,
-        expires_at: expiresAt.toISOString(),
-        revoked_at: null,
-      };
-      const { data, error } = await supabase
-        .from("worker_hours_links")
-        .upsert(payload, { onConflict: "cts_job_candidate_id,week_start_date" })
-        .select("token")
-        .single();
-      if (error) throw error;
-
-      const url = `${window.location.origin}/worker/hours/${data.token}`;
-      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);
-      setFeedback({ error: "", success: `Worker link copied for ${assignment.name}: ${url}` });
-    } catch (error) {
-      setFeedback({ error: error.message || "Could not generate worker link.", success: "" });
-    } finally {
-      setSavingKey("");
-    }
-  };
-
   const exportCsv = () => {
     downloadCsv(
       `weekly-hours-${weekStart}.csv`,
@@ -604,9 +572,6 @@ export default function HoursTrackerPage() {
                         <div className="row-actions">
                           <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey}>
                             {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
-                          </button>
-                          <button className="btn" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!savingKey}>
-                            {savingKey === `link-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Link
                           </button>
                           <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Reviewed</button>
                           <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Approve</button>
