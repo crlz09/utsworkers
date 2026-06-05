@@ -81,6 +81,20 @@ function formatMonth(value) {
   return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
+function parseDateInput(value) {
+  const [year, month, day] = String(value || "").split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatWeekRange(value) {
+  if (!value) return "—";
+  const start = parseDateInput(value);
+  if (Number.isNaN(start.getTime())) return "—";
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
 function makeNotification({
   id,
   type,
@@ -126,6 +140,7 @@ export function buildAdminNotifications({
   jobs = [],
   candidates = [],
   hoursEntries = [],
+  workerWeeklyHours = [],
 } = {}) {
   const notifications = [];
   const candidatesByJob = new Map();
@@ -315,6 +330,25 @@ export function buildAdminNotifications({
     }
   });
 
+  workerWeeklyHours
+    .filter((submission) => submission.status === "submitted")
+    .forEach((submission) => {
+      const workerName = clean(submission.workers?.name) || "Worker";
+      const jobName = clean(submission.cts_jobs?.level_type) || "CTS job";
+      notifications.push(makeNotification({
+        id: `worker-hours-submitted:${submission.id}`,
+        type: "hours",
+        entityType: "worker_weekly_hours",
+        entityId: submission.id,
+        severity: "high",
+        title: `Worker hours ready to review: ${workerName}`,
+        body: `${jobName} · Week of ${formatWeekRange(submission.week_start_date)}`,
+        route: "/hours",
+        actionLabel: "Review Hours",
+        createdAt: submission.submitted_at || submission.updated_at || submission.created_at,
+      }));
+    });
+
   const severityRank = { high: 0, medium: 1, low: 2 };
   return notifications.sort((a, b) => {
     const rank = (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9);
@@ -324,7 +358,7 @@ export function buildAdminNotifications({
 }
 
 export async function loadAdminNotificationData(supabase) {
-  const [workersRes, jobsRes, candidatesRes, hoursRes] = await Promise.all([
+  const [workersRes, jobsRes, candidatesRes, hoursRes, workerWeeklyHoursRes] = await Promise.all([
     supabase
       .from("workers")
       .select("*, trades(name), locations(name)")
@@ -338,9 +372,13 @@ export async function loadAdminNotificationData(supabase) {
       .from("hours_entries")
       .select("id, cts_job_candidate_id, week_start_date, work_date, source, regular_hours, updated_at")
       .gte("work_date", toDateInputValue(startOfMonth(addMonths(new Date(), -1)))),
+    supabase
+      .from("worker_weekly_hours")
+      .select("id, week_start_date, status, submitted_at, updated_at, created_at, workers(name), cts_jobs(level_type)")
+      .eq("status", "submitted"),
   ]);
 
-  const error = workersRes.error || jobsRes.error || candidatesRes.error || hoursRes.error;
+  const error = workersRes.error || jobsRes.error || candidatesRes.error || hoursRes.error || workerWeeklyHoursRes.error;
   if (error) throw error;
 
   return {
@@ -348,6 +386,7 @@ export async function loadAdminNotificationData(supabase) {
     jobs: jobsRes.data || [],
     candidates: candidatesRes.data || [],
     hoursEntries: hoursRes.data || [],
+    workerWeeklyHours: workerWeeklyHoursRes.data || [],
   };
 }
 
