@@ -603,6 +603,81 @@ function InvoiceStyles() {
         color: #b91c1c;
       }
 
+      .feedback.success {
+        border: 1px solid #bbf7d0;
+        background: #f0fdf4;
+        color: #15803d;
+      }
+
+      .invoice-dashboard {
+        display: grid;
+        gap: 14px;
+      }
+
+      .invoice-dashboard-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      .invoice-dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+      }
+
+      .invoice-history-card {
+        border: 1px solid #dbeafe;
+        border-radius: 18px;
+        background: #ffffff;
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .invoice-history-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .status-badge {
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 11px;
+        font-weight: 850;
+        text-transform: capitalize;
+      }
+
+      .status-badge.finalized { background: #e0f2fe; color: #0369a1; }
+      .status-badge.printed { background: #ede9fe; color: #6d28d9; }
+      .status-badge.sent { background: #fef3c7; color: #b45309; }
+      .status-badge.paid { background: #dcfce7; color: #15803d; }
+
+      .invoice-history-actions {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+      }
+
+      .mini-btn {
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #0f172a;
+        padding: 6px 9px;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .mini-btn:hover {
+        border-color: #93c5fd;
+        background: #eff6ff;
+      }
+
       @media (max-width: 1024px) {
         .invoice-grid { grid-template-columns: 1fr; }
         .invoice-doc-meta { text-align: left; }
@@ -709,7 +784,10 @@ function csvEscape(value) {
 
 const DEFAULT_PRODUCT_SERVICES = [
   { id: "hourly-fee", name: "Hourly Fee", rate: 1 },
+  { id: "job-placement-fee", name: "Job Placement Fee", rate: 0 },
 ];
+
+const INVOICE_STATUS_OPTIONS = ["finalized", "printed", "sent", "paid"];
 
 function loadStoredProductServices() {
   if (typeof window === "undefined") return DEFAULT_PRODUCT_SERVICES;
@@ -760,6 +838,9 @@ export default function InvoicePage() {
   const [workers, setWorkers] = useState([]);
   const [hoursEntries, setHoursEntries] = useState([]);
   const [weeklyReviews, setWeeklyReviews] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
+  const [savingInvoice, setSavingInvoice] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
   const [selectedProjectIds, setSelectedProjectIds] = useState(null);
@@ -783,8 +864,8 @@ export default function InvoicePage() {
     setFeedback({ error: "", success: "" });
 
     const reviewStart = toDateInputValue(startOfWeek(new Date(`${dateFrom}T00:00:00`)));
-    const [jobsRes, candidatesRes, workersRes, hoursRes, reviewsRes] = await Promise.all([
-      supabase.from("cts_jobs").select("id, level_type, city, state, client_name, job_code").order("created_at", { ascending: false }),
+    const [jobsRes, candidatesRes, workersRes, hoursRes, reviewsRes, invoicesRes] = await Promise.all([
+      supabase.from("cts_jobs").select("*").order("created_at", { ascending: false }),
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }),
       supabase.from("workers").select("id, name, phone, email"),
       supabase
@@ -799,9 +880,14 @@ export default function InvoicePage() {
         .eq("status", "approved")
         .gte("week_start_date", reviewStart)
         .lte("week_start_date", dateTo),
+      supabase
+        .from("invoices")
+        .select("*, invoice_line_items(*)")
+        .order("created_at", { ascending: false })
+        .limit(30),
     ]);
 
-    if (jobsRes.error || candidatesRes.error || workersRes.error || hoursRes.error || reviewsRes.error) {
+    if (jobsRes.error || candidatesRes.error || workersRes.error || hoursRes.error || reviewsRes.error || invoicesRes.error) {
       setFeedback({
         error:
           jobsRes.error?.message ||
@@ -809,6 +895,7 @@ export default function InvoicePage() {
           workersRes.error?.message ||
           hoursRes.error?.message ||
           reviewsRes.error?.message ||
+          invoicesRes.error?.message ||
           "Could not load invoice data.",
         success: "",
       });
@@ -817,6 +904,7 @@ export default function InvoicePage() {
       setWorkers([]);
       setHoursEntries([]);
       setWeeklyReviews([]);
+      setInvoices([]);
       setLoading(false);
       return;
     }
@@ -826,8 +914,9 @@ export default function InvoicePage() {
     setWorkers(workersRes.data || []);
     setHoursEntries(hoursRes.data || []);
     setWeeklyReviews(reviewsRes.data || []);
+    setInvoices(invoicesRes.data || []);
     setLoading(false);
-  }, [dateFrom, dateTo, setCandidates, setFeedback, setHoursEntries, setJobs, setLoading, setWeeklyReviews, setWorkers]);
+  }, [dateFrom, dateTo, setCandidates, setFeedback, setHoursEntries, setInvoices, setJobs, setLoading, setWeeklyReviews, setWorkers]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());
@@ -994,17 +1083,62 @@ export default function InvoicePage() {
         projectLocation,
         jobCode: job.job_code || "",
         clientName,
+        lineType: "hours",
+        workerId: entry.worker_id || candidate.worker_id || null,
         hours: 0,
+        qty: 0,
         firstDate: entry.work_date,
         lastDate: entry.work_date,
         serviceName: DEFAULT_PRODUCT_SERVICES[0].name,
+        defaultServiceId: DEFAULT_PRODUCT_SERVICES[0].id,
         defaultRate: parseRate(candidate.bill_rate_snapshot || candidate.rate_snapshot) || DEFAULT_PRODUCT_SERVICES[0].rate,
       };
 
       existing.hours += hours;
+      existing.qty += hours;
       if (entry.work_date < existing.firstDate) existing.firstDate = entry.work_date;
       if (entry.work_date > existing.lastDate) existing.lastDate = entry.work_date;
       grouped.set(key, existing);
+    });
+
+    candidates.forEach((candidate) => {
+      if (String(candidate.candidate_status || "").toLowerCase() !== "placed") return;
+      if (candidate.placement_fee_paid || candidate.placement_fee_billed_at) return;
+      const job = jobsById.get(candidate.cts_job_id);
+      if (!job || !selectedProjectIdSet.has(job.id)) return;
+
+      const worker = workersById.get(candidate.worker_id) || {};
+      const candidateName = candidate.name_snapshot || worker.name || "Unnamed worker";
+      const projectName = job.level_type || "Untitled project";
+      const projectLocation = [job.city, job.state].filter(Boolean).join(", ");
+      const searchable = [candidateName, projectName, projectLocation, worker.email, worker.phone, job.job_code, "Job Placement Fee"]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (query && !searchable.includes(query)) return;
+
+      const placementRate = parseRate(candidate.placement_fee_amount) || parseRate(job.placement_fee_amount) || 0;
+      grouped.set(`placement-${candidate.id}|${job.id}`, {
+        key: `placement-${candidate.id}|${job.id}`,
+        lineType: "placement_fee",
+        candidateId: candidate.id,
+        jobId: job.id,
+        workerId: candidate.worker_id || null,
+        candidateName,
+        workerEmail: worker.email || "",
+        workerPhone: candidate.phone_snapshot || worker.phone || "",
+        projectName,
+        projectLocation,
+        jobCode: job.job_code || "",
+        clientName: (job.client_name || "CTS").trim() || "CTS",
+        hours: 0,
+        qty: 1,
+        firstDate: dateFrom,
+        lastDate: dateTo,
+        serviceName: "Job Placement Fee",
+        defaultServiceId: "job-placement-fee",
+        defaultRate: placementRate,
+      });
     });
 
     return [...grouped.values()].sort((a, b) => {
@@ -1012,26 +1146,26 @@ export default function InvoicePage() {
       if (projectCompare !== 0) return projectCompare;
       return a.candidateName.localeCompare(b.candidateName);
     });
-  }, [approvedReviewKeys, candidatesById, hoursEntries, jobsById, search, selectedProjectIdSet, workersById]);
+  }, [approvedReviewKeys, candidates, candidatesById, dateFrom, dateTo, hoursEntries, jobsById, search, selectedProjectIdSet, workersById]);
 
   const rowsWithTotals = useMemo(
     () => invoiceRows.map((row) => {
-      const serviceId = lineServiceIds[row.key] || DEFAULT_PRODUCT_SERVICES[0].id;
-      const service = servicesById.get(serviceId) || DEFAULT_PRODUCT_SERVICES[0];
-      const rate = Number(lineRates[row.key] ?? service.rate ?? row.defaultRate ?? 0);
+      const serviceId = lineServiceIds[row.key] || row.defaultServiceId || DEFAULT_PRODUCT_SERVICES[0].id;
+      const service = servicesById.get(serviceId) || servicesById.get(row.defaultServiceId) || DEFAULT_PRODUCT_SERVICES[0];
+      const rate = Number(lineRates[row.key] ?? row.defaultRate ?? service.rate ?? 0);
       return {
         ...row,
         serviceId,
         serviceName: service.name,
         rate,
-        amount: row.hours * rate,
+        amount: Number(row.qty ?? row.hours ?? 0) * rate,
       };
     }),
     [invoiceRows, lineRates, lineServiceIds, servicesById]
   );
 
   const summary = useMemo(() => {
-    const totalHours = rowsWithTotals.reduce((total, row) => total + row.hours, 0);
+    const totalHours = rowsWithTotals.reduce((total, row) => total + (row.lineType === "hours" ? row.hours : 0), 0);
     const subtotal = rowsWithTotals.reduce((total, row) => total + row.amount, 0);
     return {
       totalHours,
@@ -1084,6 +1218,108 @@ export default function InvoicePage() {
     closeServiceModal();
   };
 
+
+
+  const buildInvoicePayload = (status) => ({
+    invoice_number: invoiceNumber || `INV-${Date.now()}`,
+    status,
+    client_name: selectedClientName,
+    client_address: selectedClient?.address || "",
+    client_phone: selectedClient?.phone || "",
+    client_email: selectedClient?.email || "",
+    date_from: dateFrom,
+    date_to: dateTo,
+    invoice_date: toDateInputValue(today),
+    due_date: dueDate || null,
+    notes,
+    subtotal: Number(summary.subtotal.toFixed(2)),
+    total: Number(summary.total.toFixed(2)),
+  });
+
+  const buildLineItemPayload = (invoiceId) => rowsWithTotals.map((row) => ({
+    invoice_id: invoiceId,
+    line_type: row.lineType || "hours",
+    cts_job_candidate_id: row.candidateId || null,
+    cts_job_id: row.jobId || null,
+    worker_id: row.workerId || null,
+    product_service_name: row.serviceName,
+    worker_name: row.candidateName,
+    project_name: row.projectName,
+    details: [row.projectLocation, row.firstDate && row.lastDate ? `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}` : "", row.jobCode ? `Code: ${row.jobCode}` : ""].filter(Boolean).join(" · "),
+    qty: Number((row.qty ?? row.hours ?? 0).toFixed(2)),
+    rate: Number(row.rate.toFixed(2)),
+    amount: Number(row.amount.toFixed(2)),
+  }));
+
+  const saveInvoice = async (status = "finalized") => {
+    if (!rowsWithTotals.length) {
+      setFeedback({ error: "No invoice lines to save.", success: "" });
+      return null;
+    }
+
+    setSavingInvoice(true);
+    setFeedback({ error: "", success: "" });
+
+    const payload = buildInvoicePayload(status);
+    let invoiceId = currentInvoiceId;
+
+    if (invoiceId) {
+      const { error } = await supabase.from("invoices").update(payload).eq("id", invoiceId);
+      if (error) {
+        setSavingInvoice(false);
+        setFeedback({ error: error.message, success: "" });
+        return null;
+      }
+      await supabase.from("invoice_line_items").delete().eq("invoice_id", invoiceId);
+    } else {
+      const { data, error } = await supabase.from("invoices").insert(payload).select("id").single();
+      if (error) {
+        setSavingInvoice(false);
+        setFeedback({ error: error.message, success: "" });
+        return null;
+      }
+      invoiceId = data.id;
+      setCurrentInvoiceId(invoiceId);
+    }
+
+    const lineItems = buildLineItemPayload(invoiceId);
+    const { error: lineError } = await supabase.from("invoice_line_items").insert(lineItems);
+    if (lineError) {
+      setSavingInvoice(false);
+      setFeedback({ error: lineError.message, success: "" });
+      return null;
+    }
+
+    setSavingInvoice(false);
+    setFeedback({ error: "", success: `Invoice ${payload.invoice_number} saved as ${status}.` });
+    await load();
+    return invoiceId;
+  };
+
+  const updateInvoiceStatus = async (invoiceId, status) => {
+    setSavingInvoice(true);
+    setFeedback({ error: "", success: "" });
+    const { error } = await supabase.from("invoices").update({ status }).eq("id", invoiceId);
+    setSavingInvoice(false);
+    if (error) {
+      setFeedback({ error: error.message, success: "" });
+      return;
+    }
+    if (invoiceId === currentInvoiceId && status === "paid") {
+      setCurrentInvoiceId(invoiceId);
+    }
+    setFeedback({ error: "", success: `Invoice marked as ${status}.` });
+    await load();
+  };
+
+  const printInvoice = async () => {
+    const invoiceId = currentInvoiceId || await saveInvoice("printed");
+    if (invoiceId && currentInvoiceId) {
+      await updateInvoiceStatus(invoiceId, "printed");
+    }
+    window.print();
+  };
+
   const exportCsv = () => {
     const headers = ["Invoice", "Client", "Date From", "Date To", "Item #", "Product or Service", "Name", "Details", "Qty", "Rate", "Amount"];
     const rows = rowsWithTotals.map((row, index) => [
@@ -1095,7 +1331,7 @@ export default function InvoicePage() {
       row.serviceName,
       row.candidateName,
       [row.projectName, row.projectLocation].filter(Boolean).join(" · "),
-      formatHours(row.hours),
+      formatHours(row.qty ?? row.hours),
       row.rate.toFixed(2),
       row.amount.toFixed(2),
     ]);
@@ -1128,16 +1364,66 @@ export default function InvoicePage() {
             <button className="invoice-btn" type="button" onClick={refreshData} disabled={loading}>
               <RefreshCw size={15} /> Refresh
             </button>
+            <button className="invoice-btn" type="button" onClick={() => saveInvoice("finalized")} disabled={!rowsWithTotals.length || savingInvoice}>
+              {savingInvoice ? <Loader2 className="spin" size={15} /> : <FileText size={15} />} Finalize
+            </button>
             <button className="invoice-btn" type="button" onClick={exportCsv} disabled={!rowsWithTotals.length}>
               <Download size={15} /> Export CSV
             </button>
-            <button className="invoice-btn dark" type="button" onClick={() => window.print()} disabled={!rowsWithTotals.length}>
+            <button className="invoice-btn" type="button" onClick={printInvoice} disabled={!rowsWithTotals.length || savingInvoice}>
               <Printer size={15} /> Print Invoice
+            </button>
+            <button className="invoice-btn dark" type="button" onClick={() => currentInvoiceId ? updateInvoiceStatus(currentInvoiceId, "paid") : saveInvoice("paid")} disabled={!rowsWithTotals.length || savingInvoice}>
+              Mark Paid
             </button>
           </div>
         </section>
 
         {feedback.error ? <div className="feedback error">{feedback.error}</div> : null}
+        {feedback.success ? <div className="feedback success">{feedback.success}</div> : null}
+
+        <section className="invoice-card invoice-dashboard">
+          <div className="invoice-dashboard-head">
+            <div>
+              <h2 className="invoice-panel-title">Invoice Dashboard</h2>
+              <p className="invoice-muted">Review generated invoices and move them through printed, finalized, sent, and paid statuses.</p>
+            </div>
+            <button className="invoice-btn" type="button" onClick={refreshData} disabled={loading}>Refresh Dashboard</button>
+          </div>
+          {invoices.length ? (
+            <div className="invoice-dashboard-grid">
+              {invoices.map((invoice) => (
+                <article className="invoice-history-card" key={invoice.id}>
+                  <div className="invoice-history-top">
+                    <div>
+                      <div className="line-primary">{invoice.invoice_number}</div>
+                      <div className="line-secondary">{invoice.client_name}</div>
+                    </div>
+                    <span className={`status-badge ${invoice.status}`}>{invoice.status}</span>
+                  </div>
+                  <div className="invoice-muted">
+                    {formatDate(invoice.date_from)} – {formatDate(invoice.date_to)} · {formatCurrency(invoice.total)} · {invoice.invoice_line_items?.length || 0} lines
+                  </div>
+                  <div className="invoice-history-actions">
+                    {INVOICE_STATUS_OPTIONS.map((status) => (
+                      <button
+                        className="mini-btn"
+                        type="button"
+                        key={status}
+                        onClick={() => updateInvoiceStatus(invoice.id, status)}
+                        disabled={invoice.status === status || savingInvoice}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">No generated invoices yet.</div>
+          )}
+        </section>
 
         <section className="invoice-grid">
           <aside className="invoice-card invoice-controls">
@@ -1330,7 +1616,7 @@ export default function InvoicePage() {
                                 <div className="line-primary">{row.projectName}</div>
                                 <div className="line-secondary">{[row.projectLocation, `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}`, row.jobCode ? `Code: ${row.jobCode}` : ""].filter(Boolean).join(" · ") || "No location"}</div>
                               </td>
-                              <td style={{ textAlign: "right" }}>{formatHours(row.hours)}</td>
+                              <td style={{ textAlign: "right" }}>{formatHours(row.qty ?? row.hours)}</td>
                               <td style={{ textAlign: "right" }}>
                                 <input
                                   className="rate-input"
