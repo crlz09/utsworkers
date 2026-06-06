@@ -22,7 +22,14 @@ export default function LoginPage() {
 
       if (session) {
         const access = await getCurrentUserAccess();
-        navigate(access.isClient && !access.isAdmin ? "/client/cts-jobs" : "/admin", {
+        const nextPath = access.isAdmin
+          ? "/admin"
+          : access.isClient
+            ? "/client/cts-jobs"
+            : access.isWorker
+              ? "/worker/hours"
+              : "/login";
+        navigate(nextPath, {
           replace: true,
         });
         return;
@@ -52,7 +59,14 @@ export default function LoginPage() {
 
     setLoading(false);
     const access = await getCurrentUserAccess();
-    navigate(access.isClient && !access.isAdmin ? "/client/cts-jobs" : "/admin", {
+    const nextPath = access.isAdmin
+      ? "/admin"
+      : access.isClient
+        ? "/client/cts-jobs"
+        : access.isWorker
+          ? "/worker/hours"
+          : "/login";
+    navigate(nextPath, {
       replace: true,
     });
   };
