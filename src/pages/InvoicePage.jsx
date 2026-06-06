@@ -433,14 +433,68 @@ function InvoiceStyles() {
         line-height: 1.45;
       }
 
-      .rate-input {
-        width: 104px;
+      .rate-input,
+      .service-select {
         min-height: 38px;
         border: 1px solid #cbd5e1;
         border-radius: 12px;
+        background: #ffffff;
+        color: #0f172a;
         padding: 8px 10px;
-        text-align: right;
         outline: none;
+        font-size: 13px;
+      }
+
+      .rate-input {
+        width: 104px;
+        text-align: right;
+      }
+
+      .service-select {
+        width: min(190px, 100%);
+        font-weight: 700;
+      }
+
+      .invoice-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: grid;
+        place-items: start center;
+        padding: 78px 18px 24px;
+        background: rgba(15, 23, 42, 0.48);
+        backdrop-filter: blur(6px);
+      }
+
+      .invoice-modal {
+        width: min(420px, 100%);
+        border: 1px solid #dbeafe;
+        border-radius: 24px;
+        background: #ffffff;
+        box-shadow: 0 26px 70px rgba(15, 23, 42, 0.24);
+        padding: 22px;
+        display: grid;
+        gap: 16px;
+      }
+
+      .invoice-modal-head {
+        display: grid;
+        gap: 7px;
+      }
+
+      .invoice-modal-title {
+        margin: 0;
+        color: #0f172a;
+        font-size: 20px;
+        font-weight: 850;
+        letter-spacing: -0.03em;
+      }
+
+      .invoice-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
       }
 
       .invoice-total-panel {
@@ -510,7 +564,7 @@ function InvoiceStyles() {
 
       @media print {
         body { background: #ffffff; }
-        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .rate-input, .go-to-top-button { display: none !important; }
+        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .rate-input, .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
         .invoice-shell { width: 100%; max-width: none; padding: 0; }
         .invoice-grid { display: block; }
         .invoice-preview { display: block; }
@@ -576,6 +630,29 @@ function csvEscape(value) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+const DEFAULT_PRODUCT_SERVICES = [
+  { id: "hourly-fee", name: "Hourly Fee", rate: 1 },
+];
+
+function loadStoredProductServices() {
+  if (typeof window === "undefined") return DEFAULT_PRODUCT_SERVICES;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem("uts_invoice_product_services") || "[]");
+    const customServices = Array.isArray(parsed)
+      ? parsed.filter((service) => service?.id && service?.name)
+      : [];
+    return [...DEFAULT_PRODUCT_SERVICES, ...customServices.filter((service) => !DEFAULT_PRODUCT_SERVICES.some((item) => item.id === service.id))];
+  } catch {
+    return DEFAULT_PRODUCT_SERVICES;
+  }
+}
+
+function saveStoredProductServices(services) {
+  if (typeof window === "undefined") return;
+  const customServices = services.filter((service) => !DEFAULT_PRODUCT_SERVICES.some((item) => item.id === service.id));
+  window.localStorage.setItem("uts_invoice_product_services", JSON.stringify(customServices));
+}
+
 export default function InvoicePage() {
   const today = new Date();
   const [jobs, setJobs] = useState([]);
@@ -592,7 +669,10 @@ export default function InvoicePage() {
   const [dueDate, setDueDate] = useState(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 15)));
   const [search, setSearch] = useState("");
   const [notes, setNotes] = useState("Thank you for your business.");
+  const [productServices, setProductServices] = useState(loadStoredProductServices);
+  const [lineServiceIds, setLineServiceIds] = useState({});
   const [lineRates, setLineRates] = useState({});
+  const [serviceModal, setServiceModal] = useState({ open: false, rowKey: "", name: "", rate: "0" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -719,6 +799,8 @@ export default function InvoicePage() {
     setSelectedProjectIds([]);
   };
 
+  const servicesById = useMemo(() => new Map(productServices.map((service) => [service.id, service])), [productServices]);
+
   const invoiceRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     const grouped = new Map();
@@ -762,8 +844,8 @@ export default function InvoicePage() {
         hours: 0,
         firstDate: entry.work_date,
         lastDate: entry.work_date,
-        serviceName: "Hourly Fee",
-        defaultRate: parseRate(candidate.bill_rate_snapshot || candidate.rate_snapshot) || 1,
+        serviceName: DEFAULT_PRODUCT_SERVICES[0].name,
+        defaultRate: parseRate(candidate.bill_rate_snapshot || candidate.rate_snapshot) || DEFAULT_PRODUCT_SERVICES[0].rate,
       };
 
       existing.hours += hours;
@@ -781,14 +863,18 @@ export default function InvoicePage() {
 
   const rowsWithTotals = useMemo(
     () => invoiceRows.map((row) => {
-      const rate = Number(lineRates[row.key] ?? row.defaultRate ?? 0);
+      const serviceId = lineServiceIds[row.key] || DEFAULT_PRODUCT_SERVICES[0].id;
+      const service = servicesById.get(serviceId) || DEFAULT_PRODUCT_SERVICES[0];
+      const rate = Number(lineRates[row.key] ?? service.rate ?? row.defaultRate ?? 0);
       return {
         ...row,
+        serviceId,
+        serviceName: service.name,
         rate,
         amount: row.hours * rate,
       };
     }),
-    [invoiceRows, lineRates]
+    [invoiceRows, lineRates, lineServiceIds, servicesById]
   );
 
   const summary = useMemo(() => {
@@ -804,6 +890,45 @@ export default function InvoicePage() {
 
   const refreshData = async () => {
     await load();
+  };
+
+  const handleServiceChange = (rowKey, value) => {
+    if (value === "__new__") {
+      setServiceModal({ open: true, rowKey, name: "", rate: "0" });
+      return;
+    }
+
+    const selectedService = servicesById.get(value);
+    setLineServiceIds((prev) => ({ ...prev, [rowKey]: value }));
+    if (selectedService) {
+      setLineRates((prev) => ({ ...prev, [rowKey]: selectedService.rate ?? 0 }));
+    }
+  };
+
+  const closeServiceModal = () => {
+    setServiceModal({ open: false, rowKey: "", name: "", rate: "0" });
+  };
+
+  const createProductService = () => {
+    const name = serviceModal.name.trim();
+    if (!name) {
+      setFeedback({ error: "Product or service name is required.", success: "" });
+      return;
+    }
+
+    const rate = parseRate(serviceModal.rate);
+    const newService = {
+      id: `custom-${Date.now()}`,
+      name,
+      rate: Number.isFinite(rate) ? rate : 0,
+    };
+    const nextServices = [...productServices, newService];
+    setProductServices(nextServices);
+    saveStoredProductServices(nextServices);
+    setLineServiceIds((prev) => ({ ...prev, [serviceModal.rowKey]: newService.id }));
+    setLineRates((prev) => ({ ...prev, [serviceModal.rowKey]: newService.rate }));
+    setFeedback({ error: "", success: "" });
+    closeServiceModal();
   };
 
   const exportCsv = () => {
@@ -1003,7 +1128,19 @@ export default function InvoicePage() {
                           {rowsWithTotals.map((row, index) => (
                             <tr key={row.key}>
                               <td style={{ textAlign: "right" }}>{index + 1}</td>
-                              <td>{row.serviceName}</td>
+                              <td>
+                                <select
+                                  className="service-select"
+                                  value={row.serviceId}
+                                  onChange={(event) => handleServiceChange(row.key, event.target.value)}
+                                  aria-label={`Product or service for ${row.candidateName}`}
+                                >
+                                  {productServices.map((service) => (
+                                    <option key={service.id} value={service.id}>{service.name}</option>
+                                  ))}
+                                  <option value="__new__">New...</option>
+                                </select>
+                              </td>
                               <td>
                                 <div className="line-primary">{row.candidateName}</div>
                                 <div className="line-secondary">{[row.workerPhone, row.workerEmail].filter(Boolean).join(" · ") || "No contact"}</div>
@@ -1056,6 +1193,46 @@ export default function InvoicePage() {
           </section>
         </section>
       </main>
+      {serviceModal.open ? (
+        <div className="invoice-modal-backdrop" onMouseDown={closeServiceModal} role="presentation">
+          <div className="invoice-modal" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="new-service-title">
+            <div className="invoice-modal-head">
+              <h2 className="invoice-modal-title" id="new-service-title">New Product / Service</h2>
+              <div className="invoice-muted">Create a reusable product or service for invoice lines.</div>
+            </div>
+
+            <div className="invoice-field">
+              <label className="invoice-label">Product / Service</label>
+              <input
+                className="invoice-input"
+                value={serviceModal.name}
+                onChange={(event) => setServiceModal((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Hourly Fee"
+                autoFocus
+              />
+            </div>
+
+            <div className="invoice-field">
+              <label className="invoice-label">Rate</label>
+              <input
+                className="invoice-input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={serviceModal.rate}
+                onChange={(event) => setServiceModal((prev) => ({ ...prev, rate: event.target.value }))}
+                placeholder="0.00"
+              />
+              <div className="invoice-muted">Leave as 0 if this product/service has no default rate.</div>
+            </div>
+
+            <div className="invoice-modal-actions">
+              <button className="invoice-btn" type="button" onClick={closeServiceModal}>Cancel</button>
+              <button className="invoice-btn dark" type="button" onClick={createProductService}>Create</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <GoToTopButton />
     </>
   );
