@@ -3,6 +3,7 @@ import { Download, FileText, Loader2, Printer, RefreshCw, Search } from "lucide-
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { supabase } from "../lib/supabase";
+import utsLogo from "../assets/uts-logo.png";
 
 function InvoiceStyles() {
   return (
@@ -135,6 +136,30 @@ function InvoiceStyles() {
         font-size: 18px;
         font-weight: 750;
         letter-spacing: -0.02em;
+      }
+
+      .invoice-builder-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .invoice-collapse-btn {
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #0f172a;
+        padding: 8px 11px;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: 0.18s ease;
+      }
+
+      .invoice-collapse-btn:hover {
+        border-color: #93c5fd;
+        background: #eff6ff;
       }
 
       .invoice-muted {
@@ -394,43 +419,71 @@ function InvoiceStyles() {
 
       .invoice-table-wrap {
         width: 100%;
-        overflow-x: auto;
+        overflow-x: visible;
       }
 
       .invoice-table {
         width: 100%;
-        min-width: 860px;
+        min-width: 0;
+        table-layout: fixed;
         border-collapse: collapse;
       }
 
       .invoice-table th,
       .invoice-table td {
-        padding: 14px 16px;
+        padding: 11px 10px;
         border-bottom: 1px solid #eef2f7;
         text-align: left;
         vertical-align: middle;
+        overflow-wrap: anywhere;
       }
 
       .invoice-table th {
         background: #f8fbff;
         color: #334155;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.06em;
       }
+
+      .invoice-table th:nth-child(1),
+      .invoice-table td:nth-child(1) { width: 6%; }
+      .invoice-table th:nth-child(2),
+      .invoice-table td:nth-child(2) { width: 15%; }
+      .invoice-table th:nth-child(3),
+      .invoice-table td:nth-child(3) { width: 19%; }
+      .invoice-table th:nth-child(4),
+      .invoice-table td:nth-child(4) { width: 28%; }
+      .invoice-table th:nth-child(5),
+      .invoice-table td:nth-child(5) { width: 8%; }
+      .invoice-table th:nth-child(6),
+      .invoice-table td:nth-child(6) { width: 11%; }
+      .invoice-table th:nth-child(7),
+      .invoice-table td:nth-child(7) { width: 13%; }
 
       .line-primary {
         color: #0f172a;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 750;
       }
 
       .line-secondary {
-        margin-top: 4px;
+        margin-top: 3px;
         color: #94a3b8;
-        font-size: 12px;
-        line-height: 1.45;
+        font-size: 11px;
+        line-height: 1.35;
+      }
+
+      .print-service-name,
+      .print-rate-value {
+        display: none;
+      }
+
+      .invoice-logo {
+        width: 108px;
+        height: auto;
+        object-fit: contain;
       }
 
       .rate-input,
@@ -446,12 +499,12 @@ function InvoiceStyles() {
       }
 
       .rate-input {
-        width: 104px;
+        width: min(82px, 100%);
         text-align: right;
       }
 
       .service-select {
-        width: min(190px, 100%);
+        width: 100%;
         font-weight: 700;
       }
 
@@ -563,14 +616,38 @@ function InvoiceStyles() {
       }
 
       @media print {
-        body { background: #ffffff; }
-        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .rate-input, .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
-        .invoice-shell { width: 100%; max-width: none; padding: 0; }
+        @page { size: Letter; margin: 0.35in; }
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        html, body { background: #ffffff !important; overflow: visible !important; }
+        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .rate-input, .service-select, .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
+        .print-service-name, .print-rate-value { display: inline !important; }
+        .invoice-shell { width: 100%; max-width: none; padding: 0; gap: 0; }
         .invoice-grid { display: block; }
         .invoice-preview { display: block; }
         .invoice-card { box-shadow: none; border: none; padding: 0; background: #ffffff; }
-        .invoice-document { border: none; border-radius: 0; }
+        .invoice-document { border: none; border-radius: 0; overflow: visible; }
+        .invoice-doc-header { padding: 0 0 12px; }
+        .invoice-doc-title { font-size: 25px; }
+        .invoice-doc-meta { font-size: 10px; gap: 3px; }
+        .invoice-logo { width: 88px; }
+        .invoice-bill-grid { padding: 11px 0; gap: 12px; }
+        .bill-main { font-size: 13px; }
+        .bill-heading { font-size: 9px; }
+        .invoice-muted { font-size: 9.5px; line-height: 1.3; }
         .invoice-table-wrap { overflow: visible; }
+        .invoice-table { min-width: 0; width: 100%; table-layout: fixed; font-size: 9px; }
+        .invoice-table th, .invoice-table td { padding: 5px 4px; overflow-wrap: anywhere; }
+        .invoice-table th { font-size: 8px; letter-spacing: 0.035em; }
+        .invoice-table tr { break-inside: avoid; page-break-inside: avoid; }
+        .line-primary { font-size: 9px; }
+        .line-secondary { font-size: 8px; line-height: 1.25; }
+        .invoice-total-panel { padding: 10px 0 0; }
+        .total-box { min-width: 230px; gap: 5px; }
+        .total-row { font-size: 10px; }
+        .total-row.grand { font-size: 15px; }
       }
     `}</style>
   );
@@ -653,6 +730,29 @@ function saveStoredProductServices(services) {
   window.localStorage.setItem("uts_invoice_product_services", JSON.stringify(customServices));
 }
 
+function slugifyId(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "") || "client";
+}
+
+function loadStoredInvoiceClients() {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem("uts_invoice_clients") || "[]");
+    return Array.isArray(parsed) ? parsed.filter((client) => client?.id && client?.name) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredInvoiceClients(clients) {
+  if (typeof window === "undefined") return;
+  const customClients = clients.filter((client) => String(client.id || "").startsWith("custom-"));
+  window.localStorage.setItem("uts_invoice_clients", JSON.stringify(customClients));
+}
+
 export default function InvoicePage() {
   const today = new Date();
   const [jobs, setJobs] = useState([]);
@@ -669,10 +769,14 @@ export default function InvoicePage() {
   const [dueDate, setDueDate] = useState(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 15)));
   const [search, setSearch] = useState("");
   const [notes, setNotes] = useState("Thank you for your business.");
+  const [builderOpen, setBuilderOpen] = useState(true);
   const [productServices, setProductServices] = useState(loadStoredProductServices);
+  const [invoiceClients, setInvoiceClients] = useState(loadStoredInvoiceClients);
+  const [selectedClientId, setSelectedClientId] = useState(null);
   const [lineServiceIds, setLineServiceIds] = useState({});
   const [lineRates, setLineRates] = useState({});
   const [serviceModal, setServiceModal] = useState({ open: false, rowKey: "", name: "", rate: "0" });
+  const [clientModal, setClientModal] = useState({ open: false, name: "", address: "", phone: "", email: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -770,12 +874,27 @@ export default function InvoicePage() {
     () => projectOptions.filter((project) => selectedProjectIdSet.has(project.id)),
     [projectOptions, selectedProjectIdSet]
   );
-  const selectedClient = useMemo(() => {
-    const clients = [...new Set(selectedProjects.map((project) => (project.client_name || "CTS").trim() || "CTS"))];
-    if (!clients.length) return "Select one or more projects";
-    if (clients.length === 1) return clients[0];
-    return `${clients.length} clients selected`;
+  const projectClientOptions = useMemo(() => {
+    const seen = new Set();
+    return selectedProjects.reduce((clients, project) => {
+      const name = (project.client_name || "CTS").trim() || "CTS";
+      const id = `project-${slugifyId(name)}`;
+      if (seen.has(id)) return clients;
+      seen.add(id);
+      clients.push({ id, name, address: "", phone: "", email: "" });
+      return clients;
+    }, []);
   }, [selectedProjects]);
+  const clientOptions = useMemo(() => {
+    const customIds = new Set(invoiceClients.map((client) => client.id));
+    return [
+      ...invoiceClients,
+      ...projectClientOptions.filter((client) => !customIds.has(client.id)),
+    ];
+  }, [invoiceClients, projectClientOptions]);
+  const effectiveSelectedClientId = selectedClientId ?? clientOptions[0]?.id ?? "";
+  const selectedClient = clientOptions.find((client) => client.id === effectiveSelectedClientId) || null;
+  const selectedClientName = selectedClient?.name || "Select or add a client";
   const selectedProjectLabel = !projectOptions.length
     ? "No active projects"
     : selectedProjects.length === projectOptions.length
@@ -797,6 +916,40 @@ export default function InvoicePage() {
 
   const clearProjectSelection = () => {
     setSelectedProjectIds([]);
+  };
+
+  const handleClientChange = (value) => {
+    if (value === "__new__") {
+      setClientModal({ open: true, name: "", address: "", phone: "", email: "" });
+      return;
+    }
+    setSelectedClientId(value);
+  };
+
+  const closeClientModal = () => {
+    setClientModal({ open: false, name: "", address: "", phone: "", email: "" });
+  };
+
+  const createInvoiceClient = () => {
+    const name = clientModal.name.trim();
+    if (!name) {
+      setFeedback({ error: "Client name is required.", success: "" });
+      return;
+    }
+
+    const newClient = {
+      id: `custom-${Date.now()}`,
+      name,
+      address: clientModal.address.trim(),
+      phone: clientModal.phone.trim(),
+      email: clientModal.email.trim(),
+    };
+    const nextClients = [...invoiceClients, newClient];
+    setInvoiceClients(nextClients);
+    saveStoredInvoiceClients(nextClients);
+    setSelectedClientId(newClient.id);
+    setFeedback({ error: "", success: "" });
+    closeClientModal();
   };
 
   const servicesById = useMemo(() => new Map(productServices.map((service) => [service.id, service])), [productServices]);
@@ -935,7 +1088,7 @@ export default function InvoicePage() {
     const headers = ["Invoice", "Client", "Date From", "Date To", "Item #", "Product or Service", "Name", "Details", "Qty", "Rate", "Amount"];
     const rows = rowsWithTotals.map((row, index) => [
       invoiceNumber,
-      row.clientName,
+      selectedClientName,
       dateFrom,
       dateTo,
       index + 1,
@@ -988,95 +1141,118 @@ export default function InvoicePage() {
 
         <section className="invoice-grid">
           <aside className="invoice-card invoice-controls">
-            <h2 className="invoice-panel-title">Invoice Builder</h2>
-            <p className="invoice-muted">Invoices use only weeks confirmed in HoursTracker. Select every active project you want to include in this invoice.</p>
-
-            <div className="invoice-form">
-              <div className="invoice-field project-picker">
-                <div className="project-picker-head">
-                  <label className="invoice-label">Projects</label>
-                  <button
-                    className="project-toggle"
-                    type="button"
-                    onClick={effectiveSelectedProjectIds.length === projectOptions.length ? clearProjectSelection : selectAllProjects}
-                    disabled={!projectOptions.length}
-                  >
-                    {effectiveSelectedProjectIds.length === projectOptions.length ? "Clear all" : "Select all"}
-                  </button>
-                </div>
-                {projectOptions.length ? (
-                  <div className="project-checklist" role="group" aria-label="Invoice projects">
-                    {projectOptions.map((project) => {
-                      const checked = selectedProjectIdSet.has(project.id);
-                      return (
-                        <label className={`project-check-row${checked ? " selected" : ""}`} key={project.id}>
-                          <input
-                            className="project-checkbox"
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleProjectSelection(project.id)}
-                          />
-                          <span className="project-check-main">
-                            <span className="project-check-title">{project.projectName}</span>
-                            <span className="project-check-meta">{project.projectLocation || "No location"}</span>
-                          </span>
-                          <span className="project-check-stats">
-                            <span className="project-check-badge">{project.placedCount} placed</span>
-                            <span>{formatHours(project.approvedHours)} hrs</span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="empty-state">No placed-worker projects found.</div>
-                )}
-                <div className="invoice-muted">{selectedProjectLabel} · Bill to: {selectedClient || "—"}</div>
+            <div className="invoice-builder-head">
+              <div>
+                <h2 className="invoice-panel-title">Invoice Builder</h2>
+                <p className="invoice-muted">Invoices use only weeks confirmed in HoursTracker. Select every active project you want to include in this invoice.</p>
               </div>
-
-              <div className="invoice-date-grid">
-                <div className="invoice-field">
-                  <label className="invoice-label">From</label>
-                  <input className="invoice-input" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
-                </div>
-                <div className="invoice-field">
-                  <label className="invoice-label">To</label>
-                  <input className="invoice-input" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
-                </div>
-              </div>
-
-              <button className="invoice-btn dark" type="button" onClick={refreshData} disabled={loading}>
-                {loading ? <Loader2 className="spin" size={15} /> : <Search size={15} />}
-                Load Invoice Lines
+              <button className="invoice-collapse-btn" type="button" onClick={() => setBuilderOpen((open) => !open)}>
+                {builderOpen ? "Collapse" : "Expand"}
               </button>
-
-              <div className="invoice-date-grid">
-                <div className="invoice-field">
-                  <label className="invoice-label">Invoice #</label>
-                  <input className="invoice-input" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} />
-                </div>
-                <div className="invoice-field">
-                  <label className="invoice-label">Due Date</label>
-                  <input className="invoice-input" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-                </div>
-              </div>
-
-              <div className="invoice-field">
-                <label className="invoice-label">Search Lines</label>
-                <input className="invoice-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Candidate, project, phone, email..." />
-              </div>
-
-              <div className="invoice-field">
-                <label className="invoice-label">Invoice Notes</label>
-                <textarea className="invoice-textarea" value={notes} onChange={(event) => setNotes(event.target.value)} />
-              </div>
             </div>
 
-            <div className="summary-grid">
-              <div className="summary-box"><div className="summary-label">Lines</div><div className="summary-value">{summary.lineCount}</div></div>
-              <div className="summary-box"><div className="summary-label">Hours</div><div className="summary-value">{formatHours(summary.totalHours)}</div></div>
-              <div className="summary-box"><div className="summary-label">Total</div><div className="summary-value">{formatCurrency(summary.total)}</div></div>
-            </div>
+            {builderOpen ? (
+              <>
+                <div className="invoice-form">
+                  <div className="invoice-field">
+                    <label className="invoice-label">Client</label>
+                    <select className="invoice-select" value={effectiveSelectedClientId} onChange={(event) => handleClientChange(event.target.value)}>
+                      {!clientOptions.length ? <option value="">Select or add a client</option> : null}
+                      {clientOptions.map((client) => (
+                        <option key={client.id} value={client.id}>{client.name}</option>
+                      ))}
+                      <option value="__new__">Add new...</option>
+                    </select>
+                    <div className="invoice-muted">This client information prints in the Bill To section.</div>
+                  </div>
+
+                  <div className="invoice-field project-picker">
+                    <div className="project-picker-head">
+                      <label className="invoice-label">Projects</label>
+                      <button
+                        className="project-toggle"
+                        type="button"
+                        onClick={effectiveSelectedProjectIds.length === projectOptions.length ? clearProjectSelection : selectAllProjects}
+                        disabled={!projectOptions.length}
+                      >
+                        {effectiveSelectedProjectIds.length === projectOptions.length ? "Clear all" : "Select all"}
+                      </button>
+                    </div>
+                    {projectOptions.length ? (
+                      <div className="project-checklist" role="group" aria-label="Invoice projects">
+                        {projectOptions.map((project) => {
+                          const checked = selectedProjectIdSet.has(project.id);
+                          return (
+                            <label className={`project-check-row${checked ? " selected" : ""}`} key={project.id}>
+                              <input
+                                className="project-checkbox"
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleProjectSelection(project.id)}
+                              />
+                              <span className="project-check-main">
+                                <span className="project-check-title">{project.projectName}</span>
+                                <span className="project-check-meta">{project.projectLocation || "No location"}</span>
+                              </span>
+                              <span className="project-check-stats">
+                                <span className="project-check-badge">{project.placedCount} placed</span>
+                                <span>{formatHours(project.approvedHours)} hrs</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="empty-state">No placed-worker projects found.</div>
+                    )}
+                    <div className="invoice-muted">{selectedProjectLabel} · Bill to: {selectedClientName}</div>
+                  </div>
+
+                  <div className="invoice-date-grid">
+                    <div className="invoice-field">
+                      <label className="invoice-label">From</label>
+                      <input className="invoice-input" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+                    </div>
+                    <div className="invoice-field">
+                      <label className="invoice-label">To</label>
+                      <input className="invoice-input" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+                    </div>
+                  </div>
+
+                  <button className="invoice-btn dark" type="button" onClick={refreshData} disabled={loading}>
+                    {loading ? <Loader2 className="spin" size={15} /> : <Search size={15} />}
+                    Load Invoice Lines
+                  </button>
+
+                  <div className="invoice-date-grid">
+                    <div className="invoice-field">
+                      <label className="invoice-label">Invoice #</label>
+                      <input className="invoice-input" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} />
+                    </div>
+                    <div className="invoice-field">
+                      <label className="invoice-label">Due Date</label>
+                      <input className="invoice-input" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="invoice-field">
+                    <label className="invoice-label">Search Lines</label>
+                    <input className="invoice-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Candidate, project, phone, email..." />
+                  </div>
+
+                  <div className="invoice-field">
+                    <label className="invoice-label">Invoice Notes</label>
+                    <textarea className="invoice-textarea" value={notes} onChange={(event) => setNotes(event.target.value)} />
+                  </div>
+                </div>
+
+                <div className="summary-grid">
+                  <div className="summary-box"><div className="summary-label">Lines</div><div className="summary-value">{summary.lineCount}</div></div>
+                  <div className="summary-box"><div className="summary-label">Hours</div><div className="summary-value">{formatHours(summary.totalHours)}</div></div>
+                  <div className="summary-box"><div className="summary-label">Total</div><div className="summary-value">{formatCurrency(summary.total)}</div></div>
+                </div>
+              </>
+            ) : null}
           </aside>
 
           <section className="invoice-card invoice-preview">
@@ -1090,6 +1266,7 @@ export default function InvoicePage() {
                     <div className="invoice-muted" style={{ marginTop: 8 }}>Universal Talent Source</div>
                   </div>
                   <div className="invoice-doc-meta">
+                    <img className="invoice-logo" src={utsLogo} alt="Universal Talent Source" />
                     <div><strong>Invoice #:</strong> {invoiceNumber || "—"}</div>
                     <div><strong>Invoice Date:</strong> {formatDate(toDateInputValue(today))}</div>
                     <div><strong>Due Date:</strong> {formatDate(dueDate)}</div>
@@ -1099,7 +1276,10 @@ export default function InvoicePage() {
                 <div className="invoice-bill-grid">
                   <div className="bill-box">
                     <div className="bill-heading">Bill To</div>
-                    <div className="bill-main">{selectedClient || "Select projects"}</div>
+                    <div className="bill-main">{selectedClientName}</div>
+                    {selectedClient?.address ? <div className="invoice-muted">{selectedClient.address}</div> : null}
+                    {selectedClient?.phone ? <div className="invoice-muted">{selectedClient.phone}</div> : null}
+                    {selectedClient?.email ? <div className="invoice-muted">{selectedClient.email}</div> : null}
                     <div className="invoice-muted">{selectedProjectLabel}</div>
                   </div>
                   <div className="bill-box">
@@ -1140,6 +1320,7 @@ export default function InvoicePage() {
                                   ))}
                                   <option value="__new__">New...</option>
                                 </select>
+                                <span className="print-service-name">{row.serviceName}</span>
                               </td>
                               <td>
                                 <div className="line-primary">{row.candidateName}</div>
@@ -1156,10 +1337,11 @@ export default function InvoicePage() {
                                   type="number"
                                   min="0"
                                   step="0.01"
-                                  value={lineRates[row.key] ?? row.defaultRate ?? 0}
+                                  value={lineRates[row.key] ?? row.rate ?? 0}
                                   onChange={(event) => setLineRates((prev) => ({ ...prev, [row.key]: event.target.value }))}
                                   aria-label={`Rate for ${row.candidateName}`}
                                 />
+                                <span className="print-rate-value">{formatCurrency(row.rate)}</span>
                               </td>
                               <td style={{ textAlign: "right", fontWeight: 750 }}>{formatCurrency(row.amount)}</td>
                             </tr>
@@ -1193,6 +1375,64 @@ export default function InvoicePage() {
           </section>
         </section>
       </main>
+      {clientModal.open ? (
+        <div className="invoice-modal-backdrop" onMouseDown={closeClientModal} role="presentation">
+          <div className="invoice-modal" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="new-client-title">
+            <div className="invoice-modal-head">
+              <h2 className="invoice-modal-title" id="new-client-title">New Client</h2>
+              <div className="invoice-muted">Add client billing details for the Bill To section.</div>
+            </div>
+
+            <div className="invoice-field">
+              <label className="invoice-label">Name</label>
+              <input
+                className="invoice-input"
+                value={clientModal.name}
+                onChange={(event) => setClientModal((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Client name"
+                autoFocus
+              />
+            </div>
+
+            <div className="invoice-field">
+              <label className="invoice-label">Address</label>
+              <textarea
+                className="invoice-textarea"
+                value={clientModal.address}
+                onChange={(event) => setClientModal((prev) => ({ ...prev, address: event.target.value }))}
+                placeholder="Billing address"
+              />
+            </div>
+
+            <div className="invoice-date-grid">
+              <div className="invoice-field">
+                <label className="invoice-label">Phone</label>
+                <input
+                  className="invoice-input"
+                  value={clientModal.phone}
+                  onChange={(event) => setClientModal((prev) => ({ ...prev, phone: event.target.value }))}
+                  placeholder="Phone"
+                />
+              </div>
+              <div className="invoice-field">
+                <label className="invoice-label">Email</label>
+                <input
+                  className="invoice-input"
+                  type="email"
+                  value={clientModal.email}
+                  onChange={(event) => setClientModal((prev) => ({ ...prev, email: event.target.value }))}
+                  placeholder="billing@example.com"
+                />
+              </div>
+            </div>
+
+            <div className="invoice-modal-actions">
+              <button className="invoice-btn" type="button" onClick={closeClientModal}>Cancel</button>
+              <button className="invoice-btn dark" type="button" onClick={createInvoiceClient}>Create</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {serviceModal.open ? (
         <div className="invoice-modal-backdrop" onMouseDown={closeServiceModal} role="presentation">
           <div className="invoice-modal" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="new-service-title">
