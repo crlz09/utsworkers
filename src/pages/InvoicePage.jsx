@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, FileText, Loader2, Printer, RefreshCw, Search } from "lucide-react";
+import { Download, FileText, Loader2, Pencil, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { supabase } from "../lib/supabase";
@@ -325,9 +325,13 @@ function InvoiceStyles() {
 
       .summary-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
         margin-top: 18px;
+      }
+
+      .summary-box.total-summary-box {
+        grid-column: 1 / -1;
       }
 
       .summary-box {
@@ -638,6 +642,20 @@ function InvoiceStyles() {
         padding: 14px;
         display: grid;
         gap: 10px;
+        cursor: pointer;
+        transition: 0.18s ease;
+      }
+
+      .invoice-history-card:hover {
+        border-color: #93c5fd;
+        background: #f8fbff;
+        transform: translateY(-1px);
+        box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+      }
+
+      .invoice-history-card.selected {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
       }
 
       .invoice-history-top {
@@ -674,6 +692,16 @@ function InvoiceStyles() {
         font-size: 11px;
         font-weight: 800;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+      }
+
+      .icon-btn {
+        width: 34px;
+        height: 34px;
+        padding: 0;
       }
 
       .mini-btn:hover {
@@ -684,6 +712,23 @@ function InvoiceStyles() {
       .mini-btn.danger {
         border-color: #fecaca;
         color: #b91c1c;
+      }
+
+      .mini-btn.danger:hover {
+        border-color: #fca5a5;
+        background: #fef2f2;
+      }
+
+      .mini-btn.paid-action {
+        border-color: #0f172a;
+        background: #0f172a;
+        color: #ffffff;
+      }
+
+      .invoice-bottom-actions {
+        justify-content: flex-end;
+        padding: 16px 24px 24px;
+        border-top: 1px solid #eef2f7;
       }
 
       .row-action-btn {
@@ -703,10 +748,20 @@ function InvoiceStyles() {
         .invoice-doc-meta { text-align: left; }
       }
 
-      @media (max-width: 640px) {
+      @media (max-width: 760px) {
         .invoice-shell { width: min(100% - 28px, 1480px); padding: 14px 0 28px; }
         .invoice-card { padding: 18px; border-radius: 22px; }
+        .invoice-hero { display: grid; }
+        .invoice-actions { width: 100%; display: grid; grid-template-columns: 1fr; }
+        .invoice-actions .invoice-btn { width: 100%; }
         .invoice-date-grid, .invoice-bill-grid, .summary-grid { grid-template-columns: 1fr; }
+        .invoice-dashboard-head { display: grid; }
+        .invoice-dashboard-head .invoice-btn { width: 100%; }
+        .invoice-dashboard-grid { grid-template-columns: 1fr; }
+        .invoice-history-top { align-items: flex-start; }
+        .invoice-history-actions { justify-content: flex-start; }
+        .invoice-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .invoice-table { min-width: 720px; }
         .total-box { min-width: 0; width: 100%; }
       }
 
@@ -776,6 +831,12 @@ function formatHours(value) {
   });
 }
 
+function formatCount(value) {
+  return Number(value || 0).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  });
+}
+
 function formatDate(value) {
   if (!value) return "—";
   const date = new Date(`${value}T00:00:00`);
@@ -808,7 +869,6 @@ const DEFAULT_PRODUCT_SERVICES = [
   { id: "placement-fee", name: "Placement Fee", rate: 0 },
 ];
 
-const INVOICE_STATUS_OPTIONS = ["finalized", "printed", "sent", "paid"];
 
 function loadStoredProductServices() {
   if (typeof window === "undefined") return DEFAULT_PRODUCT_SERVICES;
@@ -1215,9 +1275,11 @@ export default function InvoicePage() {
 
   const summary = useMemo(() => {
     const totalHours = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "hours" ? row.hours : 0), 0);
+    const totalPlacements = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "placement_fee" ? Number(row.qty || 0) : 0), 0);
     const subtotal = activeRowsWithTotals.reduce((total, row) => total + row.amount, 0);
     return {
       totalHours,
+      totalPlacements,
       subtotal,
       total: subtotal,
       lineCount: activeRowsWithTotals.length,
@@ -1352,13 +1414,14 @@ export default function InvoicePage() {
     setSavingInvoice(false);
     if (error) {
       setFeedback({ error: error.message, success: "" });
-      return;
+      return false;
     }
     if (invoiceId === currentInvoiceId && status === "paid") {
       setCurrentInvoiceId(invoiceId);
     }
     setFeedback({ error: "", success: `Invoice marked as ${status}.` });
     if (!options.skipReload) await load();
+    return true;
   };
 
 
@@ -1421,6 +1484,36 @@ export default function InvoicePage() {
     setFeedback({ error: "", success: readOnly ? `Loaded ${invoice.invoice_number} in read-only view.` : `Loaded ${invoice.invoice_number} for editing.` });
   };
 
+  const reloadInvoiceIntoView = async (invoiceId, readOnly = true) => {
+    const { data, error } = await supabase
+      .from("invoices")
+      .select("*, invoice_line_items(*)")
+      .eq("id", invoiceId)
+      .single();
+    if (error) {
+      setFeedback({ error: error.message, success: "" });
+      return null;
+    }
+    loadInvoiceIntoView(data, readOnly);
+    return data;
+  };
+
+  const finalizeInvoice = async () => {
+    const invoiceId = await saveInvoice("finalized");
+    if (!invoiceId) return;
+    await reloadInvoiceIntoView(invoiceId, true);
+    setFeedback({ error: "", success: "Invoice finalized and loaded in read-only view." });
+  };
+
+  const markInvoicePaid = async (invoiceId = currentInvoiceId) => {
+    if (!invoiceId) return;
+    const ok = await updateInvoiceStatus(invoiceId, "paid", { skipReload: true });
+    if (!ok) return;
+    await load();
+    await reloadInvoiceIntoView(invoiceId, true);
+    setFeedback({ error: "", success: "Invoice marked as paid." });
+  };
+
   const startNewInvoice = () => {
     setCurrentInvoiceId(null);
     setLoadedInvoiceRows(null);
@@ -1467,12 +1560,8 @@ export default function InvoicePage() {
     await load();
   };
 
-  const printInvoice = async () => {
-    const invoiceId = currentInvoiceId || await saveInvoice("printed", { skipReload: true });
-    if (invoiceId && currentInvoiceId) {
-      await updateInvoiceStatus(invoiceId, "printed", { skipReload: true });
-    }
-    setTimeout(() => window.print(), 100);
+  const printInvoice = () => {
+    setTimeout(() => window.print(), 150);
   };
 
   const exportCsv = () => {
@@ -1522,17 +1611,14 @@ export default function InvoicePage() {
             <button className="invoice-btn" type="button" onClick={startNewInvoice}>
               New Invoice
             </button>
-            <button className="invoice-btn" type="button" onClick={() => saveInvoice("finalized")} disabled={!activeRowsWithTotals.length || savingInvoice || invoiceReadOnly}>
+            <button className="invoice-btn" type="button" onClick={finalizeInvoice} disabled={!activeRowsWithTotals.length || loading || savingInvoice || invoiceReadOnly}>
               {savingInvoice ? <Loader2 className="spin" size={15} /> : <FileText size={15} />} Finalize
             </button>
-            <button className="invoice-btn" type="button" onClick={exportCsv} disabled={!activeRowsWithTotals.length}>
+            <button className="invoice-btn" type="button" onClick={exportCsv} disabled={!activeRowsWithTotals.length || loading}>
               <Download size={15} /> Export CSV
             </button>
-            <button className="invoice-btn" type="button" onClick={printInvoice} disabled={!activeRowsWithTotals.length || savingInvoice}>
+            <button className="invoice-btn" type="button" onClick={printInvoice} disabled={!activeRowsWithTotals.length || loading || savingInvoice}>
               <Printer size={15} /> Print Invoice
-            </button>
-            <button className="invoice-btn dark" type="button" onClick={() => currentInvoiceId ? updateInvoiceStatus(currentInvoiceId, "paid") : saveInvoice("paid")} disabled={!activeRowsWithTotals.length || savingInvoice}>
-              Mark Paid
             </button>
           </div>
         </section>
@@ -1544,42 +1630,80 @@ export default function InvoicePage() {
           <div className="invoice-dashboard-head">
             <div>
               <h2 className="invoice-panel-title">Invoice Dashboard</h2>
-              <p className="invoice-muted">Review generated invoices and move them through printed, finalized, sent, and paid statuses.</p>
+              <p className="invoice-muted">Click any invoice to load it in read-only view. Edit or delete it from the icon actions.</p>
             </div>
             <button className="invoice-btn" type="button" onClick={refreshData} disabled={loading}>Refresh Dashboard</button>
           </div>
           {invoices.length ? (
             <div className="invoice-dashboard-grid">
-              {invoices.map((invoice) => (
-                <article className="invoice-history-card" key={invoice.id}>
-                  <div className="invoice-history-top">
-                    <div>
-                      <div className="line-primary">{invoice.invoice_number}</div>
-                      <div className="line-secondary">{invoice.client_name}</div>
+              {invoices.map((invoice) => {
+                const isSelectedInvoice = currentInvoiceId === invoice.id;
+                return (
+                  <article
+                    className={`invoice-history-card${isSelectedInvoice ? " selected" : ""}`}
+                    key={invoice.id}
+                    onClick={() => loadInvoiceIntoView(invoice, true)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        loadInvoiceIntoView(invoice, true);
+                      }
+                    }}
+                  >
+                    <div className="invoice-history-top">
+                      <div>
+                        <div className="line-primary">{invoice.invoice_number}</div>
+                        <div className="line-secondary">{invoice.client_name}</div>
+                      </div>
+                      <span className={`status-badge ${invoice.status}`}>{invoice.status}</span>
                     </div>
-                    <span className={`status-badge ${invoice.status}`}>{invoice.status}</span>
-                  </div>
-                  <div className="invoice-muted">
-                    {formatDate(invoice.date_from)} – {formatDate(invoice.date_to)} · {formatCurrency(invoice.total)} · {invoice.invoice_line_items?.length || 0} lines
-                  </div>
-                  <div className="invoice-history-actions">
-                    <button className="mini-btn" type="button" onClick={() => loadInvoiceIntoView(invoice, true)}>View</button>
-                    <button className="mini-btn" type="button" onClick={() => loadInvoiceIntoView(invoice, false)}>Edit</button>
-                    <button className="mini-btn danger" type="button" onClick={() => deleteInvoice(invoice.id)}>Delete</button>
-                    {INVOICE_STATUS_OPTIONS.map((status) => (
+                    <div className="invoice-muted">
+                      {formatDate(invoice.date_from)} – {formatDate(invoice.date_to)} · {formatCurrency(invoice.total)} · {invoice.invoice_line_items?.length || 0} lines
+                    </div>
+                    <div className="invoice-history-actions">
                       <button
-                        className="mini-btn"
+                        className="mini-btn icon-btn"
                         type="button"
-                        key={status}
-                        onClick={() => updateInvoiceStatus(invoice.id, status)}
-                        disabled={invoice.status === status || savingInvoice}
+                        title="Edit invoice"
+                        aria-label={`Edit ${invoice.invoice_number}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          loadInvoiceIntoView(invoice, false);
+                        }}
                       >
-                        {status}
+                        <Pencil size={15} />
                       </button>
-                    ))}
-                  </div>
-                </article>
-              ))}
+                      <button
+                        className="mini-btn danger icon-btn"
+                        type="button"
+                        title="Delete invoice"
+                        aria-label={`Delete ${invoice.invoice_number}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteInvoice(invoice.id);
+                        }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                      {isSelectedInvoice && invoice.status === "finalized" ? (
+                        <button
+                          className="mini-btn paid-action"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            markInvoicePaid(invoice.id);
+                          }}
+                          disabled={savingInvoice}
+                        >
+                          Mark As Paid
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <div className="empty-state">No generated invoices yet.</div>
@@ -1696,7 +1820,7 @@ export default function InvoicePage() {
                 <div className="summary-grid">
                   <div className="summary-box"><div className="summary-label">Lines</div><div className="summary-value">{summary.lineCount}</div></div>
                   <div className="summary-box"><div className="summary-label">Hours</div><div className="summary-value">{formatHours(summary.totalHours)}</div></div>
-                  <div className="summary-box"><div className="summary-label">Total</div><div className="summary-value">{formatCurrency(summary.total)}</div></div>
+                  <div className="summary-box total-summary-box"><div className="summary-label">Total</div><div className="summary-value">{formatCurrency(summary.total)}</div></div>
                 </div>
               </>
             ) : null}
@@ -1807,7 +1931,7 @@ export default function InvoicePage() {
                     <div className="invoice-total-panel">
                       <div className="total-box">
                         <div className="total-row"><span>Total Hours</span><strong>{formatHours(summary.totalHours)}</strong></div>
-                        <div className="total-row"><span>Subtotal</span><strong>{formatCurrency(summary.subtotal)}</strong></div>
+                        <div className="total-row"><span>Total Placements</span><strong>{formatCount(summary.totalPlacements)}</strong></div>
                         <div className="total-row grand"><span>Total Due</span><span>{formatCurrency(summary.total)}</span></div>
                       </div>
                     </div>
@@ -1822,6 +1946,20 @@ export default function InvoicePage() {
                   <div style={{ padding: "0 24px 24px" }}>
                     <div className="bill-heading">Notes</div>
                     <div className="invoice-muted" style={{ marginTop: 6 }}>{notes}</div>
+                  </div>
+                ) : null}
+
+                {activeRowsWithTotals.length ? (
+                  <div className="invoice-actions invoice-bottom-actions">
+                    <button className="invoice-btn" type="button" onClick={finalizeInvoice} disabled={!activeRowsWithTotals.length || loading || savingInvoice || invoiceReadOnly}>
+                      {savingInvoice ? <Loader2 className="spin" size={15} /> : <FileText size={15} />} Finalize
+                    </button>
+                    <button className="invoice-btn" type="button" onClick={exportCsv} disabled={!activeRowsWithTotals.length || loading}>
+                      <Download size={15} /> Export CSV
+                    </button>
+                    <button className="invoice-btn" type="button" onClick={printInvoice} disabled={!activeRowsWithTotals.length || loading || savingInvoice}>
+                      <Printer size={15} /> Print Invoice
+                    </button>
                   </div>
                 ) : null}
               </div>
