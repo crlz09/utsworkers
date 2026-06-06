@@ -325,16 +325,18 @@ function InvoiceStyles() {
 
       .summary-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+        gap: 10px;
         margin-top: 18px;
       }
 
       .summary-box {
+        min-width: 0;
         border: 1px solid #dbeafe;
         background: #f8fbff;
         border-radius: 18px;
-        padding: 14px;
+        padding: 12px;
+        overflow: hidden;
       }
 
       .summary-label {
@@ -348,9 +350,10 @@ function InvoiceStyles() {
       .summary-value {
         margin-top: 6px;
         color: #0f172a;
-        font-size: 22px;
+        font-size: clamp(17px, 1.8vw, 21px);
         font-weight: 800;
         letter-spacing: -0.03em;
+        overflow-wrap: anywhere;
       }
 
       .invoice-preview {
@@ -719,6 +722,7 @@ function InvoiceStyles() {
         .invoice-shell { width: 100%; max-width: none; padding: 0; gap: 0; }
         .invoice-grid { display: block; }
         .invoice-preview { display: block; }
+        .invoice-preview .empty-state { display: none !important; }
         .invoice-card { box-shadow: none; border: none; padding: 0; background: #ffffff; }
         .invoice-document { border: none; border-radius: 0; overflow: visible; }
         .invoice-doc-header { padding: 0 0 12px; }
@@ -1079,6 +1083,7 @@ export default function InvoicePage() {
       if (!job) return;
       if (!selectedProjectIdSet.has(job.id)) return;
       const clientName = (job.client_name || "CTS").trim() || "CTS";
+      const isCtsClient = clientName.toLowerCase() === "cts";
 
       const worker = workersById.get(entry.worker_id || candidate.worker_id) || {};
       const candidateName = candidate.name_snapshot || worker.name || "Unnamed worker";
@@ -1110,7 +1115,7 @@ export default function InvoicePage() {
         lastDate: entry.work_date,
         serviceName: DEFAULT_PRODUCT_SERVICES[0].name,
         defaultServiceId: DEFAULT_PRODUCT_SERVICES[0].id,
-        defaultRate: parseRate(candidate.bill_rate_snapshot || candidate.rate_snapshot) || DEFAULT_PRODUCT_SERVICES[0].rate,
+        defaultRate: isCtsClient ? 1 : (parseRate(candidate.bill_rate_snapshot || candidate.rate_snapshot) || DEFAULT_PRODUCT_SERVICES[0].rate),
       };
 
       existing.hours += hours;
@@ -1122,7 +1127,7 @@ export default function InvoicePage() {
 
     candidates.forEach((candidate) => {
       if (String(candidate.candidate_status || "").toLowerCase() !== "placed") return;
-      if (candidate.placement_fee_paid || candidate.placement_fee_billed_at) return;
+      if (candidate.placement_fee_paid) return;
       const job = jobsById.get(candidate.cts_job_id);
       if (!job || !selectedProjectIdSet.has(job.id)) return;
 
@@ -1136,7 +1141,10 @@ export default function InvoicePage() {
         .toLowerCase();
       if (query && !searchable.includes(query)) return;
 
-      const placementRate = parseRate(candidate.placement_fee_amount) || parseRate(job.placement_fee_amount) || 0;
+      const placementClientName = (job.client_name || "CTS").trim() || "CTS";
+      const placementRate = placementClientName.toLowerCase() === "cts"
+        ? 50
+        : (parseRate(candidate.placement_fee_amount) || parseRate(job.placement_fee_amount) || 0);
       grouped.set(`placement-${candidate.id}|${job.id}`, {
         key: `placement-${candidate.id}|${job.id}`,
         lineType: "placement_fee",
@@ -1292,7 +1300,7 @@ export default function InvoicePage() {
     amount: Number(row.amount.toFixed(2)),
   }));
 
-  const saveInvoice = async (status = "finalized") => {
+  const saveInvoice = async (status = "finalized", options = {}) => {
     if (!activeRowsWithTotals.length) {
       setFeedback({ error: "No invoice lines to save.", success: "" });
       return null;
@@ -1333,11 +1341,11 @@ export default function InvoicePage() {
 
     setSavingInvoice(false);
     setFeedback({ error: "", success: `Invoice ${payload.invoice_number} saved as ${status}.` });
-    await load();
+    if (!options.skipReload) await load();
     return invoiceId;
   };
 
-  const updateInvoiceStatus = async (invoiceId, status) => {
+  const updateInvoiceStatus = async (invoiceId, status, options = {}) => {
     setSavingInvoice(true);
     setFeedback({ error: "", success: "" });
     const { error } = await supabase.from("invoices").update({ status }).eq("id", invoiceId);
@@ -1350,7 +1358,7 @@ export default function InvoicePage() {
       setCurrentInvoiceId(invoiceId);
     }
     setFeedback({ error: "", success: `Invoice marked as ${status}.` });
-    await load();
+    if (!options.skipReload) await load();
   };
 
 
@@ -1460,11 +1468,11 @@ export default function InvoicePage() {
   };
 
   const printInvoice = async () => {
-    const invoiceId = currentInvoiceId || await saveInvoice("printed");
+    const invoiceId = currentInvoiceId || await saveInvoice("printed", { skipReload: true });
     if (invoiceId && currentInvoiceId) {
-      await updateInvoiceStatus(invoiceId, "printed");
+      await updateInvoiceStatus(invoiceId, "printed", { skipReload: true });
     }
-    window.print();
+    setTimeout(() => window.print(), 100);
   };
 
   const exportCsv = () => {

@@ -459,6 +459,18 @@ function PageStyles() {
         color: #b91c1c;
       }
 
+      .mini-action-btn.success {
+        border-color: #bbf7d0;
+        background: #f0fdf4;
+        color: #15803d;
+      }
+
+      .mini-action-btn.warning {
+        border-color: #fde68a;
+        background: #fffbeb;
+        color: #b45309;
+      }
+
       .table-scroll {
         width: 100%;
         overflow-x: auto;
@@ -881,7 +893,7 @@ function SearchToolbar({
   );
 }
 
-function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChange, onCandidateSave, onCandidateDelete, savingIds = {}, deletingIds = {} }) {
+function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChange, onCandidateSave, onCandidateDelete, onPlacementPaidToggle, savingIds = {}, deletingIds = {} }) {
   if (candidates.length === 0) {
     return <div className="empty-state">No candidates found for this view.</div>;
   }
@@ -895,6 +907,7 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
             <th>Profile</th>
             <th>Project</th>
             <th>Status</th>
+            <th>Placement Fee</th>
             <th>Last Modified</th>
           </tr>
         </thead>
@@ -987,6 +1000,21 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
                       {formatStatus(candidate.candidate_status)}
                     </span>
                   )}
+                </td>
+                <td className="table-muted-xs">
+                  {canAdminEdit ? (
+                    <button
+                      className={`mini-action-btn ${candidate.placement_fee_paid ? "success" : "warning"}`}
+                      type="button"
+                      onClick={() => onPlacementPaidToggle?.(candidate)}
+                      disabled={!!savingIds[`${candidate.id}:placement_fee_paid`]}
+                    >
+                      {savingIds[`${candidate.id}:placement_fee_paid`] ? "Saving..." : candidate.placement_fee_paid ? "Mark Unpaid" : "Mark Paid"}
+                    </button>
+                  ) : (
+                    <span className={`status-pill ${candidate.placement_fee_paid ? "placed" : "other"}`}>{candidate.placement_fee_paid ? "Paid" : "Pending"}</span>
+                  )}
+                  {candidate.placement_fee_invoice_number ? <div style={{ marginTop: 5 }}>Invoice: {candidate.placement_fee_invoice_number}</div> : null}
                 </td>
                 <td className="table-muted-xs">
                   <div>{formatDateTime(candidate.updated_at || candidate.created_at)}</div>
@@ -1301,6 +1329,7 @@ function JobDetailView({
   onCandidateChange,
   onCandidateSave,
   onCandidateDelete,
+  onPlacementPaidToggle,
   savingIds,
   deletingIds,
   onJobSaveField,
@@ -1485,6 +1514,7 @@ function JobDetailView({
           onCandidateDelete={onCandidateDelete}
           savingIds={savingIds}
           deletingIds={deletingIds}
+          onPlacementPaidToggle={onPlacementPaidToggle}
         />
       </div>
 
@@ -1752,6 +1782,39 @@ export default function JobsPageTest({ mode = "admin" }) {
     }
 
     setFeedback({ error: "", success: "Candidate updated." });
+    await load({ preserveFeedback: true });
+  };
+
+
+
+  const togglePlacementFeePaid = async (candidate) => {
+    if (mode !== "admin" || !candidate?.id) return;
+    const nextPaid = !candidate.placement_fee_paid;
+    const savingKey = `${candidate.id}:placement_fee_paid`;
+    setSavingIds((prev) => ({ ...prev, [savingKey]: true }));
+    setFeedback({ error: "", success: "" });
+
+    const now = new Date().toISOString();
+    const payload = nextPaid
+      ? {
+        placement_fee_paid: true,
+        placement_fee_paid_at: now,
+        placement_fee_billed_at: candidate.placement_fee_billed_at || now,
+        placement_fee_invoice_number: candidate.placement_fee_invoice_number || null,
+      }
+      : {
+        placement_fee_paid: false,
+        placement_fee_paid_at: null,
+      };
+
+    const { error } = await supabase.from("cts_job_candidates").update(payload).eq("id", candidate.id);
+    setSavingIds((prev) => ({ ...prev, [savingKey]: false }));
+    if (error) {
+      setFeedback({ error: error.message || "Could not update placement fee.", success: "" });
+      return;
+    }
+
+    setFeedback({ error: "", success: nextPaid ? "Placement Fee marked paid." : "Placement Fee marked unpaid." });
     await load({ preserveFeedback: true });
   };
 
@@ -2089,6 +2152,7 @@ export default function JobsPageTest({ mode = "admin" }) {
                 onCandidateDelete={deleteCandidate}
                 savingIds={savingIds}
                 deletingIds={deletingIds}
+                onPlacementPaidToggle={togglePlacementFeePaid}
                 onJobSaveField={saveJobField}
                 savingJobFields={savingJobFields}
                 onJobDelete={deleteJob}
@@ -2112,6 +2176,7 @@ export default function JobsPageTest({ mode = "admin" }) {
                 onCandidateDelete={deleteCandidate}
                 savingIds={savingIds}
                 deletingIds={deletingIds}
+                onPlacementPaidToggle={togglePlacementFeePaid}
               />
             )}
           </section>
