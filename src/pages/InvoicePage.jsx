@@ -389,6 +389,12 @@ function InvoiceStyles() {
         letter-spacing: -0.04em;
       }
 
+      .invoice-title-meta {
+        margin-top: 10px;
+        display: grid;
+        gap: 3px;
+      }
+
       .invoice-doc-meta {
         display: grid;
         gap: 5px;
@@ -408,6 +414,22 @@ function InvoiceStyles() {
       .bill-box {
         display: grid;
         gap: 6px;
+      }
+
+      .bill-box.align-right {
+        justify-items: end;
+        text-align: right;
+      }
+
+      .from-info {
+        display: grid;
+        gap: 3px;
+      }
+
+      .invoice-info-list {
+        margin-top: 8px;
+        display: grid;
+        gap: 4px;
       }
 
       .bill-heading {
@@ -808,6 +830,20 @@ function toDateInputValue(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function formatInvoiceNumber(date = new Date()) {
+  const value = toDateInputValue(date).replace(/-/g, "");
+  return `INV-${value.slice(2)}`;
+}
+
+function getInvoiceNumberRoot(invoiceNumber) {
+  const match = String(invoiceNumber || "").match(/^(INV-\d{6})/i);
+  return match ? match[1].toUpperCase() : String(invoiceNumber || "").trim();
+}
+
+function addDays(date, days) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
 function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
@@ -929,8 +965,9 @@ export default function InvoicePage() {
   const [selectedProjectIds, setSelectedProjectIds] = useState(null);
   const [dateFrom, setDateFrom] = useState(toDateInputValue(startOfMonth(today)));
   const [dateTo, setDateTo] = useState(toDateInputValue(endOfMonth(today)));
-  const [invoiceNumber, setInvoiceNumber] = useState(() => `INV-${toDateInputValue(today).replace(/-/g, "")}`);
-  const [dueDate, setDueDate] = useState(toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 15)));
+  const [invoiceDate, setInvoiceDate] = useState(toDateInputValue(today));
+  const [invoiceNumber, setInvoiceNumber] = useState(() => formatInvoiceNumber(today));
+  const [dueDate, setDueDate] = useState(toDateInputValue(addDays(today, 7)));
   const [search, setSearch] = useState("");
   const [notes, setNotes] = useState("Thank you for your business.");
   const [builderOpen, setBuilderOpen] = useState(true);
@@ -1331,8 +1368,8 @@ export default function InvoicePage() {
 
 
 
-  const buildInvoicePayload = (status) => ({
-    invoice_number: invoiceNumber || `INV-${toDateInputValue(today).replace(/-/g, "")}`,
+  const buildInvoicePayload = (status, resolvedInvoiceNumber = invoiceNumber) => ({
+    invoice_number: resolvedInvoiceNumber || formatInvoiceNumber(today),
     status,
     client_name: selectedClientName,
     client_address: selectedClient?.address || "",
@@ -1340,12 +1377,36 @@ export default function InvoicePage() {
     client_email: selectedClient?.email || "",
     date_from: dateFrom,
     date_to: dateTo,
-    invoice_date: toDateInputValue(today),
+    invoice_date: invoiceDate || toDateInputValue(today),
     due_date: dueDate || null,
     notes,
     subtotal: Number(summary.subtotal.toFixed(2)),
     total: Number(summary.total.toFixed(2)),
   });
+
+  const getUniqueInvoiceNumber = async (preferredInvoiceNumber, excludeInvoiceId = null) => {
+    const preferred = String(preferredInvoiceNumber || formatInvoiceNumber(today)).trim() || formatInvoiceNumber(today);
+    let query = supabase
+      .from("invoices")
+      .select("id, invoice_number")
+      .ilike("invoice_number", `${getInvoiceNumberRoot(preferred)}%`);
+
+    if (excludeInvoiceId) query = query.neq("id", excludeInvoiceId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const existingNumbers = new Set((data || []).map((invoice) => String(invoice.invoice_number || "").toUpperCase()));
+    if (!existingNumbers.has(preferred.toUpperCase())) return preferred;
+
+    const root = getInvoiceNumberRoot(preferred) || preferred;
+    for (let index = 1; index <= 99; index += 1) {
+      const candidate = `${root}${String(index).padStart(2, "0")}`;
+      if (!existingNumbers.has(candidate.toUpperCase())) return candidate;
+    }
+
+    return `${root}${Date.now()}`;
+  };
 
   const buildLineItemPayload = (invoiceId) => activeRowsWithTotals.map((row) => ({
     invoice_id: invoiceId,
@@ -1371,8 +1432,21 @@ export default function InvoicePage() {
     setSavingInvoice(true);
     setFeedback({ error: "", success: "" });
 
-    const payload = buildInvoicePayload(status);
     let invoiceId = currentInvoiceId;
+    let resolvedInvoiceNumber = invoiceNumber || formatInvoiceNumber(today);
+
+    if (!invoiceId) {
+      try {
+        resolvedInvoiceNumber = await getUniqueInvoiceNumber(resolvedInvoiceNumber);
+        setInvoiceNumber(resolvedInvoiceNumber);
+      } catch (error) {
+        setSavingInvoice(false);
+        setFeedback({ error: error.message || "Could not validate invoice number.", success: "" });
+        return null;
+      }
+    }
+
+    const payload = buildInvoicePayload(status, resolvedInvoiceNumber);
 
     if (invoiceId) {
       const { error } = await supabase.from("invoices").update(payload).eq("id", invoiceId);
@@ -1456,6 +1530,7 @@ export default function InvoicePage() {
     setCurrentInvoiceId(invoice.id);
     setInvoiceReadOnly(readOnly);
     setInvoiceNumber(invoice.invoice_number || "");
+    setInvoiceDate(invoice.invoice_date || toDateInputValue(today));
     setDateFrom(invoice.date_from || dateFrom);
     setDateTo(invoice.date_to || dateTo);
     setDueDate(invoice.due_date || dueDate);
@@ -1514,15 +1589,36 @@ export default function InvoicePage() {
     setFeedback({ error: "", success: "Invoice marked as paid." });
   };
 
-  const startNewInvoice = () => {
+  const startNewInvoice = async () => {
+    const nextInvoiceDate = new Date();
+    const nextInvoiceDateInput = toDateInputValue(nextInvoiceDate);
+    const nextDueDateInput = toDateInputValue(addDays(nextInvoiceDate, 7));
+    const preferredInvoiceNumber = formatInvoiceNumber(nextInvoiceDate);
+
+    setSavingInvoice(true);
+    setFeedback({ error: "", success: "" });
+    let nextInvoiceNumber = preferredInvoiceNumber;
+    try {
+      nextInvoiceNumber = await getUniqueInvoiceNumber(preferredInvoiceNumber);
+    } catch (error) {
+      setSavingInvoice(false);
+      setFeedback({ error: error.message || "Could not generate a unique invoice number.", success: "" });
+      return;
+    }
+
     setCurrentInvoiceId(null);
     setLoadedInvoiceRows(null);
     setInvoiceReadOnly(false);
     setLineRates({});
     setLineServiceIds({});
-    setInvoiceNumber(`INV-${toDateInputValue(new Date()).replace(/-/g, "")}`);
+    setDateFrom(nextInvoiceDateInput);
+    setDateTo(nextInvoiceDateInput);
+    setInvoiceDate(nextInvoiceDateInput);
+    setInvoiceNumber(nextInvoiceNumber);
+    setDueDate(nextDueDateInput);
     setBuilderOpen(true);
-    setFeedback({ error: "", success: "Started a new invoice draft." });
+    setSavingInvoice(false);
+    setFeedback({ error: "", success: `Started a new invoice draft (${nextInvoiceNumber}).` });
   };
 
   const deleteInvoice = async (invoiceId) => {
@@ -1608,7 +1704,7 @@ export default function InvoicePage() {
             <button className="invoice-btn" type="button" onClick={refreshData} disabled={loading}>
               <RefreshCw size={15} /> Refresh
             </button>
-            <button className="invoice-btn" type="button" onClick={startNewInvoice}>
+            <button className="invoice-btn" type="button" onClick={startNewInvoice} disabled={savingInvoice}>
               New Invoice
             </button>
             <button className="invoice-btn" type="button" onClick={finalizeInvoice} disabled={!activeRowsWithTotals.length || loading || savingInvoice || invoiceReadOnly}>
@@ -1834,13 +1930,14 @@ export default function InvoicePage() {
                 <div className="invoice-doc-header">
                   <div>
                     <h2 className="invoice-doc-title">Invoice</h2>
-                    <div className="invoice-muted" style={{ marginTop: 8 }}>Universal Talent Source</div>
+                    <div className="invoice-title-meta">
+                      <div className="bill-heading">Service Period</div>
+                      <div className="bill-main">{formatDate(dateFrom)} – {formatDate(dateTo)}</div>
+                      <div className="invoice-muted">All active projects</div>
+                    </div>
                   </div>
                   <div className="invoice-doc-meta">
                     <img className="invoice-logo" src={utsLogo} alt="Universal Talent Source" />
-                    <div><strong>Invoice #:</strong> {invoiceNumber || "—"}</div>
-                    <div><strong>Invoice Date:</strong> {formatDate(toDateInputValue(today))}</div>
-                    <div><strong>Due Date:</strong> {formatDate(dueDate)}</div>
                   </div>
                 </div>
 
@@ -1851,12 +1948,20 @@ export default function InvoicePage() {
                     {selectedClient?.address ? <div className="invoice-muted">{selectedClient.address}</div> : null}
                     {selectedClient?.phone ? <div className="invoice-muted">{selectedClient.phone}</div> : null}
                     {selectedClient?.email ? <div className="invoice-muted">{selectedClient.email}</div> : null}
-                    <div className="invoice-muted">{selectedProjectLabel}</div>
                   </div>
-                  <div className="bill-box">
-                    <div className="bill-heading">Service Period</div>
-                    <div className="bill-main">{formatDate(dateFrom)} – {formatDate(dateTo)}</div>
-                    <div className="invoice-muted">Confirmed HoursTracker weeks only</div>
+                  <div className="bill-box align-right">
+                    <div className="bill-heading">From</div>
+                    <div className="from-info">
+                      <div className="bill-main">Universal Talent Source</div>
+                      <div className="invoice-muted">www.universaltalentsource.com</div>
+                      <div className="invoice-muted">info@universaltalentsource.com</div>
+                      <div className="invoice-muted">(863) 254-1402 / (317) 516-8043</div>
+                    </div>
+                    <div className="invoice-info-list">
+                      <div className="invoice-muted"><strong>Invoice #:</strong> {invoiceNumber || "—"}</div>
+                      <div className="invoice-muted"><strong>Invoice Date:</strong> {formatDate(invoiceDate)}</div>
+                      <div className="invoice-muted"><strong>Due Date:</strong> {formatDate(dueDate)}</div>
+                    </div>
                   </div>
                 </div>
 
