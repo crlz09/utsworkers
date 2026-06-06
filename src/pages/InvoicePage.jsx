@@ -678,6 +678,23 @@ function InvoiceStyles() {
         background: #eff6ff;
       }
 
+      .mini-btn.danger {
+        border-color: #fecaca;
+        color: #b91c1c;
+      }
+
+      .row-action-btn {
+        margin-top: 6px;
+        border: 1px solid #bbf7d0;
+        border-radius: 999px;
+        background: #f0fdf4;
+        color: #15803d;
+        padding: 5px 8px;
+        font-size: 10px;
+        font-weight: 850;
+        cursor: pointer;
+      }
+
       @media (max-width: 1024px) {
         .invoice-grid { grid-template-columns: 1fr; }
         .invoice-doc-meta { text-align: left; }
@@ -697,7 +714,7 @@ function InvoiceStyles() {
           print-color-adjust: exact !important;
         }
         html, body { background: #ffffff !important; overflow: visible !important; }
-        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .rate-input, .service-select, .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
+        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .invoice-dashboard, .rate-input, .service-select, .row-action-btn, .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
         .print-service-name, .print-rate-value { display: inline !important; }
         .invoice-shell { width: 100%; max-width: none; padding: 0; gap: 0; }
         .invoice-grid { display: block; }
@@ -784,7 +801,7 @@ function csvEscape(value) {
 
 const DEFAULT_PRODUCT_SERVICES = [
   { id: "hourly-fee", name: "Hourly Fee", rate: 1 },
-  { id: "job-placement-fee", name: "Job Placement Fee", rate: 0 },
+  { id: "placement-fee", name: "Placement Fee", rate: 0 },
 ];
 
 const INVOICE_STATUS_OPTIONS = ["finalized", "printed", "sent", "paid"];
@@ -840,6 +857,8 @@ export default function InvoicePage() {
   const [weeklyReviews, setWeeklyReviews] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
+  const [loadedInvoiceRows, setLoadedInvoiceRows] = useState(null);
+  const [invoiceReadOnly, setInvoiceReadOnly] = useState(false);
   const [savingInvoice, setSavingInvoice] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
@@ -1111,7 +1130,7 @@ export default function InvoicePage() {
       const candidateName = candidate.name_snapshot || worker.name || "Unnamed worker";
       const projectName = job.level_type || "Untitled project";
       const projectLocation = [job.city, job.state].filter(Boolean).join(", ");
-      const searchable = [candidateName, projectName, projectLocation, worker.email, worker.phone, job.job_code, "Job Placement Fee"]
+      const searchable = [candidateName, projectName, projectLocation, worker.email, worker.phone, job.job_code, "Placement Fee"]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -1135,13 +1154,15 @@ export default function InvoicePage() {
         qty: 1,
         firstDate: dateFrom,
         lastDate: dateTo,
-        serviceName: "Job Placement Fee",
-        defaultServiceId: "job-placement-fee",
+        serviceName: "Placement Fee",
+        defaultServiceId: "placement-fee",
         defaultRate: placementRate,
       });
     });
 
     return [...grouped.values()].sort((a, b) => {
+      const lineTypeCompare = (a.lineType === "placement_fee" ? 0 : 1) - (b.lineType === "placement_fee" ? 0 : 1);
+      if (lineTypeCompare !== 0) return lineTypeCompare;
       const projectCompare = a.projectName.localeCompare(b.projectName);
       if (projectCompare !== 0) return projectCompare;
       return a.candidateName.localeCompare(b.candidateName);
@@ -1164,16 +1185,36 @@ export default function InvoicePage() {
     [invoiceRows, lineRates, lineServiceIds, servicesById]
   );
 
+
+
+  const activeRowsWithTotals = useMemo(
+    () => (loadedInvoiceRows || rowsWithTotals).map((row) => {
+      const serviceId = lineServiceIds[row.key] || row.serviceId || row.defaultServiceId || DEFAULT_PRODUCT_SERVICES[0].id;
+      const service = servicesById.get(serviceId) || servicesById.get(row.defaultServiceId) || { id: serviceId, name: row.serviceName, rate: row.rate || 0 };
+      const rate = Number(lineRates[row.key] ?? row.rate ?? row.defaultRate ?? service.rate ?? 0);
+      const qty = Number(row.qty ?? row.hours ?? 0);
+      return {
+        ...row,
+        serviceId,
+        serviceName: service.name,
+        rate,
+        qty,
+        amount: qty * rate,
+      };
+    }),
+    [lineRates, lineServiceIds, loadedInvoiceRows, rowsWithTotals, servicesById]
+  );
+
   const summary = useMemo(() => {
-    const totalHours = rowsWithTotals.reduce((total, row) => total + (row.lineType === "hours" ? row.hours : 0), 0);
-    const subtotal = rowsWithTotals.reduce((total, row) => total + row.amount, 0);
+    const totalHours = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "hours" ? row.hours : 0), 0);
+    const subtotal = activeRowsWithTotals.reduce((total, row) => total + row.amount, 0);
     return {
       totalHours,
       subtotal,
       total: subtotal,
-      lineCount: rowsWithTotals.length,
+      lineCount: activeRowsWithTotals.length,
     };
-  }, [rowsWithTotals]);
+  }, [activeRowsWithTotals]);
 
   const refreshData = async () => {
     await load();
@@ -1221,7 +1262,7 @@ export default function InvoicePage() {
 
 
   const buildInvoicePayload = (status) => ({
-    invoice_number: invoiceNumber || `INV-${Date.now()}`,
+    invoice_number: invoiceNumber || `INV-${toDateInputValue(today).replace(/-/g, "")}`,
     status,
     client_name: selectedClientName,
     client_address: selectedClient?.address || "",
@@ -1236,7 +1277,7 @@ export default function InvoicePage() {
     total: Number(summary.total.toFixed(2)),
   });
 
-  const buildLineItemPayload = (invoiceId) => rowsWithTotals.map((row) => ({
+  const buildLineItemPayload = (invoiceId) => activeRowsWithTotals.map((row) => ({
     invoice_id: invoiceId,
     line_type: row.lineType || "hours",
     cts_job_candidate_id: row.candidateId || null,
@@ -1252,7 +1293,7 @@ export default function InvoicePage() {
   }));
 
   const saveInvoice = async (status = "finalized") => {
-    if (!rowsWithTotals.length) {
+    if (!activeRowsWithTotals.length) {
       setFeedback({ error: "No invoice lines to save.", success: "" });
       return null;
     }
@@ -1312,6 +1353,112 @@ export default function InvoicePage() {
     await load();
   };
 
+
+
+  const mapInvoiceLineToRow = (line) => ({
+    key: `saved-${line.id}`,
+    lineType: line.line_type || "hours",
+    candidateId: line.cts_job_candidate_id || null,
+    jobId: line.cts_job_id || null,
+    workerId: line.worker_id || null,
+    candidateName: line.worker_name || "Unnamed worker",
+    workerEmail: "",
+    workerPhone: "",
+    projectName: line.project_name || "Untitled project",
+    projectLocation: "",
+    jobCode: "",
+    clientName: selectedClientName,
+    hours: line.line_type === "hours" ? Number(line.qty || 0) : 0,
+    qty: Number(line.qty || 0),
+    firstDate: dateFrom,
+    lastDate: dateTo,
+    serviceName: line.product_service_name || DEFAULT_PRODUCT_SERVICES[0].name,
+    serviceId: productServices.find((service) => service.name === line.product_service_name)?.id || DEFAULT_PRODUCT_SERVICES[0].id,
+    defaultServiceId: productServices.find((service) => service.name === line.product_service_name)?.id || DEFAULT_PRODUCT_SERVICES[0].id,
+    defaultRate: Number(line.rate || 0),
+    rate: Number(line.rate || 0),
+    amount: Number(line.amount || 0),
+    savedLineId: line.id,
+  });
+
+  const loadInvoiceIntoView = (invoice, readOnly = true) => {
+    setCurrentInvoiceId(invoice.id);
+    setInvoiceReadOnly(readOnly);
+    setInvoiceNumber(invoice.invoice_number || "");
+    setDateFrom(invoice.date_from || dateFrom);
+    setDateTo(invoice.date_to || dateTo);
+    setDueDate(invoice.due_date || dueDate);
+    setNotes(invoice.notes || "");
+    const clientId = `saved-${invoice.id}`;
+    const savedClient = {
+      id: clientId,
+      name: invoice.client_name || "Saved client",
+      address: invoice.client_address || "",
+      phone: invoice.client_phone || "",
+      email: invoice.client_email || "",
+    };
+    setInvoiceClients((prev) => prev.some((client) => client.id === clientId) ? prev : [savedClient, ...prev]);
+    setSelectedClientId(clientId);
+    const mappedRows = (invoice.invoice_line_items || []).map(mapInvoiceLineToRow).sort((a, b) => {
+      const lineTypeCompare = (a.lineType === "placement_fee" ? 0 : 1) - (b.lineType === "placement_fee" ? 0 : 1);
+      if (lineTypeCompare !== 0) return lineTypeCompare;
+      const projectCompare = a.projectName.localeCompare(b.projectName);
+      if (projectCompare !== 0) return projectCompare;
+      return a.candidateName.localeCompare(b.candidateName);
+    });
+    setLoadedInvoiceRows(mappedRows);
+    setLineRates(Object.fromEntries(mappedRows.map((row) => [row.key, row.rate])));
+    setLineServiceIds(Object.fromEntries(mappedRows.map((row) => [row.key, row.serviceId])));
+    setBuilderOpen(false);
+    setFeedback({ error: "", success: readOnly ? `Loaded ${invoice.invoice_number} in read-only view.` : `Loaded ${invoice.invoice_number} for editing.` });
+  };
+
+  const startNewInvoice = () => {
+    setCurrentInvoiceId(null);
+    setLoadedInvoiceRows(null);
+    setInvoiceReadOnly(false);
+    setLineRates({});
+    setLineServiceIds({});
+    setInvoiceNumber(`INV-${toDateInputValue(new Date()).replace(/-/g, "")}`);
+    setBuilderOpen(true);
+    setFeedback({ error: "", success: "Started a new invoice draft." });
+  };
+
+  const deleteInvoice = async (invoiceId) => {
+    if (!window.confirm("Delete this invoice? This cannot be undone.")) return;
+    setSavingInvoice(true);
+    const { error } = await supabase.from("invoices").delete().eq("id", invoiceId);
+    setSavingInvoice(false);
+    if (error) {
+      setFeedback({ error: error.message, success: "" });
+      return;
+    }
+    if (currentInvoiceId === invoiceId) startNewInvoice();
+    setFeedback({ error: "", success: "Invoice deleted." });
+    await load();
+  };
+
+  const markPlacementFeePaid = async (row) => {
+    if (!row.candidateId) return;
+    const { error } = await supabase
+      .from("cts_job_candidates")
+      .update({
+        placement_fee_paid: true,
+        placement_fee_paid_at: new Date().toISOString(),
+        placement_fee_billed_at: new Date().toISOString(),
+        placement_fee_invoice_number: invoiceNumber || null,
+        placement_fee_invoice_id: currentInvoiceId || null,
+      })
+      .eq("id", row.candidateId);
+    if (error) {
+      setFeedback({ error: error.message, success: "" });
+      return;
+    }
+    setFeedback({ error: "", success: `Placement Fee marked paid for ${row.candidateName}.` });
+    setLoadedInvoiceRows((prev) => prev ? prev.filter((item) => item.key !== row.key) : prev);
+    await load();
+  };
+
   const printInvoice = async () => {
     const invoiceId = currentInvoiceId || await saveInvoice("printed");
     if (invoiceId && currentInvoiceId) {
@@ -1322,7 +1469,7 @@ export default function InvoicePage() {
 
   const exportCsv = () => {
     const headers = ["Invoice", "Client", "Date From", "Date To", "Item #", "Product or Service", "Name", "Details", "Qty", "Rate", "Amount"];
-    const rows = rowsWithTotals.map((row, index) => [
+    const rows = activeRowsWithTotals.map((row, index) => [
       invoiceNumber,
       selectedClientName,
       dateFrom,
@@ -1364,16 +1511,19 @@ export default function InvoicePage() {
             <button className="invoice-btn" type="button" onClick={refreshData} disabled={loading}>
               <RefreshCw size={15} /> Refresh
             </button>
-            <button className="invoice-btn" type="button" onClick={() => saveInvoice("finalized")} disabled={!rowsWithTotals.length || savingInvoice}>
+            <button className="invoice-btn" type="button" onClick={startNewInvoice}>
+              New Invoice
+            </button>
+            <button className="invoice-btn" type="button" onClick={() => saveInvoice("finalized")} disabled={!activeRowsWithTotals.length || savingInvoice || invoiceReadOnly}>
               {savingInvoice ? <Loader2 className="spin" size={15} /> : <FileText size={15} />} Finalize
             </button>
-            <button className="invoice-btn" type="button" onClick={exportCsv} disabled={!rowsWithTotals.length}>
+            <button className="invoice-btn" type="button" onClick={exportCsv} disabled={!activeRowsWithTotals.length}>
               <Download size={15} /> Export CSV
             </button>
-            <button className="invoice-btn" type="button" onClick={printInvoice} disabled={!rowsWithTotals.length || savingInvoice}>
+            <button className="invoice-btn" type="button" onClick={printInvoice} disabled={!activeRowsWithTotals.length || savingInvoice}>
               <Printer size={15} /> Print Invoice
             </button>
-            <button className="invoice-btn dark" type="button" onClick={() => currentInvoiceId ? updateInvoiceStatus(currentInvoiceId, "paid") : saveInvoice("paid")} disabled={!rowsWithTotals.length || savingInvoice}>
+            <button className="invoice-btn dark" type="button" onClick={() => currentInvoiceId ? updateInvoiceStatus(currentInvoiceId, "paid") : saveInvoice("paid")} disabled={!activeRowsWithTotals.length || savingInvoice}>
               Mark Paid
             </button>
           </div>
@@ -1405,6 +1555,9 @@ export default function InvoicePage() {
                     {formatDate(invoice.date_from)} – {formatDate(invoice.date_to)} · {formatCurrency(invoice.total)} · {invoice.invoice_line_items?.length || 0} lines
                   </div>
                   <div className="invoice-history-actions">
+                    <button className="mini-btn" type="button" onClick={() => loadInvoiceIntoView(invoice, true)}>View</button>
+                    <button className="mini-btn" type="button" onClick={() => loadInvoiceIntoView(invoice, false)}>Edit</button>
+                    <button className="mini-btn danger" type="button" onClick={() => deleteInvoice(invoice.id)}>Delete</button>
                     {INVOICE_STATUS_OPTIONS.map((status) => (
                       <button
                         className="mini-btn"
@@ -1575,7 +1728,7 @@ export default function InvoicePage() {
                   </div>
                 </div>
 
-                {rowsWithTotals.length ? (
+                {activeRowsWithTotals.length ? (
                   <>
                     <div className="invoice-table-wrap">
                       <table className="invoice-table">
@@ -1591,21 +1744,23 @@ export default function InvoicePage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {rowsWithTotals.map((row, index) => (
+                          {activeRowsWithTotals.map((row, index) => (
                             <tr key={row.key}>
                               <td style={{ textAlign: "right" }}>{index + 1}</td>
                               <td>
-                                <select
-                                  className="service-select"
-                                  value={row.serviceId}
-                                  onChange={(event) => handleServiceChange(row.key, event.target.value)}
-                                  aria-label={`Product or service for ${row.candidateName}`}
-                                >
-                                  {productServices.map((service) => (
-                                    <option key={service.id} value={service.id}>{service.name}</option>
-                                  ))}
-                                  <option value="__new__">New...</option>
-                                </select>
+                                {invoiceReadOnly ? <span>{row.serviceName}</span> : (
+                                  <select
+                                    className="service-select"
+                                    value={row.serviceId}
+                                    onChange={(event) => handleServiceChange(row.key, event.target.value)}
+                                    aria-label={`Product or service for ${row.candidateName}`}
+                                  >
+                                    {productServices.map((service) => (
+                                      <option key={service.id} value={service.id}>{service.name}</option>
+                                    ))}
+                                    <option value="__new__">New...</option>
+                                  </select>
+                                )}
                                 <span className="print-service-name">{row.serviceName}</span>
                               </td>
                               <td>
@@ -1615,18 +1770,23 @@ export default function InvoicePage() {
                               <td>
                                 <div className="line-primary">{row.projectName}</div>
                                 <div className="line-secondary">{[row.projectLocation, `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}`, row.jobCode ? `Code: ${row.jobCode}` : ""].filter(Boolean).join(" · ") || "No location"}</div>
+                                {row.lineType === "placement_fee" && !invoiceReadOnly ? (
+                                  <button className="row-action-btn" type="button" onClick={() => markPlacementFeePaid(row)}>Mark Placement Paid</button>
+                                ) : null}
                               </td>
                               <td style={{ textAlign: "right" }}>{formatHours(row.qty ?? row.hours)}</td>
                               <td style={{ textAlign: "right" }}>
-                                <input
-                                  className="rate-input"
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={lineRates[row.key] ?? row.rate ?? 0}
-                                  onChange={(event) => setLineRates((prev) => ({ ...prev, [row.key]: event.target.value }))}
-                                  aria-label={`Rate for ${row.candidateName}`}
-                                />
+                                {invoiceReadOnly ? <span>{formatCurrency(row.rate)}</span> : (
+                                  <input
+                                    className="rate-input"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={lineRates[row.key] ?? row.rate ?? 0}
+                                    onChange={(event) => setLineRates((prev) => ({ ...prev, [row.key]: event.target.value }))}
+                                    aria-label={`Rate for ${row.candidateName}`}
+                                  />
+                                )}
                                 <span className="print-rate-value">{formatCurrency(row.rate)}</span>
                               </td>
                               <td style={{ textAlign: "right", fontWeight: 750 }}>{formatCurrency(row.amount)}</td>
