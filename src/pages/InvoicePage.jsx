@@ -195,6 +195,109 @@ function InvoiceStyles() {
         gap: 10px;
       }
 
+      .project-picker {
+        display: grid;
+        gap: 10px;
+      }
+
+      .project-picker-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .project-toggle {
+        border: 0;
+        background: transparent;
+        color: #1d4ed8;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+        padding: 4px 0;
+      }
+
+      .project-checklist {
+        display: grid;
+        gap: 8px;
+        max-height: 320px;
+        overflow-y: auto;
+        padding: 4px 2px 4px 0;
+      }
+
+      .project-check-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid #dbeafe;
+        border-radius: 16px;
+        background: #ffffff;
+        padding: 11px 12px;
+        cursor: pointer;
+        transition: 0.18s ease;
+      }
+
+      .project-check-row:hover {
+        border-color: #93c5fd;
+        background: #f8fbff;
+        transform: translateY(-1px);
+      }
+
+      .project-check-row.selected {
+        border-color: #2563eb;
+        background: #eff6ff;
+      }
+
+      .project-checkbox {
+        width: 18px;
+        height: 18px;
+        accent-color: #1d4ed8;
+      }
+
+      .project-check-main {
+        min-width: 0;
+        display: grid;
+        gap: 3px;
+      }
+
+      .project-check-title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #0f172a;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .project-check-meta {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #64748b;
+        font-size: 12px;
+      }
+
+      .project-check-stats {
+        display: grid;
+        justify-items: end;
+        gap: 3px;
+        color: #64748b;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .project-check-badge {
+        border-radius: 999px;
+        background: #dbeafe;
+        color: #1e40af;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
       .summary-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -482,7 +585,7 @@ export default function InvoicePage() {
   const [weeklyReviews, setWeeklyReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
-  const [projectFilter, setProjectFilter] = useState("");
+  const [selectedProjectIds, setSelectedProjectIds] = useState(null);
   const [dateFrom, setDateFrom] = useState(toDateInputValue(startOfMonth(today)));
   const [dateTo, setDateTo] = useState(toDateInputValue(endOfMonth(today)));
   const [invoiceNumber, setInvoiceNumber] = useState(() => `INV-${toDateInputValue(today).replace(/-/g, "")}`);
@@ -559,21 +662,62 @@ export default function InvoicePage() {
       countsByJobId.set(candidate.cts_job_id, (countsByJobId.get(candidate.cts_job_id) || 0) + 1);
     });
 
+    const approvedHoursByJobId = new Map();
+    hoursEntries.forEach((entry) => {
+      if (entry.source !== "admin") return;
+      if (!approvedReviewKeys.has(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)) return;
+      const candidate = candidatesById.get(entry.cts_job_candidate_id);
+      const jobId = entry.cts_job_id || candidate?.cts_job_id;
+      if (!jobId) return;
+      approvedHoursByJobId.set(jobId, (approvedHoursByJobId.get(jobId) || 0) + Number(entry.regular_hours || 0));
+    });
+
     return jobs
       .filter((job) => countsByJobId.has(job.id))
       .map((job) => ({
         ...job,
         placedCount: countsByJobId.get(job.id) || 0,
+        approvedHours: approvedHoursByJobId.get(job.id) || 0,
         projectName: job.level_type || "Untitled project",
         projectLocation: [job.city, job.state].filter(Boolean).join(", "),
       }))
       .sort((a, b) => a.projectName.localeCompare(b.projectName));
-  }, [candidates, jobs]);
+  }, [approvedReviewKeys, candidates, candidatesById, hoursEntries, jobs]);
 
-  const requestedProjectId = projectFilter || "";
-  const selectedProject = projectOptions.find((project) => project.id === requestedProjectId) || projectOptions[0] || null;
-  const selectedProjectId = selectedProject?.id || "";
-  const selectedClient = (selectedProject?.client_name || "CTS").trim() || "CTS";
+  const effectiveSelectedProjectIds = selectedProjectIds ?? projectOptions.map((project) => project.id);
+  const selectedProjectIdSet = useMemo(() => new Set(effectiveSelectedProjectIds), [effectiveSelectedProjectIds]);
+  const selectedProjects = useMemo(
+    () => projectOptions.filter((project) => selectedProjectIdSet.has(project.id)),
+    [projectOptions, selectedProjectIdSet]
+  );
+  const selectedClient = useMemo(() => {
+    const clients = [...new Set(selectedProjects.map((project) => (project.client_name || "CTS").trim() || "CTS"))];
+    if (!clients.length) return "Select one or more projects";
+    if (clients.length === 1) return clients[0];
+    return `${clients.length} clients selected`;
+  }, [selectedProjects]);
+  const selectedProjectLabel = !projectOptions.length
+    ? "No active projects"
+    : selectedProjects.length === projectOptions.length
+      ? "All active projects"
+      : `${selectedProjects.length} selected project${selectedProjects.length === 1 ? "" : "s"}`;
+
+  const toggleProjectSelection = (projectId) => {
+    setSelectedProjectIds((prev) => {
+      const current = prev ?? projectOptions.map((project) => project.id);
+      return current.includes(projectId)
+        ? current.filter((id) => id !== projectId)
+        : [...current, projectId];
+    });
+  };
+
+  const selectAllProjects = () => {
+    setSelectedProjectIds(projectOptions.map((project) => project.id));
+  };
+
+  const clearProjectSelection = () => {
+    setSelectedProjectIds([]);
+  };
 
   const invoiceRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -590,7 +734,7 @@ export default function InvoicePage() {
       if (String(candidate.candidate_status || "").toLowerCase() !== "placed") return;
       const job = jobsById.get(entry.cts_job_id || candidate.cts_job_id);
       if (!job) return;
-      if (selectedProjectId && job.id !== selectedProjectId) return;
+      if (!selectedProjectIdSet.has(job.id)) return;
       const clientName = (job.client_name || "CTS").trim() || "CTS";
 
       const worker = workersById.get(entry.worker_id || candidate.worker_id) || {};
@@ -633,7 +777,7 @@ export default function InvoicePage() {
       if (projectCompare !== 0) return projectCompare;
       return a.candidateName.localeCompare(b.candidateName);
     });
-  }, [approvedReviewKeys, candidatesById, hoursEntries, jobsById, search, selectedProjectId, workersById]);
+  }, [approvedReviewKeys, candidatesById, hoursEntries, jobsById, search, selectedProjectIdSet, workersById]);
 
   const rowsWithTotals = useMemo(
     () => invoiceRows.map((row) => {
@@ -699,7 +843,7 @@ export default function InvoicePage() {
             <div className="invoice-kicker"><FileText size={15} /> Billing</div>
             <h1 className="invoice-title">Invoice</h1>
             <p className="invoice-subtitle">
-              Generate client invoices from confirmed HoursTracker weeks. Select a project with placed workers, then review the employees and confirmed hours before printing or exporting.
+              Generate one invoice from confirmed HoursTracker weeks. Select one or more active projects to load every placed worker and their approved hours, ordered by project.
             </p>
           </div>
           <div className="invoice-actions">
@@ -720,19 +864,49 @@ export default function InvoicePage() {
         <section className="invoice-grid">
           <aside className="invoice-card invoice-controls">
             <h2 className="invoice-panel-title">Invoice Builder</h2>
-            <p className="invoice-muted">Invoices use only weeks confirmed in HoursTracker. Choose a project to load all placed employees with confirmed hours in the selected period.</p>
+            <p className="invoice-muted">Invoices use only weeks confirmed in HoursTracker. Select every active project you want to include in this invoice.</p>
 
             <div className="invoice-form">
-              <div className="invoice-field">
-                <label className="invoice-label">Project</label>
-                <select className="invoice-select" value={selectedProjectId} onChange={(event) => setProjectFilter(event.target.value)}>
-                  {projectOptions.length ? projectOptions.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.projectName}{project.projectLocation ? ` · ${project.projectLocation}` : ""} ({project.placedCount})
-                    </option>
-                  )) : <option value="">No placed-worker projects found</option>}
-                </select>
-                <div className="invoice-muted">Client: {selectedClient || "—"}</div>
+              <div className="invoice-field project-picker">
+                <div className="project-picker-head">
+                  <label className="invoice-label">Projects</label>
+                  <button
+                    className="project-toggle"
+                    type="button"
+                    onClick={effectiveSelectedProjectIds.length === projectOptions.length ? clearProjectSelection : selectAllProjects}
+                    disabled={!projectOptions.length}
+                  >
+                    {effectiveSelectedProjectIds.length === projectOptions.length ? "Clear all" : "Select all"}
+                  </button>
+                </div>
+                {projectOptions.length ? (
+                  <div className="project-checklist" role="group" aria-label="Invoice projects">
+                    {projectOptions.map((project) => {
+                      const checked = selectedProjectIdSet.has(project.id);
+                      return (
+                        <label className={`project-check-row${checked ? " selected" : ""}`} key={project.id}>
+                          <input
+                            className="project-checkbox"
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleProjectSelection(project.id)}
+                          />
+                          <span className="project-check-main">
+                            <span className="project-check-title">{project.projectName}</span>
+                            <span className="project-check-meta">{project.projectLocation || "No location"}</span>
+                          </span>
+                          <span className="project-check-stats">
+                            <span className="project-check-badge">{project.placedCount} placed</span>
+                            <span>{formatHours(project.approvedHours)} hrs</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="empty-state">No placed-worker projects found.</div>
+                )}
+                <div className="invoice-muted">{selectedProjectLabel} · Bill to: {selectedClient || "—"}</div>
               </div>
 
               <div className="invoice-date-grid">
@@ -800,8 +974,8 @@ export default function InvoicePage() {
                 <div className="invoice-bill-grid">
                   <div className="bill-box">
                     <div className="bill-heading">Bill To</div>
-                    <div className="bill-main">{selectedClient || "Select a project"}</div>
-                    <div className="invoice-muted">Client billing contact</div>
+                    <div className="bill-main">{selectedClient || "Select projects"}</div>
+                    <div className="invoice-muted">{selectedProjectLabel}</div>
                   </div>
                   <div className="bill-box">
                     <div className="bill-heading">Service Period</div>
@@ -867,7 +1041,7 @@ export default function InvoicePage() {
                   </>
                 ) : (
                   <div style={{ padding: 24 }}>
-                    <div className="empty-state">No confirmed HoursTracker hours found for the selected project and date range.</div>
+                    <div className="empty-state">No confirmed HoursTracker hours found for the selected projects and date range.</div>
                   </div>
                 )}
 

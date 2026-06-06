@@ -4,10 +4,87 @@ import { CalendarDays, CheckCircle2, Loader2, Lock, Minus, Plus, Save } from "lu
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const PRESET_HOURS = [0, 8, 10];
 const HOUR_STEP = 0.25;
+
+const copy = {
+  en: {
+    localeLabel: "English",
+    toggleLabel: "Español",
+    dateLocale: "en-US",
+    dayLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    dayNames: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    currentWeek: "Current week",
+    previousWeek: "Previous week",
+    workerHours: "Worker Hours",
+    weeklyHours: "Weekly Hours",
+    intro: "Use the secure UTS link to submit hours for the current week or previous week. Future dates stay locked until they become available.",
+    week: "Week",
+    approvedLocked: "Approved / Locked",
+    editable: "Editable",
+    loading: "Loading hours link...",
+    total: "Total",
+    approvedNote: "This week has been approved by UTS and can no longer be edited.",
+    availableOnDate: "Available on this date",
+    locked: "Locked",
+    open: "Open",
+    decrease: "Decrease",
+    increase: "Increase",
+    hours: "hours",
+    submitHours: "Submit Hours",
+    approved: "Approved",
+    noActiveLink: "No active hours link found.",
+    mobileSubmit: "Submit Hours",
+    thankYou: "Thank you!",
+    thankYouCopy: "Your hours were submitted. You can safely close this tab now.",
+    submittedTitle: "Hours Submitted!",
+    submittedCopy: (weekRange) => `Your hours for ${weekRange} have been sent to UTS. You can keep editing if you need to make a correction before approval.`,
+    keepEditing: "Keep editing",
+    exit: "Exit",
+    loadError: "Could not load this hours link.",
+    invalidLink: "This hours link is invalid, expired, or no longer available.",
+    fallbackLoaded: "Loaded the original link week. Ask UTS to apply the latest hours-link migration to enable current/previous week switching.",
+    saveError: "Could not save hours.",
+  },
+  es: {
+    localeLabel: "Español",
+    toggleLabel: "English",
+    dateLocale: "es-US",
+    dayLabels: ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"],
+    dayNames: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
+    currentWeek: "Semana actual",
+    previousWeek: "Semana anterior",
+    workerHours: "Horas del Trabajador",
+    weeklyHours: "Horas Semanales",
+    intro: "Usa el enlace seguro de UTS para enviar tus horas de la semana actual o la semana anterior. Las fechas futuras estarán bloqueadas hasta que estén disponibles.",
+    week: "Semana",
+    approvedLocked: "Aprobado / Bloqueado",
+    editable: "Editable",
+    loading: "Cargando enlace de horas...",
+    total: "Total",
+    approvedNote: "Esta semana ya fue aprobada por UTS y no se puede editar.",
+    availableOnDate: "Disponible en esta fecha",
+    locked: "Bloqueado",
+    open: "Abierto",
+    decrease: "Disminuir",
+    increase: "Aumentar",
+    hours: "horas",
+    submitHours: "Enviar Horas",
+    approved: "Aprobado",
+    noActiveLink: "No se encontró un enlace activo de horas.",
+    mobileSubmit: "Enviar Horas",
+    thankYou: "¡Gracias!",
+    thankYouCopy: "Tus horas fueron enviadas. Ya puedes cerrar esta pestaña con seguridad.",
+    submittedTitle: "¡Horas Enviadas!",
+    submittedCopy: (weekRange) => `Tus horas para ${weekRange} fueron enviadas a UTS. Puedes seguir editando si necesitas corregir algo antes de la aprobación.`,
+    keepEditing: "Seguir editando",
+    exit: "Salir",
+    loadError: "No se pudo cargar este enlace de horas.",
+    invalidLink: "Este enlace de horas no es válido, expiró o ya no está disponible.",
+    fallbackLoaded: "Se cargó la semana original del enlace. Pide a UTS aplicar la migración más reciente para habilitar el cambio entre semana actual/anterior.",
+    saveError: "No se pudieron guardar las horas.",
+  },
+};
 
 function PageStyles() {
   return (
@@ -39,6 +116,20 @@ function PageStyles() {
         align-items: center;
       }
       .worker-logo { width: auto; height: 54px; display: block; object-fit: contain; }
+      .language-toggle {
+        margin-left: auto;
+        min-height: 42px;
+        border: 1px solid rgba(255,255,255,0.26);
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.42);
+        color: #ffffff;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 900;
+        cursor: pointer;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.12);
+      }
+      .language-toggle:hover { background: rgba(15, 23, 42, 0.68); }
       .worker-shell {
         width: min(980px, calc(100vw - 32px));
         max-width: calc(100vw - 32px);
@@ -451,14 +542,14 @@ function toDateInputValue(date) {
   return date.toISOString().slice(0, 10);
 }
 
-function formatDate(value) {
-  return parseDate(value).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function formatDate(value, locale = "en-US") {
+  return parseDate(value).toLocaleDateString(locale, { month: "short", day: "numeric" });
 }
 
-function formatWeekRange(weekStart) {
+function formatWeekRange(weekStart, locale = "en-US") {
   const start = parseDate(weekStart);
   const end = addDays(start, 6);
-  return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  return `${start.toLocaleDateString(locale, { month: "short", day: "numeric" })} - ${end.toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 function normalizeHours(value) {
@@ -508,13 +599,15 @@ function isRpcSignatureMissing(error) {
 
 export default function WorkerHoursPage() {
   const { token = "" } = useParams();
+  const [locale, setLocale] = useState("es");
+  const text = copy[locale];
   const today = toDateInputValue(new Date());
   const currentWeek = toDateInputValue(startOfWeek(new Date()));
   const previousWeek = toDateInputValue(addDays(parseDate(currentWeek), -7));
   const weekOptions = useMemo(() => [
-    { value: currentWeek, label: `Current week · ${formatWeekRange(currentWeek)}` },
-    { value: previousWeek, label: `Previous week · ${formatWeekRange(previousWeek)}` },
-  ], [currentWeek, previousWeek]);
+    { value: currentWeek, label: `${text.currentWeek} · ${formatWeekRange(currentWeek, text.dateLocale)}` },
+    { value: previousWeek, label: `${text.previousWeek} · ${formatWeekRange(previousWeek, text.dateLocale)}` },
+  ], [currentWeek, previousWeek, text]);
 
   const [weekStart, setWeekStart] = useState(currentWeek);
   const [rows, setRows] = useState([]);
@@ -544,7 +637,7 @@ export default function WorkerHoursPage() {
       setRows([]);
       setValues({});
       setReviewStatus("pending");
-      setFeedback({ error: response.error.message || "Could not load this hours link.", success: "" });
+      setFeedback({ error: response.error.message || text.loadError, success: "" });
       return;
     }
 
@@ -556,14 +649,14 @@ export default function WorkerHoursPage() {
       setWeekStart(nextRows[0].week_start_date);
     }
     if (!nextRows.length) {
-      setFeedback({ error: "This hours link is invalid, expired, or no longer available.", success: "" });
+      setFeedback({ error: text.invalidLink, success: "" });
     } else if (fallbackMode) {
       setFeedback({
         error: "",
-        success: "Loaded the original link week. Ask UTS to apply the latest hours-link migration to enable current/previous week switching.",
+        success: text.fallbackLoaded,
       });
     }
-  }, [token, weekStart]);
+  }, [text, token, weekStart]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());
@@ -605,7 +698,7 @@ export default function WorkerHoursPage() {
     setSaving(false);
 
     if (response.error) {
-      setFeedback({ error: response.error.message || "Could not save hours.", success: "" });
+      setFeedback({ error: response.error.message || text.saveError, success: "" });
       return;
     }
 
@@ -627,35 +720,36 @@ export default function WorkerHoursPage() {
       <header className="worker-topbar">
         <div className="worker-topbar-inner">
           <img className="worker-logo" src={utsLogo} alt="UTS" />
+          <button className="language-toggle" type="button" onClick={() => setLocale((prev) => (prev === "en" ? "es" : "en"))} aria-label={text.toggleLabel} title={text.toggleLabel}>{text.toggleLabel}</button>
         </div>
       </header>
       {exited ? (
         <main className="worker-shell exit-screen">
           <section className="worker-card exit-card">
             <div className="submission-icon"><CheckCircle2 size={32} /></div>
-            <h1 className="submission-title">Thank you!</h1>
-            <p className="submission-copy">Your hours were submitted. You can safely close this tab now.</p>
+            <h1 className="submission-title">{text.thankYou}</h1>
+            <p className="submission-copy">{text.thankYouCopy}</p>
           </section>
         </main>
       ) : (
         <main className="worker-shell">
           <section className="worker-card worker-hero">
             <div>
-              <div className="worker-kicker"><CalendarDays size={15} /> Worker Hours</div>
-              <h1 className="worker-title">Weekly Hours</h1>
+              <div className="worker-kicker"><CalendarDays size={15} /> {text.workerHours}</div>
+              <h1 className="worker-title">{text.weeklyHours}</h1>
               <p className="worker-copy">
-                Use the secure UTS link to submit hours for the current week or previous week. Future dates stay locked until they become available.
+                {text.intro}
               </p>
             </div>
             <div className="week-panel">
-              <label className="field-label" htmlFor="worker-week">Week</label>
+              <label className="field-label" htmlFor="worker-week">{text.week}</label>
               <select className="week-select" id="worker-week" value={weekStart} onChange={(event) => setWeekStart(event.target.value)}>
                 {weekOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
               {isApproved ? (
-                <div className="status-pill locked"><Lock size={15} /> Approved / Locked</div>
+                <div className="status-pill locked"><Lock size={15} /> {text.approvedLocked}</div>
               ) : (
-                <div className="status-pill editable">Editable</div>
+                <div className="status-pill editable">{text.editable}</div>
               )}
             </div>
           </section>
@@ -665,7 +759,7 @@ export default function WorkerHoursPage() {
 
           <section className="worker-card">
             {loading ? (
-              <div className="empty"><Loader2 className="spin" size={18} /> Loading hours link...</div>
+              <div className="empty"><Loader2 className="spin" size={18} /> {text.loading}</div>
             ) : rows.length ? (
               <>
                 <div className="summary-card">
@@ -673,14 +767,14 @@ export default function WorkerHoursPage() {
                     <div className="summary-copy">
                       <h2 className="worker-name">{first.worker_name}</h2>
                       <p className="project-line">{[first.project, first.project_location].filter(Boolean).join(" · ")}</p>
-                      <p className="week-line">{formatWeekRange(weekStart)}</p>
+                      <p className="week-line">{formatWeekRange(weekStart, text.dateLocale)}</p>
                     </div>
                     <div className="total-box">
-                      <div className="total-label">Total</div>
+                      <div className="total-label">{text.total}</div>
                       <div className="total-value">{formatHours(total)} hrs</div>
                     </div>
                   </div>
-                  {isApproved ? <p className="approved-note">This week has been approved by UTS and can no longer be edited.</p> : null}
+                  {isApproved ? <p className="approved-note">{text.approvedNote}</p> : null}
                 </div>
 
                 <div className="days-list">
@@ -692,21 +786,21 @@ export default function WorkerHoursPage() {
                       <article className={`day-card ${disabled ? "disabled" : ""}`} key={row.work_date}>
                         <div className="day-header">
                           <div>
-                            <div className="day-name">{DAY_NAMES[index]}</div>
-                            <div className="day-date">{DAY_LABELS[index]} · {formatDate(row.work_date)}</div>
+                            <div className="day-name">{text.dayNames[index]}</div>
+                            <div className="day-date">{text.dayLabels[index]} · {formatDate(row.work_date, text.dateLocale)}</div>
                           </div>
                           {isFuture ? (
-                            <span className="day-status future">Available on this date</span>
+                            <span className="day-status future">{text.availableOnDate}</span>
                           ) : isApproved ? (
-                            <span className="day-status locked">Locked</span>
+                            <span className="day-status locked">{text.locked}</span>
                           ) : (
-                            <span className="day-status open">Open</span>
+                            <span className="day-status open">{text.open}</span>
                           )}
                         </div>
 
                         <div className="stepper">
                           <button
-                            aria-label={`Decrease ${DAY_NAMES[index]} hours`}
+                            aria-label={`${text.decrease} ${text.dayNames[index]} ${text.hours}`}
                             className="step-btn"
                             disabled={disabled}
                             type="button"
@@ -714,7 +808,7 @@ export default function WorkerHoursPage() {
                           >
                             <Minus size={22} strokeWidth={3} />
                           </button>
-                          <label className="sr-only" htmlFor={`hours-${row.work_date}`}>{DAY_NAMES[index]} hours</label>
+                          <label className="sr-only" htmlFor={`hours-${row.work_date}`}>{text.dayNames[index]} {text.hours}</label>
                           <input
                             className="hours-input"
                             disabled={disabled}
@@ -731,7 +825,7 @@ export default function WorkerHoursPage() {
                             onChange={(event) => setDayHours(row.work_date, event.target.value)}
                           />
                           <button
-                            aria-label={`Increase ${DAY_NAMES[index]} hours`}
+                            aria-label={`${text.increase} ${text.dayNames[index]} ${text.hours}`}
                             className="step-btn"
                             disabled={disabled}
                             type="button"
@@ -761,12 +855,12 @@ export default function WorkerHoursPage() {
 
                 <div className="submit-row">
                   <button className="primary-btn" type="button" onClick={saveHours} disabled={!canSubmit}>
-                    {saving ? <Loader2 className="spin" size={16} /> : <Save size={16} />} {isApproved ? "Approved" : "Submit Hours"}
+                    {saving ? <Loader2 className="spin" size={16} /> : <Save size={16} />} {isApproved ? text.approved : text.submitHours}
                   </button>
                 </div>
               </>
             ) : (
-              <div className="empty">No active hours link found.</div>
+              <div className="empty">{text.noActiveLink}</div>
             )}
           </section>
         </main>
@@ -776,11 +870,11 @@ export default function WorkerHoursPage() {
         <div className="sticky-submit">
           <div className="sticky-inner">
             <div className="sticky-total">
-              <div className="sticky-label">Total</div>
+              <div className="sticky-label">{text.total}</div>
               <div className="sticky-value">{formatHours(total)} hrs</div>
             </div>
             <button className="primary-btn" type="button" onClick={saveHours} disabled={!canSubmit}>
-              {saving ? <Loader2 className="spin" size={16} /> : <Save size={16} />} {isApproved ? "Approved" : "Enviar Horas"}
+              {saving ? <Loader2 className="spin" size={16} /> : <Save size={16} />} {isApproved ? text.approved : text.mobileSubmit}
             </button>
           </div>
         </div>
@@ -790,13 +884,13 @@ export default function WorkerHoursPage() {
         <div className="submission-backdrop" role="dialog" aria-modal="true" aria-labelledby="hours-submitted-title">
           <div className="submission-modal">
             <div className="submission-icon"><CheckCircle2 size={32} /></div>
-            <h2 className="submission-title" id="hours-submitted-title">Hours Submitted!</h2>
+            <h2 className="submission-title" id="hours-submitted-title">{text.submittedTitle}</h2>
             <p className="submission-copy">
-              Your hours for {formatWeekRange(weekStart)} have been sent to UTS. You can keep editing if you need to make a correction before approval.
+              {text.submittedCopy(formatWeekRange(weekStart, text.dateLocale))}
             </p>
             <div className="submission-actions">
-              <button className="secondary-btn" type="button" onClick={() => setSubmittedOpen(false)}>Seguir editando</button>
-              <button className="primary-btn" type="button" onClick={exitPage}>Salir</button>
+              <button className="secondary-btn" type="button" onClick={() => setSubmittedOpen(false)}>{text.keepEditing}</button>
+              <button className="primary-btn" type="button" onClick={exitPage}>{text.exit}</button>
             </div>
           </div>
         </div>
