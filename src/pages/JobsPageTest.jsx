@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
+  Download,
   ExternalLink,
   Loader2,
   Pencil,
   Plus,
+  Printer,
   Search,
   Trash2,
   X,
@@ -563,6 +565,19 @@ function PageStyles() {
       .status-pill.sourced { border-color: #bfdbfe; background: #dbeafe; color: #1e40af; }
       .status-pill.other { border-color: #e2e8f0; background: #f8fafc; color: #475569; }
 
+      .view-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .print-select-value,
+      .print-candidates-report {
+        display: none;
+      }
+
       .table-project-name {
         border: none;
         background: transparent;
@@ -757,6 +772,132 @@ function PageStyles() {
         font-weight: 700;
       }
 
+      @media print {
+        @page {
+          size: letter portrait;
+          margin: 0.45in;
+        }
+
+        html, body, #root {
+          width: auto !important;
+          min-width: 0 !important;
+          overflow: visible !important;
+          background: #ffffff !important;
+        }
+
+        body * {
+          visibility: hidden !important;
+          box-shadow: none !important;
+          text-shadow: none !important;
+        }
+
+        .print-candidates-report,
+        .print-candidates-report * {
+          visibility: visible !important;
+        }
+
+        .print-candidates-report {
+          display: block !important;
+          position: absolute;
+          inset: 0 auto auto 0;
+          width: 100% !important;
+          padding: 0 !important;
+          color: #0f172a !important;
+          font-size: 11px !important;
+          line-height: 1.35 !important;
+        }
+
+        .print-report-head {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 14px;
+          padding-bottom: 12px;
+          margin-bottom: 12px;
+          border-bottom: 2px solid #0f172a;
+        }
+
+        .print-report-title {
+          margin: 0;
+          font-size: 20px;
+          letter-spacing: -0.02em;
+        }
+
+        .print-report-meta {
+          color: #475569 !important;
+          font-size: 10px;
+          text-align: right;
+        }
+
+        .print-candidates-table {
+          width: 100% !important;
+          border-collapse: collapse !important;
+          table-layout: fixed !important;
+        }
+
+        .print-candidates-table th,
+        .print-candidates-table td {
+          border: 1px solid #cbd5e1 !important;
+          padding: 7px 8px !important;
+          vertical-align: top !important;
+          color: #0f172a !important;
+          background: #ffffff !important;
+          word-break: break-word !important;
+        }
+
+        .print-candidates-table th {
+          background: #f1f5f9 !important;
+          font-size: 10px !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.08em !important;
+          font-weight: 800 !important;
+        }
+
+        .print-candidates-table td {
+          font-size: 11px !important;
+        }
+
+        .print-main-text {
+          font-weight: 800 !important;
+        }
+
+        .print-muted-text {
+          margin-top: 2px;
+          color: #64748b !important;
+          font-size: 10px !important;
+        }
+
+        .print-status {
+          display: inline-block !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 999px !important;
+          padding: 3px 8px !important;
+          font-weight: 800 !important;
+          background: #f8fafc !important;
+        }
+
+        .print-status.placed {
+          border-color: #86efac !important;
+          background: #ecfdf3 !important;
+          color: #166534 !important;
+        }
+
+        .print-status.sourced {
+          border-color: #bfdbfe !important;
+          background: #eff6ff !important;
+          color: #1d4ed8 !important;
+        }
+
+        .select, .input, button, .btn, .mini-action-btn {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+
+        .print-select-value {
+          display: inline !important;
+        }
+      }
+
       @media (max-width: 1024px) {
         .dashboard-layout { grid-template-columns: 1fr; }
         .side-nav { overflow: visible; }
@@ -796,6 +937,47 @@ function formatStatus(status) {
   return String(status || "sourced")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function csvEscape(value) {
+  const text = String(value ?? "");
+  if ([",", "\n", '"'].some((char) => text.includes(char))) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadCsv(filename, headers, rows) {
+  const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function getCandidateName(candidate) {
+  return candidate.name_snapshot || candidate.worker?.name || "—";
+}
+
+function getCandidatePhone(candidate) {
+  return candidate.phone_snapshot || candidate.worker?.phone || "";
+}
+
+function getCandidateProjectName(candidate) {
+  return candidate.job?.level_type || "Unlinked project";
+}
+
+function getCandidateProjectLocation(candidate) {
+  return [candidate.job?.city, candidate.job?.state].filter(Boolean).join(", ");
+}
+
+function getCandidateProfileUrl(candidate) {
+  return candidate.worker?.public_profile_slug ? `${window.location.origin}/profile/${candidate.worker.public_profile_slug}` : "";
 }
 
 function normalizeText(value) {
@@ -890,6 +1072,53 @@ function SearchToolbar({
         {resultCount} {resultType}
       </div>
     </div>
+  );
+}
+
+function CandidatePrintReport({ candidates, title, subtitle }) {
+  return (
+    <section className="print-candidates-report" aria-hidden="true">
+      <div className="print-report-head">
+        <div>
+          <h1 className="print-report-title">{title}</h1>
+          {subtitle ? <div className="print-muted-text">{subtitle}</div> : null}
+        </div>
+        <div className="print-report-meta">
+          <div>Printed: {formatDateTime(new Date().toISOString())}</div>
+          <div>{candidates.length} candidate{candidates.length === 1 ? "" : "s"}</div>
+        </div>
+      </div>
+      <table className="print-candidates-table">
+        <thead>
+          <tr>
+            <th style={{ width: "38%" }}>Name</th>
+            <th style={{ width: "42%" }}>Project</th>
+            <th style={{ width: "20%" }}>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {candidates.map((candidate) => (
+            <tr key={candidate.id}>
+              <td>
+                <div className="print-main-text">{getCandidateName(candidate)}</div>
+                {getCandidatePhone(candidate) || candidate.worker?.email ? (
+                  <div className="print-muted-text">{[getCandidatePhone(candidate), candidate.worker?.email].filter(Boolean).join(" · ")}</div>
+                ) : null}
+              </td>
+              <td>
+                <div className="print-main-text">{getCandidateProjectName(candidate)}</div>
+                {getCandidateProjectLocation(candidate) ? <div className="print-muted-text">{getCandidateProjectLocation(candidate)}</div> : null}
+              </td>
+              <td>
+                <span className={`print-status ${getCandidateStatusClass(candidate.candidate_status)}`}>
+                  {formatStatus(candidate.candidate_status)}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
 
@@ -1000,6 +1229,9 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
                       {formatStatus(candidate.candidate_status)}
                     </span>
                   )}
+                  <span className={`print-select-value status-pill ${getCandidateStatusClass(candidate.candidate_status)}`}>
+                    {formatStatus(candidate.candidate_status)}
+                  </span>
                 </td>
                 <td className="table-muted-xs">
                   {canAdminEdit ? (
@@ -1336,6 +1568,8 @@ function JobDetailView({
   savingJobFields = {},
   onJobDelete,
   deletingJob = false,
+  onPrintCandidates,
+  onExportCandidates,
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [editingJobField, setEditingJobField] = useState("");
@@ -1497,12 +1731,22 @@ function JobDetailView({
       <div style={{ marginTop: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Candidates for this job ({candidates.length})</h3>
-          {mode === "admin" ? (
-            <button className="mini-action-btn" type="button" onClick={onAddCandidateClick} disabled={addingCandidate}>
-              <Plus size={13} />
-              Add Candidate
+          <div className="view-actions">
+            <button className="mini-action-btn" type="button" onClick={onPrintCandidates} disabled={!candidates.length}>
+              <Printer size={13} />
+              Print
             </button>
-          ) : null}
+            <button className="mini-action-btn" type="button" onClick={onExportCandidates} disabled={!candidates.length}>
+              <Download size={13} />
+              CSV
+            </button>
+            {mode === "admin" ? (
+              <button className="mini-action-btn" type="button" onClick={onAddCandidateClick} disabled={addingCandidate}>
+                <Plus size={13} />
+                Add Candidate
+              </button>
+            ) : null}
+          </div>
         </div>
         {searchToolbar}
         <CandidateTable
@@ -2010,6 +2254,31 @@ export default function JobsPageTest({ mode = "admin" }) {
     setJobsListOpen(true);
     setActiveView({ type: "job", jobId });
   };
+
+  const printCandidateView = () => {
+    window.print();
+  };
+
+  const exportCandidateCsv = () => {
+    const slug = activeTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "candidates";
+    downloadCsv(
+      `cts-jobs-${slug}.csv`,
+      ["Name", "Phone", "Email", "Profile", "Project", "Location", "Status", "Placement Fee", "Placement Fee Invoice", "Last Modified"],
+      viewCandidates.map((candidate) => [
+        getCandidateName(candidate),
+        getCandidatePhone(candidate),
+        candidate.worker?.email || "",
+        getCandidateProfileUrl(candidate),
+        getCandidateProjectName(candidate),
+        getCandidateProjectLocation(candidate),
+        formatStatus(candidate.candidate_status),
+        candidate.placement_fee_paid ? "Paid" : "Pending",
+        candidate.placement_fee_invoice_number || "",
+        formatDateTime(candidate.updated_at || candidate.created_at),
+      ])
+    );
+  };
+
   const isClientMode = mode === "client";
 
   return (
@@ -2110,12 +2379,26 @@ export default function JobsPageTest({ mode = "admin" }) {
                     <h2 className="view-title">{activeTitle}</h2>
                     {activeSubtitle ? <p className="view-subtitle">{activeSubtitle}</p> : null}
                   </div>
-                  {mode === "admin" && activeView.type === "jobs" ? (
-                    <button className="btn dark" type="button" onClick={() => setJobModalOpen(true)}>
-                      <Plus size={15} />
-                      New Project
-                    </button>
-                  ) : null}
+                  <div className="view-actions">
+                    {activeView.type === "candidate" ? (
+                      <>
+                        <button className="btn white" type="button" onClick={printCandidateView} disabled={!viewCandidates.length}>
+                          <Printer size={15} />
+                          Print
+                        </button>
+                        <button className="btn white" type="button" onClick={exportCandidateCsv} disabled={!viewCandidates.length}>
+                          <Download size={15} />
+                          CSV
+                        </button>
+                      </>
+                    ) : null}
+                    {mode === "admin" && activeView.type === "jobs" ? (
+                      <button className="btn dark" type="button" onClick={() => setJobModalOpen(true)}>
+                        <Plus size={15} />
+                        New Project
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 <SearchToolbar
@@ -2129,6 +2412,10 @@ export default function JobsPageTest({ mode = "admin" }) {
                   statuses={distinctCandidateStatuses}
                 />
               </>
+            ) : null}
+
+            {activeView.type !== "jobs" ? (
+              <CandidatePrintReport candidates={viewCandidates} title={activeTitle} subtitle={activeSubtitle} />
             ) : null}
 
             {loading ? (
@@ -2157,6 +2444,8 @@ export default function JobsPageTest({ mode = "admin" }) {
                 savingJobFields={savingJobFields}
                 onJobDelete={deleteJob}
                 deletingJob={!!deletingJobIds[selectedJob?.id]}
+                onPrintCandidates={printCandidateView}
+                onExportCandidates={exportCandidateCsv}
                 searchToolbar={(
                   <SearchToolbar
                     search={search}

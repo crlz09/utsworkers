@@ -30,6 +30,7 @@ import {
   Pencil,
   ExternalLink,
   Copy,
+  Link2,
   MessageCircle,
   AlertTriangle,
 } from "lucide-react";
@@ -540,6 +541,21 @@ function getSyncedWorkerStatus(worker, placedWorkerIds) {
   if (placedWorkerIds.has(worker.id)) return "working";
   if (["pending", "onboarding", "working"].includes(worker.status)) return "completed";
   return worker.status || "completed";
+}
+
+const WORKER_HOURS_BASE_URL = "https://uts.services";
+
+function toDateInputValue(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function startOfWeek(date) {
+  const value = new Date(date);
+  const day = value.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  value.setDate(value.getDate() + diff);
+  value.setHours(0, 0, 0, 0);
+  return value;
 }
 
 function formatDate(dateString) {
@@ -1350,7 +1366,8 @@ function WorkerCard({
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [copiedProfile, setCopiedProfile] = useState(false);
-  const [copiedHours, setCopiedHours] = useState(false);
+  const [copiedHoursLink, setCopiedHoursLink] = useState(false);
+  const [copyingHoursLink, setCopyingHoursLink] = useState(false);
 
   const [recruiterUserId, setRecruiterUserId] = useState(worker.recruiter_user_id || "");
   const [savingRecruiter, setSavingRecruiter] = useState(false);
@@ -1416,20 +1433,65 @@ function WorkerCard({
   };
 
   const copyHoursLink = async () => {
-    if (!hoursUrl) {
-      alert("The worker hours form is not available yet.");
+    const assignment = worker.hours_assignment;
+    if (!assignment?.id || !assignment?.cts_job_id) {
+      alert("This worker needs to be placed in a CTS job before generating an hours link.");
       return;
     }
 
-    const passwordHint = String(worker.phone || "").replace(/\D/g, "");
-    const message = `${hoursUrl}\nEmail: ${worker.email || ""}\nInitial password: ${passwordHint || "worker phone digits only"}`;
-
+    setCopyingHoursLink(true);
     try {
-      await navigator.clipboard.writeText(message);
-      setCopiedHours(true);
-      window.setTimeout(() => setCopiedHours(false), 1600);
-    } catch {
-      window.prompt("Copy hours link", message);
+      const weekStart = toDateInputValue(startOfWeek(new Date()));
+      const nowIso = new Date().toISOString();
+      const expiresAtIso = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: existingLink, error: existingError } = await supabase
+        .from("worker_hours_links")
+        .select("token")
+        .eq("cts_job_candidate_id", assignment.id)
+        .is("revoked_at", null)
+        .gt("expires_at", nowIso)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      let token = existingLink?.token;
+      if (!token) {
+        const { data: createdLink, error: createError } = await supabase
+          .from("worker_hours_links")
+          .upsert(
+            {
+              cts_job_candidate_id: assignment.id,
+              cts_job_id: assignment.cts_job_id,
+              worker_id: worker.id,
+              week_start_date: weekStart,
+              revoked_at: null,
+              expires_at: expiresAtIso,
+            },
+            { onConflict: "cts_job_candidate_id,week_start_date" }
+          )
+          .select("token")
+          .single();
+
+        if (createError) throw createError;
+        token = createdLink?.token;
+      }
+
+      if (!token) throw new Error("Could not generate worker hours link.");
+
+      const hoursUrl = `${WORKER_HOURS_BASE_URL}/worker/hours/${token}`;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(hoursUrl);
+        setCopiedHoursLink(true);
+        window.setTimeout(() => setCopiedHoursLink(false), 1600);
+      } else {
+        window.prompt("Copy hours link", hoursUrl);
+      }
+    } catch (error) {
+      alert(error.message || "Could not copy worker hours link.");
+    } finally {
+      setCopyingHoursLink(false);
     }
   };
 
@@ -1722,10 +1784,10 @@ function WorkerCard({
               onClick={copyProfileLink}
             />
             <IconButton
-              icon={copiedHours ? ShieldCheck : CalendarDays}
-              title={copiedHours ? "Hours link copied" : "Copy hours link"}
+              icon={copyingHoursLink ? Loader2 : copiedHoursLink ? ShieldCheck : Link2}
+              title={copiedHoursLink ? "Hours link copied" : "Copy hours link"}
               aria-label="Copy hours link"
-              disabled={!hoursUrl}
+              disabled={copyingHoursLink || !worker.hours_assignment}
               onClick={copyHoursLink}
             />
           </div>
@@ -2229,8 +2291,8 @@ export default function AdminPage() {
         `);
       const placedCandidatesData = await supabase
         .from("cts_job_candidates")
-        .select("worker_id, candidate_status")
-        .eq("candidate_status", "placed");
+        .select("id, worker_id, cts_job_id, candidate_status, updated_at")
+        .ilike("candidate_status", "placed");
 
       const tradesData = await supabase.from("trades").select("*").order("name");
       const locationsData = await supabase.from("locations").select("*").order("name");
@@ -2246,13 +2308,23 @@ export default function AdminPage() {
         .maybeSingle();
 
       if (!error) {
+        const placedCandidates = [...(placedCandidatesData.data || [])].sort(
+          (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
+        );
         const placedWorkerIds = new Set(
-          (placedCandidatesData.data || [])
+          placedCandidates
             .map((candidate) => candidate.worker_id)
             .filter(Boolean)
         );
+        const placedCandidateByWorkerId = new Map();
+        placedCandidates.forEach((candidate) => {
+          if (candidate.worker_id && !placedCandidateByWorkerId.has(candidate.worker_id)) {
+            placedCandidateByWorkerId.set(candidate.worker_id, candidate);
+          }
+        });
         const syncedWorkers = (data || []).map((worker) => ({
           ...worker,
+          hours_assignment: placedCandidateByWorkerId.get(worker.id) || null,
           status: getSyncedWorkerStatus(worker, placedWorkerIds),
         }));
         const statusUpdates = (data || [])

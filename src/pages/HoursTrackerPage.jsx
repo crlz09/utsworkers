@@ -620,7 +620,6 @@ export default function HoursTrackerPage() {
       next.set(entryKey(candidateId, workDate), normalized);
       return next;
     });
-  };
 
   const upsertReview = async (assignment, status) => {
     const reviewPayload = {
@@ -650,6 +649,15 @@ export default function HoursTrackerPage() {
   const saveRow = async (assignment) => {
     setSavingKey(`save-${assignment.id}`);
     setFeedback({ error: "", success: "" });
+    try {
+      await upsertReview(assignment, status);
+      setFeedback({ error: "", success: `${assignment.name} marked as ${getStatusLabel(status).toLowerCase()} for ${formatWeekRange(weekStart)}.` });
+    } catch (error) {
+      setFeedback({ error: error.message || "Could not update review status.", success: "" });
+    } finally {
+      setSavingKey("");
+    }
+  };
 
     const upsertRows = [];
     const deleteIds = [];
@@ -711,6 +719,7 @@ export default function HoursTrackerPage() {
 
   const getOrCreateWorkerHoursLink = async (assignment) => {
     const nowIso = new Date().toISOString();
+    const expiresAtIso = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
     const { data: existingLink, error: existingError } = await supabase
       .from("worker_hours_links")
       .select("token")
@@ -727,12 +736,17 @@ export default function HoursTrackerPage() {
     if (!token) {
       const { data: createdLink, error: createError } = await supabase
         .from("worker_hours_links")
-        .insert({
-          cts_job_candidate_id: assignment.id,
-          cts_job_id: assignment.cts_job_id,
-          worker_id: assignment.worker_id,
-          week_start_date: toDateInputValue(startOfWeek(new Date())),
-        })
+        .upsert(
+          {
+            cts_job_candidate_id: assignment.id,
+            cts_job_id: assignment.cts_job_id,
+            worker_id: assignment.worker_id,
+            week_start_date: toDateInputValue(startOfWeek(new Date())),
+            revoked_at: null,
+            expires_at: expiresAtIso,
+          },
+          { onConflict: "cts_job_candidate_id,week_start_date" }
+        )
         .select("token")
         .single();
 
