@@ -620,6 +620,7 @@ export default function HoursTrackerPage() {
       next.set(entryKey(candidateId, workDate), normalized);
       return next;
     });
+  };
 
   const upsertReview = async (assignment, status) => {
     const reviewPayload = {
