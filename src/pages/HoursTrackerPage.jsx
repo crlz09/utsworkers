@@ -414,7 +414,7 @@ function csvEscape(value) {
 
 function downloadCsv(filename, headers, rows) {
   const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -456,6 +456,7 @@ export default function HoursTrackerPage() {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState("");
   const [linkSavingKey, setLinkSavingKey] = useState("");
+  const [exportingLinks, setExportingLinks] = useState(false);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
 
   const days = useMemo(
@@ -706,44 +707,47 @@ export default function HoursTrackerPage() {
   };
 
 
+  const getOrCreateWorkerHoursLink = async (assignment) => {
+    const nowIso = new Date().toISOString();
+    const { data: existingLink, error: existingError } = await supabase
+      .from("worker_hours_links")
+      .select("token")
+      .eq("cts_job_candidate_id", assignment.id)
+      .is("revoked_at", null)
+      .gt("expires_at", nowIso)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+
+    let token = existingLink?.token;
+    if (!token) {
+      const { data: createdLink, error: createError } = await supabase
+        .from("worker_hours_links")
+        .insert({
+          cts_job_candidate_id: assignment.id,
+          cts_job_id: assignment.cts_job_id,
+          worker_id: assignment.worker_id,
+          week_start_date: toDateInputValue(startOfWeek(new Date())),
+        })
+        .select("token")
+        .single();
+
+      if (createError) throw createError;
+      token = createdLink?.token;
+    }
+
+    if (!token) throw new Error("Could not generate worker hours link.");
+    return `${WORKER_HOURS_BASE_URL}/worker/hours/${token}`;
+  };
+
   const generateWorkerLink = async (assignment) => {
     setLinkSavingKey(assignment.id);
     setFeedback({ error: "", success: "" });
 
     try {
-      const nowIso = new Date().toISOString();
-      const { data: existingLink, error: existingError } = await supabase
-        .from("worker_hours_links")
-        .select("token")
-        .eq("cts_job_candidate_id", assignment.id)
-        .is("revoked_at", null)
-        .gt("expires_at", nowIso)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (existingError) throw existingError;
-
-      let token = existingLink?.token;
-      if (!token) {
-        const { data: createdLink, error: createError } = await supabase
-          .from("worker_hours_links")
-          .insert({
-            cts_job_candidate_id: assignment.id,
-            cts_job_id: assignment.cts_job_id,
-            worker_id: assignment.worker_id,
-            week_start_date: toDateInputValue(startOfWeek(new Date())),
-          })
-          .select("token")
-          .single();
-
-        if (createError) throw createError;
-        token = createdLink?.token;
-      }
-
-      if (!token) throw new Error("Could not generate worker hours link.");
-
-      const url = `${WORKER_HOURS_BASE_URL}/worker/hours/${token}`;
+      const url = await getOrCreateWorkerHoursLink(assignment);
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
         setFeedback({ error: "", success: `Worker hours link copied for ${assignment.name}.` });
@@ -764,21 +768,34 @@ export default function HoursTrackerPage() {
     }
   };
 
-  const exportCsv = () => {
-    downloadCsv(
-      `weekly-hours-${weekStart}.csv`,
-      ["Week", "Worker", "Phone", "Email", "Project", ...DAY_LABELS, "Total", "Status"],
-      filteredRows.map(({ assignment, values, total, status }) => [
-        formatWeekRange(weekStart),
-        assignment.name,
-        assignment.phone,
-        assignment.email,
-        assignment.project,
-        ...days.map((day) => formatHours(values[day] || 0)),
-        formatHours(total),
-        getStatusLabel(status),
-      ])
-    );
+  const exportCsv = async () => {
+    if (!filteredRows.length) return;
+    setExportingLinks(true);
+    setFeedback({ error: "", success: "" });
+
+    try {
+      const rowsForExport = [];
+      for (const { assignment } of filteredRows) {
+        const hoursLink = await getOrCreateWorkerHoursLink(assignment);
+        rowsForExport.push([
+          assignment.name || "",
+          assignment.phone || "",
+          hoursLink,
+          `Buenos dias, ${assignment.name || ""} !, Por favor carga tus horas en este enlace para evitar inconvenientes con las horas reportadas y el pago: ${hoursLink} , .`,
+        ]);
+      }
+
+      downloadCsv(
+        `worker-hours-links-${weekStart}.csv`,
+        ["nombre", "telefono", "link para registrar las horas", "Mensaje"],
+        rowsForExport
+      );
+      setFeedback({ error: "", success: `Hours link CSV generated for ${rowsForExport.length} worker${rowsForExport.length === 1 ? "" : "s"}.` });
+    } catch (error) {
+      setFeedback({ error: error.message || "Could not generate worker hours link CSV.", success: "" });
+    } finally {
+      setExportingLinks(false);
+    }
   };
 
   return (
@@ -832,7 +849,7 @@ export default function HoursTrackerPage() {
             </div>
             <div className="top-actions">
               <button className="btn" type="button" onClick={() => load()} disabled={loading}>{loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />} Refresh</button>
-              <button className="btn" type="button" onClick={exportCsv} disabled={!filteredRows.length}><Download size={15} /> CSV</button>
+              <button className="btn" type="button" onClick={exportCsv} disabled={!filteredRows.length || exportingLinks}>{exportingLinks ? <Loader2 className="spin" size={15} /> : <Download size={15} />} CSV</button>
             </div>
           </div>
         </section>
