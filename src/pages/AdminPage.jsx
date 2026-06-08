@@ -1350,6 +1350,7 @@ function WorkerCard({
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [copiedProfile, setCopiedProfile] = useState(false);
+  const [copiedHours, setCopiedHours] = useState(false);
 
   const [recruiterUserId, setRecruiterUserId] = useState(worker.recruiter_user_id || "");
   const [savingRecruiter, setSavingRecruiter] = useState(false);
@@ -1394,6 +1395,7 @@ function WorkerCard({
   const profileUrl = worker.public_profile_slug
     ? `${window.location.origin}/profile/${worker.public_profile_slug}`
     : "";
+  const hoursUrl = `${window.location.origin}/worker/hours`;
   const phoneHref = worker.phone ? `tel:${String(worker.phone).replace(/[^\d+]/g, "")}` : "";
   const smsHref = worker.phone ? `sms:${String(worker.phone).replace(/[^\d+]/g, "")}` : "";
   const emailHref = worker.email ? `mailto:${worker.email}` : "";
@@ -1410,6 +1412,24 @@ function WorkerCard({
       window.setTimeout(() => setCopiedProfile(false), 1600);
     } catch {
       window.prompt("Copy profile link", profileUrl);
+    }
+  };
+
+  const copyHoursLink = async () => {
+    if (!hoursUrl) {
+      alert("The worker hours form is not available yet.");
+      return;
+    }
+
+    const passwordHint = String(worker.phone || "").replace(/\D/g, "");
+    const message = `${hoursUrl}\nEmail: ${worker.email || ""}\nInitial password: ${passwordHint || "worker phone digits only"}`;
+
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedHours(true);
+      window.setTimeout(() => setCopiedHours(false), 1600);
+    } catch {
+      window.prompt("Copy hours link", message);
     }
   };
 
@@ -1672,7 +1692,7 @@ function WorkerCard({
             <span>{workerAddress || "No address"}</span>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 6 }}>
             <IconButton
               icon={Phone}
               title="Call worker"
@@ -1700,6 +1720,13 @@ function WorkerCard({
               aria-label="Copy profile link"
               disabled={!profileUrl}
               onClick={copyProfileLink}
+            />
+            <IconButton
+              icon={copiedHours ? ShieldCheck : CalendarDays}
+              title={copiedHours ? "Hours link copied" : "Copy hours link"}
+              aria-label="Copy hours link"
+              disabled={!hoursUrl}
+              onClick={copyHoursLink}
             />
           </div>
 
