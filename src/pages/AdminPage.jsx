@@ -30,6 +30,7 @@ import {
   Pencil,
   ExternalLink,
   Copy,
+  Link2,
   MessageCircle,
   AlertTriangle,
 } from "lucide-react";
@@ -513,11 +514,11 @@ function formatStatus(status) {
     case "rejected":
       return "Rejected";
     case "completed":
-      return "Completed";
+      return "Available";
     case "working":
       return "Working";
     default:
-      return "Completed";
+      return "Available";
   }
 }
 
@@ -540,6 +541,21 @@ function getSyncedWorkerStatus(worker, placedWorkerIds) {
   if (placedWorkerIds.has(worker.id)) return "working";
   if (["pending", "onboarding", "working"].includes(worker.status)) return "completed";
   return worker.status || "completed";
+}
+
+const WORKER_HOURS_BASE_URL = "https://uts.services";
+
+function toDateInputValue(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function startOfWeek(date) {
+  const value = new Date(date);
+  const day = value.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  value.setDate(value.getDate() + diff);
+  value.setHours(0, 0, 0, 0);
+  return value;
 }
 
 function formatDate(dateString) {
@@ -1350,6 +1366,8 @@ function WorkerCard({
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [copiedProfile, setCopiedProfile] = useState(false);
+  const [copiedHoursLink, setCopiedHoursLink] = useState(false);
+  const [copyingHoursLink, setCopyingHoursLink] = useState(false);
 
   const [recruiterUserId, setRecruiterUserId] = useState(worker.recruiter_user_id || "");
   const [savingRecruiter, setSavingRecruiter] = useState(false);
@@ -1410,6 +1428,69 @@ function WorkerCard({
       window.setTimeout(() => setCopiedProfile(false), 1600);
     } catch {
       window.prompt("Copy profile link", profileUrl);
+    }
+  };
+
+  const copyHoursLink = async () => {
+    const assignment = worker.hours_assignment;
+    if (!assignment?.id || !assignment?.cts_job_id) {
+      alert("This worker needs to be placed in a CTS job before generating an hours link.");
+      return;
+    }
+
+    setCopyingHoursLink(true);
+    try {
+      const weekStart = toDateInputValue(startOfWeek(new Date()));
+      const nowIso = new Date().toISOString();
+      const expiresAtIso = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: existingLink, error: existingError } = await supabase
+        .from("worker_hours_links")
+        .select("token")
+        .eq("cts_job_candidate_id", assignment.id)
+        .is("revoked_at", null)
+        .gt("expires_at", nowIso)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      let token = existingLink?.token;
+      if (!token) {
+        const { data: createdLink, error: createError } = await supabase
+          .from("worker_hours_links")
+          .upsert(
+            {
+              cts_job_candidate_id: assignment.id,
+              cts_job_id: assignment.cts_job_id,
+              worker_id: worker.id,
+              week_start_date: weekStart,
+              revoked_at: null,
+              expires_at: expiresAtIso,
+            },
+            { onConflict: "cts_job_candidate_id,week_start_date" }
+          )
+          .select("token")
+          .single();
+
+        if (createError) throw createError;
+        token = createdLink?.token;
+      }
+
+      if (!token) throw new Error("Could not generate worker hours link.");
+
+      const hoursUrl = `${WORKER_HOURS_BASE_URL}/worker/hours/${token}`;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(hoursUrl);
+        setCopiedHoursLink(true);
+        window.setTimeout(() => setCopiedHoursLink(false), 1600);
+      } else {
+        window.prompt("Copy hours link", hoursUrl);
+      }
+    } catch (error) {
+      alert(error.message || "Could not copy worker hours link.");
+    } finally {
+      setCopyingHoursLink(false);
     }
   };
 
@@ -1672,7 +1753,7 @@ function WorkerCard({
             <span>{workerAddress || "No address"}</span>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 6 }}>
             <IconButton
               icon={Phone}
               title="Call worker"
@@ -1700,6 +1781,13 @@ function WorkerCard({
               aria-label="Copy profile link"
               disabled={!profileUrl}
               onClick={copyProfileLink}
+            />
+            <IconButton
+              icon={copyingHoursLink ? Loader2 : copiedHoursLink ? ShieldCheck : Link2}
+              title={copiedHoursLink ? "Hours link copied" : "Copy hours link"}
+              aria-label="Copy hours link"
+              disabled={copyingHoursLink || !worker.hours_assignment}
+              onClick={copyHoursLink}
             />
           </div>
 
@@ -1898,7 +1986,7 @@ function WorkerCard({
                     cursor: savingStatus || !canEditWorkers ? "not-allowed" : "pointer",
                   }}
                   >
-                  <option value="completed">Completed</option>
+                  <option value="completed">Available</option>
                   <option value="rejected">Rejected</option>
                   <option value="hold">Hold</option>
                   <option value="working">Working</option>
@@ -2202,8 +2290,8 @@ export default function AdminPage() {
         `);
       const placedCandidatesData = await supabase
         .from("cts_job_candidates")
-        .select("worker_id, candidate_status")
-        .eq("candidate_status", "placed");
+        .select("id, worker_id, cts_job_id, candidate_status, updated_at")
+        .ilike("candidate_status", "placed");
 
       const tradesData = await supabase.from("trades").select("*").order("name");
       const locationsData = await supabase.from("locations").select("*").order("name");
@@ -2219,13 +2307,23 @@ export default function AdminPage() {
         .maybeSingle();
 
       if (!error) {
+        const placedCandidates = [...(placedCandidatesData.data || [])].sort(
+          (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
+        );
         const placedWorkerIds = new Set(
-          (placedCandidatesData.data || [])
+          placedCandidates
             .map((candidate) => candidate.worker_id)
             .filter(Boolean)
         );
+        const placedCandidateByWorkerId = new Map();
+        placedCandidates.forEach((candidate) => {
+          if (candidate.worker_id && !placedCandidateByWorkerId.has(candidate.worker_id)) {
+            placedCandidateByWorkerId.set(candidate.worker_id, candidate);
+          }
+        });
         const syncedWorkers = (data || []).map((worker) => ({
           ...worker,
+          hours_assignment: placedCandidateByWorkerId.get(worker.id) || null,
           status: getSyncedWorkerStatus(worker, placedWorkerIds),
         }));
         const statusUpdates = (data || [])
@@ -2460,7 +2558,7 @@ export default function AdminPage() {
     (w) => !String(w.phone || "").trim() || !String(w.email || "").trim()
   ).length;
   const workflowStatusBadges = [
-    { value: "completed", label: "Completed", count: completedCount },
+    { value: "completed", label: "Available", count: completedCount },
     { value: "rejected", label: "Rejected", count: rejectedCount },
     { value: "hold", label: "Hold", count: holdCount },
     { value: "working", label: "Working", count: workingCount },
@@ -2530,17 +2628,20 @@ export default function AdminPage() {
             </div>
 
             <div style={{ display: "grid", gap: 8 }}>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: "clamp(34px, 5vw, 42px)",
-                  lineHeight: 1.08,
-                  letterSpacing: 0,
-                }}
-                className="admin-heading"
-              >
-                Admin Panel
-              </h1>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <h1
+                  style={{
+                    margin: 0,
+                    fontSize: "clamp(34px, 5vw, 42px)",
+                    lineHeight: 1.08,
+                    letterSpacing: 0,
+                  }}
+                  className="admin-heading"
+                >
+                  Admin Panel
+                </h1>
+
+              </div>
 
               <p className="admin-subtitle" style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
                 Review, search, filter, sort, and manage workers by workflow status.
@@ -2788,7 +2889,7 @@ export default function AdminPage() {
 
                     <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={inputStyle}>
                       <option value="">All Statuses</option>
-                      <option value="completed">Completed</option>
+                      <option value="completed">Available</option>
                       <option value="rejected">Rejected</option>
                       <option value="hold">Hold</option>
                       <option value="working">Working</option>

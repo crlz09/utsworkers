@@ -8,6 +8,7 @@ import {
   Briefcase,
   Clock3,
   Bell,
+  FileText,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
@@ -25,6 +26,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     isInterviews: location.pathname.startsWith("/interviews"),
     isCtsJobs: location.pathname.startsWith("/cts-jobs"),
     isHours: location.pathname.startsWith("/hours"),
+    isInvoice: location.pathname.startsWith("/invoice"),
   };
   const [notificationCount, setNotificationCount] = useState(0);
 
@@ -82,6 +84,12 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       path: "/hours",
       icon: Clock3,
       match: (pathname) => pathname.startsWith("/hours"),
+    },
+    {
+      label: "Invoice",
+      path: "/invoice",
+      icon: FileText,
+      match: (pathname) => pathname.startsWith("/invoice"),
     },
   ];
 
