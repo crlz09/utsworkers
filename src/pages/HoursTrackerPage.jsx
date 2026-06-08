@@ -14,6 +14,7 @@ import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 
+const WORKER_HOURS_BASE_URL = "https://uts.services";
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
@@ -742,7 +743,7 @@ export default function HoursTrackerPage() {
 
       if (!token) throw new Error("Could not generate worker hours link.");
 
-      const url = `${window.location.origin}/worker/hours/${token}`;
+      const url = `${WORKER_HOURS_BASE_URL}/worker/hours/${token}`;
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
         setFeedback({ error: "", success: `Worker hours link copied for ${assignment.name}.` });
