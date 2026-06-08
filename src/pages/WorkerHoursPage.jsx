@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { CalendarDays, CheckCircle2, Loader2, Lock, Minus, Plus, Save } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
@@ -18,7 +18,7 @@ const copy = {
     previousWeek: "Previous week",
     workerHours: "Worker Hours",
     weeklyHours: "Weekly Hours",
-    intro: "Use the UTS worker portal to submit hours for the current week or previous week. Future dates stay locked until they become available.",
+    intro: "Use the secure UTS link to submit hours for the current week or previous week. Future dates stay locked until they become available.",
     week: "Week",
     approvedLocked: "Approved / Locked",
     editable: "Editable",
@@ -56,7 +56,7 @@ const copy = {
     previousWeek: "Semana anterior",
     workerHours: "Horas del Trabajador",
     weeklyHours: "Horas Semanales",
-    intro: "Usa el portal de workers de UTS para enviar tus horas de la semana actual o la semana anterior. Las fechas futuras estarán bloqueadas hasta que estén disponibles.",
+    intro: "Usa el enlace seguro de UTS para enviar tus horas de la semana actual o la semana anterior. Las fechas futuras estarán bloqueadas hasta que estén disponibles.",
     week: "Semana",
     approvedLocked: "Aprobado / Bloqueado",
     editable: "Editable",
@@ -599,7 +599,6 @@ function isRpcSignatureMissing(error) {
 
 export default function WorkerHoursPage() {
   const { token = "" } = useParams();
-  const navigate = useNavigate();
   const [locale, setLocale] = useState("es");
   const text = copy[locale];
   const today = toDateInputValue(new Date());
@@ -624,23 +623,10 @@ export default function WorkerHoursPage() {
     setLoading(true);
     setFeedback({ error: "", success: "" });
 
-    if (!token) {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        navigate("/login", { replace: true });
-        return;
-      }
-    }
-
-    let response = token
-      ? await supabase.rpc("get_worker_hours_link", { p_token: token, p_week_start: weekStart })
-      : await supabase.rpc("get_current_worker_hours", { p_week_start: weekStart });
+    let response = await supabase.rpc("get_worker_hours_link", { p_token: token, p_week_start: weekStart });
     let fallbackMode = false;
 
-    if (token && response.error && isRpcSignatureMissing(response.error)) {
+    if (response.error && isRpcSignatureMissing(response.error)) {
       response = await supabase.rpc("get_worker_hours_link", { p_token: token });
       fallbackMode = true;
     }
@@ -670,7 +656,7 @@ export default function WorkerHoursPage() {
         success: text.fallbackLoaded,
       });
     }
-  }, [navigate, text, token, weekStart]);
+  }, [text, token, weekStart]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());
@@ -705,10 +691,8 @@ export default function WorkerHoursPage() {
         work_date: row.work_date,
         regular_hours: values[row.work_date] === "" ? null : Number(values[row.work_date] || 0),
       }));
-    let response = token
-      ? await supabase.rpc("submit_worker_hours_link", { p_token: token, p_week_start: weekStart, p_entries: entries })
-      : await supabase.rpc("submit_current_worker_hours", { p_week_start: weekStart, p_entries: entries });
-    if (token && response.error && isRpcSignatureMissing(response.error)) {
+    let response = await supabase.rpc("submit_worker_hours_link", { p_token: token, p_week_start: weekStart, p_entries: entries });
+    if (response.error && isRpcSignatureMissing(response.error)) {
       response = await supabase.rpc("submit_worker_hours_link", { p_token: token, p_entries: entries });
     }
     setSaving(false);

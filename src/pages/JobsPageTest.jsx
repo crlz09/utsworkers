@@ -5,7 +5,6 @@ import {
   Loader2,
   Pencil,
   Plus,
-  Printer,
   Search,
   Trash2,
   X,
@@ -61,7 +60,6 @@ function PageStyles() {
       }
 
       input, select, textarea, button { font: inherit; }
-      .print-only { display: none; }
 
       .uts-topbar {
         position: sticky !important;
@@ -548,14 +546,6 @@ function PageStyles() {
         border-radius: 12px;
       }
 
-      .print-text {
-        color: #0f172a;
-        font-size: 13px;
-        font-weight: 700;
-        line-height: 1.35;
-        overflow-wrap: anywhere;
-      }
-
       .status-pill {
         display: inline-flex;
         align-items: center;
@@ -778,130 +768,6 @@ function PageStyles() {
         .hero-card, .dashboard-card, .view-panel { padding: 18px; border-radius: 20px; }
         .toolbar-row, .toolbar-row.with-filter, .job-detail-grid, .form-grid { grid-template-columns: 1fr; }
       }
-
-      @media print {
-        @page { size: Letter landscape; margin: 0.35in; }
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-        html, body {
-          background: #ffffff !important;
-          overflow: visible !important;
-        }
-        .uts-topbar,
-        .uts-client-topbar,
-        .hero-card,
-        .side-nav,
-        .toolbar-row,
-        .screen-only,
-        .no-print,
-        .modal-backdrop,
-        .go-to-top-button,
-        .mini-action-btn,
-        .btn,
-        .profile-action-btn,
-        .detail-edit-btn,
-        .detail-edit-actions,
-        .inline-action-btn {
-          display: none !important;
-        }
-        .print-only {
-          display: initial !important;
-        }
-        .jobs-test-shell {
-          width: 100%;
-          max-width: none;
-          padding: 0;
-          gap: 0;
-        }
-        .dashboard-layout {
-          display: block;
-        }
-        .glass-card,
-        .view-panel {
-          min-height: 0;
-          padding: 0;
-          border: 0;
-          border-radius: 0;
-          box-shadow: none;
-          background: #ffffff;
-          backdrop-filter: none;
-        }
-        .view-header,
-        .job-detail-header {
-          margin-bottom: 12px;
-          padding-bottom: 10px;
-          border-bottom: 1px solid #e2e8f0;
-        }
-        .view-title {
-          font-size: 22px;
-        }
-        .view-subtitle {
-          font-size: 11px;
-        }
-        .job-detail-grid {
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 8px;
-        }
-        .detail-box {
-          padding: 9px;
-          border-radius: 10px;
-          background: #ffffff;
-        }
-        .detail-label,
-        th {
-          font-size: 8px;
-          letter-spacing: 0.04em;
-        }
-        .detail-value,
-        .table-muted,
-        .table-muted-xs,
-        .candidate-contact {
-          font-size: 9px;
-        }
-        .table-scroll {
-          margin-top: 10px;
-          overflow: visible;
-          border: 0;
-          border-radius: 0;
-        }
-        table {
-          min-width: 0;
-          width: 100%;
-          table-layout: fixed;
-          font-size: 9px;
-        }
-        th,
-        td {
-          padding: 5px 6px;
-          overflow-wrap: anywhere;
-          white-space: normal;
-        }
-        tbody tr {
-          break-inside: avoid;
-          page-break-inside: avoid;
-        }
-        .input,
-        .select,
-        textarea {
-          display: none !important;
-        }
-        .table-project-name {
-          color: #0f172a;
-          font-size: 9px;
-          font-weight: 700;
-        }
-        .candidate-name,
-        .print-text {
-          font-size: 9px;
-          font-weight: 700;
-        }
-        .status-pill {
-          padding: 3px 6px;
-          font-size: 8px;
-        }
-      }
     `}</style>
   );
 }
@@ -1038,11 +904,11 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
         <thead>
           <tr>
             <th>Name</th>
-            <th className="no-print">Profile</th>
+            <th>Profile</th>
             <th>Project</th>
             <th>Status</th>
-            <th className="no-print">Placement Fee</th>
-            <th className="no-print">Last Modified</th>
+            <th>Placement Fee</th>
+            <th>Last Modified</th>
           </tr>
         </thead>
         <tbody>
@@ -1060,39 +926,33 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
               <tr key={candidate.id}>
                 <td>
                   {canAdminEdit ? (
-                    <>
-                      <input
-                        className="input"
-                        value={candidate.name_snapshot || ""}
-                        onChange={(event) => onCandidateChange(candidate.id, "name_snapshot", event.target.value)}
-                        onBlur={() => onCandidateSave(candidate, "name_snapshot")}
-                        style={{ minHeight: 38, padding: "8px 10px" }}
-                      />
-                      <div className="print-only print-text">{candidateName}</div>
-                    </>
+                    <input
+                      className="input"
+                      value={candidate.name_snapshot || ""}
+                      onChange={(event) => onCandidateChange(candidate.id, "name_snapshot", event.target.value)}
+                      onBlur={() => onCandidateSave(candidate, "name_snapshot")}
+                      style={{ minHeight: 38, padding: "8px 10px" }}
+                    />
                   ) : (
                     <div className="candidate-name">{candidateName}</div>
                   )}
                   <div className="candidate-contact">
                     {canAdminEdit ? (
-                      <>
-                        <input
-                          className="input"
-                          value={candidate.phone_snapshot || ""}
-                          onChange={(event) => onCandidateChange(candidate.id, "phone_snapshot", event.target.value)}
-                          onBlur={() => onCandidateSave(candidate, "phone_snapshot")}
-                          placeholder="No phone"
-                          style={{ minHeight: 34, padding: "7px 9px", fontSize: 12 }}
-                        />
-                        <span className="print-only">{candidate.phone_snapshot || worker.phone || "No phone"}</span>
-                      </>
+                      <input
+                        className="input"
+                        value={candidate.phone_snapshot || ""}
+                        onChange={(event) => onCandidateChange(candidate.id, "phone_snapshot", event.target.value)}
+                        onBlur={() => onCandidateSave(candidate, "phone_snapshot")}
+                        placeholder="No phone"
+                        style={{ minHeight: 34, padding: "7px 9px", fontSize: 12 }}
+                      />
                     ) : (
                       <span>{candidate.phone_snapshot || worker.phone || "No phone"}</span>
                     )}
                     {worker.email ? <span>{worker.email}</span> : null}
                   </div>
                 </td>
-                <td className="profile-action-cell no-print">
+                <td className="profile-action-cell">
                   {profileSlug ? (
                     <button
                       className="btn white profile-action-btn"
@@ -1121,32 +981,27 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
                 </td>
                 <td>
                   {canEditStatus ? (
-                    <>
-                      <select
-                        className="select"
-                        value={candidate.candidate_status || "sourced"}
-                        onChange={(event) => {
-                          onCandidateChange(candidate.id, "candidate_status", event.target.value);
-                          onCandidateSave({ ...candidate, candidate_status: event.target.value }, "candidate_status");
-                        }}
-                        disabled={!!savingIds[`${candidate.id}:candidate_status`]}
-                        style={{ minHeight: 38, padding: "8px 10px", fontSize: 12 }}
-                      >
-                        {CANDIDATE_STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>{formatStatus(status)}</option>
-                        ))}
-                      </select>
-                      <span className={`print-only status-pill ${getCandidateStatusClass(candidate.candidate_status)}`}>
-                        {formatStatus(candidate.candidate_status)}
-                      </span>
-                    </>
+                    <select
+                      className="select"
+                      value={candidate.candidate_status || "sourced"}
+                      onChange={(event) => {
+                        onCandidateChange(candidate.id, "candidate_status", event.target.value);
+                        onCandidateSave({ ...candidate, candidate_status: event.target.value }, "candidate_status");
+                      }}
+                      disabled={!!savingIds[`${candidate.id}:candidate_status`]}
+                      style={{ minHeight: 38, padding: "8px 10px", fontSize: 12 }}
+                    >
+                      {CANDIDATE_STATUS_OPTIONS.map((status) => (
+                        <option key={status} value={status}>{formatStatus(status)}</option>
+                      ))}
+                    </select>
                   ) : (
                     <span className={`status-pill ${getCandidateStatusClass(candidate.candidate_status)}`}>
                       {formatStatus(candidate.candidate_status)}
                     </span>
                   )}
                 </td>
-                <td className="table-muted-xs no-print">
+                <td className="table-muted-xs">
                   {canAdminEdit ? (
                     <button
                       className={`mini-action-btn ${candidate.placement_fee_paid ? "success" : "warning"}`}
@@ -1161,7 +1016,7 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
                   )}
                   {candidate.placement_fee_invoice_number ? <div style={{ marginTop: 5 }}>Invoice: {candidate.placement_fee_invoice_number}</div> : null}
                 </td>
-                <td className="table-muted-xs no-print">
+                <td className="table-muted-xs">
                   <div>{formatDateTime(candidate.updated_at || candidate.created_at)}</div>
                   {canAdminEdit ? (
                     <button
@@ -1203,7 +1058,7 @@ function JobsTable({ jobs, candidateCounts, onOpenJob }) {
             <th>BD Rep</th>
             <th>Status</th>
             <th>Candidates</th>
-            <th className="no-print">Last Modified</th>
+            <th>Last Modified</th>
           </tr>
         </thead>
         <tbody>
@@ -1228,7 +1083,7 @@ function JobsTable({ jobs, candidateCounts, onOpenJob }) {
               <td className="table-muted">{job.bd_rep || "—"}</td>
               <td><span className="status-pill other">{formatStatus(job.status || "open")}</span></td>
               <td className="table-muted">{candidateCounts[job.id] || 0}</td>
-              <td className="table-muted no-print">{formatDateTime(job.updated_at || job.created_at)}</td>
+              <td className="table-muted">{formatDateTime(job.updated_at || job.created_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -1380,7 +1235,6 @@ function EditableJobDetailField({
   editable = true,
   type = "text",
   options = [],
-  className = "",
   editingField,
   setEditingField,
   onSave,
@@ -1403,7 +1257,7 @@ function EditableJobDetailField({
   };
 
   return (
-    <div className={`detail-box ${className}`}>
+    <div className="detail-box">
       <div className="detail-box-header">
         <div className="detail-label">{label}</div>
         {editable ? (
@@ -1620,7 +1474,6 @@ function JobDetailView({
               value={formatDateTime(job.updated_at || job.created_at)}
               displayValue={formatDateTime(job.updated_at || job.created_at)}
               editable={false}
-              className="no-print"
               editingField={editingJobField}
               setEditingField={setEditingJobField}
               onSave={saveJobField}
@@ -2158,9 +2011,6 @@ export default function JobsPageTest({ mode = "admin" }) {
     setActiveView({ type: "job", jobId });
   };
   const isClientMode = mode === "client";
-  const printDashboardView = () => {
-    window.setTimeout(() => window.print(), 100);
-  };
 
   return (
     <>
@@ -2170,10 +2020,6 @@ export default function JobsPageTest({ mode = "admin" }) {
         <section className="glass-card hero-card">
           <div className="hero-top">
             <h1 className="hero-title">CTS Jobs Dashboard</h1>
-            <button className="btn white" type="button" onClick={printDashboardView} disabled={loading}>
-              <Printer size={15} />
-              Print View
-            </button>
           </div>
         </section>
 

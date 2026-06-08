@@ -59,7 +59,6 @@ export default function App() {
           }
         />
         <Route path="/profile/:slug" element={<WorkerProfilePage />} />
-        <Route path="/worker/hours" element={<WorkerHoursPage />} />
         <Route path="/worker/hours/:token" element={<WorkerHoursPage />} />
         <Route path="/workers/hours/:token" element={<WorkerHoursPage />} />
         <Route

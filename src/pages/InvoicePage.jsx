@@ -374,7 +374,6 @@ function InvoiceStyles() {
 
       .invoice-doc-header {
         display: flex;
-        align-items: flex-start;
         justify-content: space-between;
         gap: 18px;
         flex-wrap: wrap;
@@ -398,18 +397,10 @@ function InvoiceStyles() {
 
       .invoice-doc-meta {
         display: grid;
-        gap: 8px;
-        justify-items: end;
+        gap: 5px;
         text-align: right;
         color: #64748b;
         font-size: 13px;
-      }
-
-      .invoice-from-card {
-        display: grid;
-        gap: 4px;
-        justify-items: end;
-        max-width: 320px;
       }
 
       .invoice-bill-grid {
@@ -430,9 +421,15 @@ function InvoiceStyles() {
         text-align: right;
       }
 
-      .invoice-info-list {
+      .from-info {
         display: grid;
-        gap: 5px;
+        gap: 3px;
+      }
+
+      .invoice-info-list {
+        margin-top: 8px;
+        display: grid;
+        gap: 4px;
       }
 
       .bill-heading {
@@ -552,9 +549,7 @@ function InvoiceStyles() {
       }
 
       .invoice-modal {
-        width: min(720px, 100%);
-        max-height: calc(100vh - 110px);
-        overflow-y: auto;
+        width: min(420px, 100%);
         border: 1px solid #dbeafe;
         border-radius: 24px;
         background: #ffffff;
@@ -582,56 +577,6 @@ function InvoiceStyles() {
         justify-content: flex-end;
         gap: 10px;
         flex-wrap: wrap;
-      }
-
-      .client-manager-grid {
-        display: grid;
-        grid-template-columns: minmax(210px, 0.9fr) minmax(0, 1.1fr);
-        gap: 16px;
-        align-items: start;
-      }
-
-      .client-list {
-        display: grid;
-        gap: 8px;
-        max-height: 360px;
-        overflow-y: auto;
-        padding-right: 2px;
-      }
-
-      .client-list-item {
-        width: 100%;
-        border: 1px solid #dbeafe;
-        border-radius: 14px;
-        background: #ffffff;
-        color: #0f172a;
-        padding: 10px;
-        text-align: left;
-        cursor: pointer;
-        display: grid;
-        gap: 3px;
-      }
-
-      .client-list-item:hover,
-      .client-list-item.selected {
-        border-color: #93c5fd;
-        background: #f8fbff;
-      }
-
-      .client-list-title {
-        font-size: 13px;
-        font-weight: 850;
-      }
-
-      .client-list-meta {
-        color: #64748b;
-        font-size: 11px;
-        line-height: 1.35;
-      }
-
-      .client-form {
-        display: grid;
-        gap: 12px;
       }
 
       .invoice-total-panel {
@@ -742,14 +687,9 @@ function InvoiceStyles() {
       }
 
       .status-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 28px;
         border-radius: 999px;
-        padding: 5px 11px;
+        padding: 4px 9px;
         font-size: 11px;
-        line-height: 1;
         font-weight: 850;
         text-transform: capitalize;
       }
@@ -827,11 +767,7 @@ function InvoiceStyles() {
 
       @media (max-width: 1024px) {
         .invoice-grid { grid-template-columns: 1fr; }
-        .invoice-doc-meta,
-        .invoice-from-card {
-          justify-items: start;
-          text-align: left;
-        }
+        .invoice-doc-meta { text-align: left; }
       }
 
       @media (max-width: 760px) {
@@ -849,7 +785,6 @@ function InvoiceStyles() {
         .invoice-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .invoice-table { min-width: 720px; }
         .total-box { min-width: 0; width: 100%; }
-        .client-manager-grid { grid-template-columns: 1fr; }
       }
 
       @media print {
@@ -859,7 +794,7 @@ function InvoiceStyles() {
           print-color-adjust: exact !important;
         }
         html, body { background: #ffffff !important; overflow: visible !important; }
-        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .invoice-dashboard, .feedback, .rate-input, .service-select, .row-action-btn, .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
+        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .invoice-dashboard, .rate-input, .service-select, .row-action-btn, .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
         .print-service-name, .print-rate-value { display: inline !important; }
         .invoice-shell { width: 100%; max-width: none; padding: 0; gap: 0; }
         .invoice-grid { display: block; }
@@ -869,8 +804,7 @@ function InvoiceStyles() {
         .invoice-document { border: none; border-radius: 0; overflow: visible; }
         .invoice-doc-header { padding: 0 0 12px; }
         .invoice-doc-title { font-size: 25px; }
-        .invoice-doc-meta { font-size: 10px; gap: 4px; }
-        .invoice-from-card { gap: 2px; max-width: 220px; }
+        .invoice-doc-meta { font-size: 10px; gap: 3px; }
         .invoice-logo { width: 88px; }
         .invoice-bill-grid { padding: 11px 0; gap: 12px; }
         .bill-main { font-size: 13px; }
@@ -998,24 +932,20 @@ function slugifyId(value) {
     .replace(/(^-|-$)/g, "") || "client";
 }
 
-function isMissingRelationError(error) {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes("does not exist") || message.includes("schema cache");
+function loadStoredInvoiceClients() {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem("uts_invoice_clients") || "[]");
+    return Array.isArray(parsed) ? parsed.filter((client) => client?.id && client?.name) : [];
+  } catch {
+    return [];
+  }
 }
 
-function formatUsPhone(value) {
-  const digits = String(value || "").replace(/\D/g, "").slice(0, 10);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-}
-
-function isValidUsPhone(value) {
-  return /^\(\d{3}\) \d{3}-\d{4}$/.test(String(value || "").trim());
-}
-
-function isValidEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+function saveStoredInvoiceClients(clients) {
+  if (typeof window === "undefined") return;
+  const customClients = clients.filter((client) => String(client.id || "").startsWith("custom-"));
+  window.localStorage.setItem("uts_invoice_clients", JSON.stringify(customClients));
 }
 
 export default function InvoicePage() {
@@ -1042,22 +972,19 @@ export default function InvoicePage() {
   const [notes, setNotes] = useState("Thank you for your business.");
   const [builderOpen, setBuilderOpen] = useState(true);
   const [productServices, setProductServices] = useState(loadStoredProductServices);
-  const [invoiceClients, setInvoiceClients] = useState([]);
-  const [invoiceClientsAvailable, setInvoiceClientsAvailable] = useState(true);
+  const [invoiceClients, setInvoiceClients] = useState(loadStoredInvoiceClients);
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [lineServiceIds, setLineServiceIds] = useState({});
   const [lineRates, setLineRates] = useState({});
   const [serviceModal, setServiceModal] = useState({ open: false, rowKey: "", name: "", rate: "0" });
-  const [clientModal, setClientModal] = useState({ open: false, editingId: "", name: "", address: "", phone: "", email: "" });
-  const [clientModalError, setClientModalError] = useState("");
-  const [savingClient, setSavingClient] = useState(false);
+  const [clientModal, setClientModal] = useState({ open: false, name: "", address: "", phone: "", email: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
     setFeedback({ error: "", success: "" });
 
     const reviewStart = toDateInputValue(startOfWeek(new Date(`${dateFrom}T00:00:00`)));
-    const [jobsRes, candidatesRes, workersRes, hoursRes, reviewsRes, invoicesRes, invoiceClientsRes] = await Promise.all([
+    const [jobsRes, candidatesRes, workersRes, hoursRes, reviewsRes, invoicesRes] = await Promise.all([
       supabase.from("cts_jobs").select("*").order("created_at", { ascending: false }),
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }),
       supabase.from("workers").select("id, name, phone, email"),
@@ -1078,10 +1005,6 @@ export default function InvoicePage() {
         .select("*, invoice_line_items(*)")
         .order("created_at", { ascending: false })
         .limit(30),
-      supabase
-        .from("invoice_clients")
-        .select("*")
-        .order("name", { ascending: true }),
     ]);
 
     if (jobsRes.error || candidatesRes.error || workersRes.error || hoursRes.error || reviewsRes.error || invoicesRes.error) {
@@ -1112,21 +1035,8 @@ export default function InvoicePage() {
     setHoursEntries(hoursRes.data || []);
     setWeeklyReviews(reviewsRes.data || []);
     setInvoices(invoicesRes.data || []);
-    if (invoiceClientsRes.error) {
-      setInvoiceClients([]);
-      setInvoiceClientsAvailable(false);
-      setFeedback({
-        error: isMissingRelationError(invoiceClientsRes.error)
-          ? "Invoice clients table is not available yet. Apply the invoice_clients migration before saving billing clients."
-          : invoiceClientsRes.error.message || "Could not load invoice clients.",
-        success: "",
-      });
-    } else {
-      setInvoiceClients(invoiceClientsRes.data || []);
-      setInvoiceClientsAvailable(true);
-    }
     setLoading(false);
-  }, [dateFrom, dateTo, setCandidates, setFeedback, setHoursEntries, setInvoiceClients, setInvoiceClientsAvailable, setInvoices, setJobs, setLoading, setWeeklyReviews, setWorkers]);
+  }, [dateFrom, dateTo, setCandidates, setFeedback, setHoursEntries, setInvoices, setJobs, setLoading, setWeeklyReviews, setWorkers]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());
@@ -1218,121 +1128,37 @@ export default function InvoicePage() {
   };
 
   const handleClientChange = (value) => {
-    if (value === "__more__") {
-      const editableClient = invoiceClients.find((client) => client.id === effectiveSelectedClientId);
-      setClientModalError("");
-      setClientModal({
-        open: true,
-        editingId: editableClient?.id || "",
-        name: editableClient?.name || "",
-        address: editableClient?.address || "",
-        phone: editableClient?.phone || "",
-        email: editableClient?.email || "",
-      });
+    if (value === "__new__") {
+      setClientModal({ open: true, name: "", address: "", phone: "", email: "" });
       return;
     }
     setSelectedClientId(value);
   };
 
   const closeClientModal = () => {
-    setClientModalError("");
-    setClientModal({ open: false, editingId: "", name: "", address: "", phone: "", email: "" });
+    setClientModal({ open: false, name: "", address: "", phone: "", email: "" });
   };
 
-  const resetClientForm = () => {
-    setClientModalError("");
-    setClientModal((prev) => ({ ...prev, editingId: "", name: "", address: "", phone: "", email: "" }));
-  };
-
-  const editInvoiceClient = (client) => {
-    setClientModalError("");
-    setClientModal({
-      open: true,
-      editingId: client.id,
-      name: client.name || "",
-      address: client.address || "",
-      phone: client.phone || "",
-      email: client.email || "",
-    });
-  };
-
-  const saveInvoiceClient = async () => {
+  const createInvoiceClient = () => {
     const name = clientModal.name.trim();
-    const phone = clientModal.phone.trim();
-    const email = clientModal.email.trim();
-    setClientModalError("");
-
-    if (!invoiceClientsAvailable) {
-      setClientModalError("Invoice clients table is not available yet. Apply the invoice_clients migration in Supabase first.");
-      return;
-    }
-
     if (!name) {
-      setClientModalError("Client name is required.");
-      return;
-    }
-    if (phone && !isValidUsPhone(phone)) {
-      setClientModalError("Phone must use this format: (xxx) xxx-xxxx.");
-      return;
-    }
-    if (email && !isValidEmail(email)) {
-      setClientModalError("Enter a valid email address.");
+      setFeedback({ error: "Client name is required.", success: "" });
       return;
     }
 
-    const payload = {
+    const newClient = {
+      id: `custom-${Date.now()}`,
       name,
       address: clientModal.address.trim(),
-      phone,
-      email,
+      phone: clientModal.phone.trim(),
+      email: clientModal.email.trim(),
     };
-
-    setSavingClient(true);
-    const query = clientModal.editingId
-      ? supabase.from("invoice_clients").update(payload).eq("id", clientModal.editingId)
-      : supabase.from("invoice_clients").insert(payload);
-
-    const { data, error } = await query.select("*").single();
-    setSavingClient(false);
-    if (error) {
-      setClientModalError(
-        isMissingRelationError(error)
-          ? "Invoice clients table is not available yet. Apply the invoice_clients migration in Supabase first."
-          : error.message || "Could not save client."
-      );
-      return;
-    }
-
-    setInvoiceClients((prev) => {
-      const withoutSaved = prev.filter((client) => client.id !== data.id);
-      return [...withoutSaved, data].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-    });
-    setSelectedClientId(data.id);
-    setFeedback({ error: "", success: `Client ${clientModal.editingId ? "updated" : "created"}.` });
-    setClientModal((prev) => ({ ...prev, editingId: data.id }));
-  };
-
-  const deleteInvoiceClient = async (clientId) => {
-    const client = invoiceClients.find((item) => item.id === clientId);
-    if (!client) return;
-    if (!window.confirm(`Delete ${client.name}?`)) return;
-
-    setClientModalError("");
-    setSavingClient(true);
-    const { error } = await supabase.from("invoice_clients").delete().eq("id", clientId);
-    setSavingClient(false);
-    if (error) {
-      setClientModalError(error.message || "Could not delete client.");
-      return;
-    }
-
-    const nextClients = invoiceClients.filter((item) => item.id !== clientId);
+    const nextClients = [...invoiceClients, newClient];
     setInvoiceClients(nextClients);
-    if (effectiveSelectedClientId === clientId) {
-      setSelectedClientId(nextClients[0]?.id || projectClientOptions[0]?.id || null);
-    }
-    resetClientForm();
-    setFeedback({ error: "", success: "Client deleted." });
+    saveStoredInvoiceClients(nextClients);
+    setSelectedClientId(newClient.id);
+    setFeedback({ error: "", success: "" });
+    closeClientModal();
   };
 
   const servicesById = useMemo(() => new Map(productServices.map((service) => [service.id, service])), [productServices]);
@@ -2002,7 +1828,7 @@ export default function InvoicePage() {
                       {clientOptions.map((client) => (
                         <option key={client.id} value={client.id}>{client.name}</option>
                       ))}
-                      <option value="__more__">More...</option>
+                      <option value="__new__">Add new...</option>
                     </select>
                     <div className="invoice-muted">This client information prints in the Bill To section.</div>
                   </div>
@@ -2112,11 +1938,10 @@ export default function InvoicePage() {
                   </div>
                   <div className="invoice-doc-meta">
                     <img className="invoice-logo" src={utsLogo} alt="Universal Talent Source" />
-                    <div className="invoice-from-card">
-                      <div className="bill-main">Universal Talent Source</div>
-                      <div className="invoice-muted">www.universaltalentsource.com</div>
-                      <div className="invoice-muted">info@universaltalentsource.com</div>
-                      <div className="invoice-muted">(863) 254-1402 / (317) 516-8043</div>
+                    <div className="invoice-info-list">
+                      <div className="invoice-muted"><strong>Invoice #:</strong> {invoiceNumber || "—"}</div>
+                      <div className="invoice-muted"><strong>Invoice Date:</strong> {formatDate(invoiceDate)}</div>
+                      <div className="invoice-muted"><strong>Due Date:</strong> {formatDate(dueDate)}</div>
                     </div>
                   </div>
                 </div>
@@ -2130,10 +1955,12 @@ export default function InvoicePage() {
                     {selectedClient?.email ? <div className="invoice-muted">{selectedClient.email}</div> : null}
                   </div>
                   <div className="bill-box align-right">
-                    <div className="invoice-info-list">
-                      <div className="invoice-muted"><strong>Invoice #:</strong> {invoiceNumber || "—"}</div>
-                      <div className="invoice-muted"><strong>Invoice Date:</strong> {formatDate(invoiceDate)}</div>
-                      <div className="invoice-muted"><strong>Due Date:</strong> {formatDate(dueDate)}</div>
+                    <div className="bill-heading">From</div>
+                    <div className="from-info">
+                      <div className="bill-main">Universal Talent Source</div>
+                      <div className="invoice-muted">www.universaltalentsource.com</div>
+                      <div className="invoice-muted">info@universaltalentsource.com</div>
+                      <div className="invoice-muted">(863) 254-1402 / (317) 516-8043</div>
                     </div>
                   </div>
                 </div>
@@ -2171,7 +1998,7 @@ export default function InvoicePage() {
                                     <option value="__new__">New...</option>
                                   </select>
                                 )}
-                                {!invoiceReadOnly ? <span className="print-service-name">{row.serviceName}</span> : null}
+                                <span className="print-service-name">{row.serviceName}</span>
                               </td>
                               <td>
                                 <div className="line-primary">{row.candidateName}</div>
@@ -2197,7 +2024,7 @@ export default function InvoicePage() {
                                     aria-label={`Rate for ${row.candidateName}`}
                                   />
                                 )}
-                                {!invoiceReadOnly ? <span className="print-rate-value">{formatCurrency(row.rate)}</span> : null}
+                                <span className="print-rate-value">{formatCurrency(row.rate)}</span>
                               </td>
                               <td style={{ textAlign: "right", fontWeight: 750 }}>{formatCurrency(row.amount)}</td>
                             </tr>
@@ -2247,101 +2074,58 @@ export default function InvoicePage() {
       </main>
       {clientModal.open ? (
         <div className="invoice-modal-backdrop" onMouseDown={closeClientModal} role="presentation">
-          <div className="invoice-modal" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="client-manager-title">
+          <div className="invoice-modal" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="new-client-title">
             <div className="invoice-modal-head">
-              <h2 className="invoice-modal-title" id="client-manager-title">Client Manager</h2>
-              <div className="invoice-muted">Create, edit, select, or delete saved billing clients for the Bill To section.</div>
+              <h2 className="invoice-modal-title" id="new-client-title">New Client</h2>
+              <div className="invoice-muted">Add client billing details for the Bill To section.</div>
             </div>
-            {clientModalError ? <div className="feedback error">{clientModalError}</div> : null}
 
-            <div className="client-manager-grid">
+            <div className="invoice-field">
+              <label className="invoice-label">Name</label>
+              <input
+                className="invoice-input"
+                value={clientModal.name}
+                onChange={(event) => setClientModal((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Client name"
+                autoFocus
+              />
+            </div>
+
+            <div className="invoice-field">
+              <label className="invoice-label">Address</label>
+              <textarea
+                className="invoice-textarea"
+                value={clientModal.address}
+                onChange={(event) => setClientModal((prev) => ({ ...prev, address: event.target.value }))}
+                placeholder="Billing address"
+              />
+            </div>
+
+            <div className="invoice-date-grid">
               <div className="invoice-field">
-                <div className="project-picker-head">
-                  <label className="invoice-label">Saved Clients</label>
-                  <button className="project-toggle" type="button" onClick={resetClientForm}>New</button>
-                </div>
-                {invoiceClients.length ? (
-                  <div className="client-list">
-                    {invoiceClients.map((client) => (
-                      <button
-                        className={`client-list-item${clientModal.editingId === client.id ? " selected" : ""}`}
-                        key={client.id}
-                        type="button"
-                        onClick={() => editInvoiceClient(client)}
-                      >
-                        <span className="client-list-title">{client.name}</span>
-                        <span className="client-list-meta">{[client.phone, client.email].filter(Boolean).join(" · ") || "No contact details"}</span>
-                        {client.address ? <span className="client-list-meta">{client.address}</span> : null}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state">No saved billing clients yet.</div>
-                )}
+                <label className="invoice-label">Phone</label>
+                <input
+                  className="invoice-input"
+                  value={clientModal.phone}
+                  onChange={(event) => setClientModal((prev) => ({ ...prev, phone: event.target.value }))}
+                  placeholder="Phone"
+                />
               </div>
-
-              <div className="client-form">
-                <div className="invoice-field">
-                  <label className="invoice-label">Name</label>
-                  <input
-                    className="invoice-input"
-                    value={clientModal.name}
-                    onChange={(event) => setClientModal((prev) => ({ ...prev, name: event.target.value }))}
-                    placeholder="Client name"
-                    required
-                    autoFocus
-                  />
-                </div>
-
-                <div className="invoice-field">
-                  <label className="invoice-label">Address</label>
-                  <textarea
-                    className="invoice-textarea"
-                    value={clientModal.address}
-                    onChange={(event) => setClientModal((prev) => ({ ...prev, address: event.target.value }))}
-                    placeholder="Billing address"
-                  />
-                </div>
-
-                <div className="invoice-date-grid">
-                  <div className="invoice-field">
-                    <label className="invoice-label">Phone</label>
-                    <input
-                      className="invoice-input"
-                      inputMode="tel"
-                      maxLength={14}
-                      value={clientModal.phone}
-                      onChange={(event) => setClientModal((prev) => ({ ...prev, phone: formatUsPhone(event.target.value) }))}
-                      placeholder="(317) 555-0100"
-                    />
-                  </div>
-                  <div className="invoice-field">
-                    <label className="invoice-label">Email</label>
-                    <input
-                      className="invoice-input"
-                      type="email"
-                      value={clientModal.email}
-                      onChange={(event) => setClientModal((prev) => ({ ...prev, email: event.target.value }))}
-                      placeholder="billing@example.com"
-                    />
-                  </div>
-                </div>
-
-                <div className="invoice-modal-actions">
-                  {clientModal.editingId ? (
-                    <button className="mini-btn danger" type="button" onClick={() => deleteInvoiceClient(clientModal.editingId)} disabled={savingClient}>Delete</button>
-                  ) : null}
-                  <button className="invoice-btn" type="button" onClick={resetClientForm} disabled={savingClient}>Clear</button>
-                  <button className="invoice-btn dark" type="button" onClick={saveInvoiceClient} disabled={savingClient}>
-                    {savingClient ? <Loader2 className="spin" size={15} /> : null}
-                    {clientModal.editingId ? "Update" : "Create"}
-                  </button>
-                </div>
+              <div className="invoice-field">
+                <label className="invoice-label">Email</label>
+                <input
+                  className="invoice-input"
+                  type="email"
+                  value={clientModal.email}
+                  onChange={(event) => setClientModal((prev) => ({ ...prev, email: event.target.value }))}
+                  placeholder="billing@example.com"
+                />
               </div>
             </div>
 
             <div className="invoice-modal-actions">
-              <button className="invoice-btn" type="button" onClick={closeClientModal}>Done</button>
+              <button className="invoice-btn" type="button" onClick={closeClientModal}>Cancel</button>
+              <button className="invoice-btn dark" type="button" onClick={createInvoiceClient}>Create</button>
             </div>
           </div>
         </div>
