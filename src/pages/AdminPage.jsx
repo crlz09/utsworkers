@@ -1412,6 +1412,7 @@ function WorkerCard({
   const profileUrl = worker.public_profile_slug
     ? `${window.location.origin}/profile/${worker.public_profile_slug}`
     : "";
+  const hoursUrl = `${window.location.origin}/worker/hours`;
   const phoneHref = worker.phone ? `tel:${String(worker.phone).replace(/[^\d+]/g, "")}` : "";
   const smsHref = worker.phone ? `sms:${String(worker.phone).replace(/[^\d+]/g, "")}` : "";
   const emailHref = worker.email ? `mailto:${worker.email}` : "";
