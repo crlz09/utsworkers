@@ -992,8 +992,8 @@ export default function InvoicePage() {
         .from("hours_entries")
         .select("*")
         .eq("source", "admin")
-        .gte("week_start_date", reviewStart)
-        .lte("week_start_date", dateTo),
+        .gte("work_date", dateFrom)
+        .lte("work_date", dateTo),
       supabase
         .from("weekly_hours_reviews")
         .select("*")

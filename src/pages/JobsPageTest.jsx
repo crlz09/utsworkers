@@ -775,7 +775,7 @@ function PageStyles() {
       @media print {
         @page {
           size: letter portrait;
-          margin: 0.45in;
+          margin: 0.42in;
         }
 
         html, body, #root {
@@ -785,42 +785,61 @@ function PageStyles() {
           background: #ffffff !important;
         }
 
-        body * {
-          visibility: hidden !important;
+        .uts-topbar,
+        .client-topbar,
+        .hero-card,
+        .side-nav,
+        .view-header,
+        .toolbar-row,
+        .table-scroll,
+        .empty-state,
+        .go-to-top-button {
+          display: none !important;
+        }
+
+        .jobs-test-shell,
+        .dashboard-layout,
+        .view-panel {
+          display: block !important;
+          width: 100% !important;
+          max-width: none !important;
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          background: #ffffff !important;
           box-shadow: none !important;
           text-shadow: none !important;
         }
 
-        .print-candidates-report,
-        .print-candidates-report * {
-          visibility: visible !important;
-        }
-
         .print-candidates-report {
           display: block !important;
-          position: absolute;
-          inset: 0 auto auto 0;
+          position: static !important;
           width: 100% !important;
           padding: 0 !important;
           color: #0f172a !important;
-          font-size: 11px !important;
-          line-height: 1.35 !important;
+          font-size: 10.5px !important;
+          line-height: 1.28 !important;
+          break-after: auto !important;
+          page-break-after: auto !important;
         }
 
         .print-report-head {
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
+          display: grid !important;
+          grid-template-columns: 1fr auto;
           gap: 14px;
+          align-items: end;
           padding-bottom: 12px;
           margin-bottom: 12px;
-          border-bottom: 2px solid #0f172a;
+          border-bottom: 3px solid #0f172a;
         }
 
         .print-report-title {
           margin: 0;
-          font-size: 20px;
-          letter-spacing: -0.02em;
+          font-size: 24px;
+          line-height: 1.08;
+          letter-spacing: 0;
         }
 
         .print-report-meta {
@@ -831,30 +850,55 @@ function PageStyles() {
 
         .print-candidates-table {
           width: 100% !important;
-          border-collapse: collapse !important;
+          border-collapse: separate !important;
+          border-spacing: 0 !important;
           table-layout: fixed !important;
+          border: 1px solid #dbeafe !important;
+          border-radius: 10px !important;
+          overflow: hidden !important;
+          break-after: auto !important;
+          page-break-after: auto !important;
         }
 
         .print-candidates-table th,
         .print-candidates-table td {
-          border: 1px solid #cbd5e1 !important;
+          border: 0 !important;
+          border-bottom: 1px solid #e2e8f0 !important;
           padding: 7px 8px !important;
-          vertical-align: top !important;
+          vertical-align: middle !important;
           color: #0f172a !important;
           background: #ffffff !important;
           word-break: break-word !important;
         }
 
         .print-candidates-table th {
-          background: #f1f5f9 !important;
-          font-size: 10px !important;
+          background: #eff6ff !important;
+          color: #1e3a8a !important;
+          font-size: 9.5px !important;
           text-transform: uppercase !important;
           letter-spacing: 0.08em !important;
           font-weight: 800 !important;
         }
 
         .print-candidates-table td {
-          font-size: 11px !important;
+          font-size: 10.5px !important;
+        }
+
+        .print-candidates-table tbody tr:nth-child(even) td {
+          background: #f8fbff !important;
+        }
+
+        .print-candidates-table tbody tr:last-child td {
+          border-bottom: 0 !important;
+        }
+
+        .print-candidates-table thead {
+          display: table-header-group !important;
+        }
+
+        .print-candidates-table tr {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
         }
 
         .print-main-text {
@@ -868,10 +912,13 @@ function PageStyles() {
         }
 
         .print-status {
-          display: inline-block !important;
+          display: inline-flex !important;
+          align-items: center;
+          justify-content: center;
+          min-width: 58px;
           border: 1px solid #cbd5e1 !important;
           border-radius: 999px !important;
-          padding: 3px 8px !important;
+          padding: 4px 8px !important;
           font-weight: 800 !important;
           background: #f8fafc !important;
         }
@@ -1091,9 +1138,11 @@ function CandidatePrintReport({ candidates, title, subtitle }) {
       <table className="print-candidates-table">
         <thead>
           <tr>
-            <th style={{ width: "38%" }}>Name</th>
-            <th style={{ width: "42%" }}>Project</th>
-            <th style={{ width: "20%" }}>Status</th>
+            <th style={{ width: "23%" }}>Name</th>
+            <th style={{ width: "26%" }}>Email</th>
+            <th style={{ width: "17%" }}>Phone</th>
+            <th style={{ width: "23%" }}>Project</th>
+            <th style={{ width: "11%" }}>Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1101,13 +1150,15 @@ function CandidatePrintReport({ candidates, title, subtitle }) {
             <tr key={candidate.id}>
               <td>
                 <div className="print-main-text">{getCandidateName(candidate)}</div>
-                {getCandidatePhone(candidate) || candidate.worker?.email ? (
-                  <div className="print-muted-text">{[getCandidatePhone(candidate), candidate.worker?.email].filter(Boolean).join(" · ")}</div>
-                ) : null}
+              </td>
+              <td>
+                {candidate.worker?.email || "—"}
+              </td>
+              <td>
+                {getCandidatePhone(candidate) || "—"}
               </td>
               <td>
                 <div className="print-main-text">{getCandidateProjectName(candidate)}</div>
-                {getCandidateProjectLocation(candidate) ? <div className="print-muted-text">{getCandidateProjectLocation(candidate)}</div> : null}
               </td>
               <td>
                 <span className={`print-status ${getCandidateStatusClass(candidate.candidate_status)}`}>

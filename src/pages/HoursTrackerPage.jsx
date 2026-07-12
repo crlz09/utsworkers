@@ -1,14 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertTriangle,
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
   Download,
   Link2,
   Loader2,
-  Printer,
   RefreshCw,
   Save,
 } from "lucide-react";
@@ -650,15 +648,6 @@ export default function HoursTrackerPage() {
   const saveRow = async (assignment) => {
     setSavingKey(`save-${assignment.id}`);
     setFeedback({ error: "", success: "" });
-    try {
-      await upsertReview(assignment, status);
-      setFeedback({ error: "", success: `${assignment.name} marked as ${getStatusLabel(status).toLowerCase()} for ${formatWeekRange(weekStart)}.` });
-    } catch (error) {
-      setFeedback({ error: error.message || "Could not update review status.", success: "" });
-    } finally {
-      setSavingKey("");
-    }
-  };
 
     const upsertRows = [];
     const deleteIds = [];
