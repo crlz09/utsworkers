@@ -156,32 +156,26 @@ export default function BreakdownPage() {
     <div className="breakdown-page">
       <UtsTopNavBar />
 
-      <div className="bd-actionbar">
-        <div className="bd-brand">
-          <b>B</b>
-          <span>BREAKDOWN</span>
-          <small><i /> Modelo base</small>
-        </div>
-        <div>
-          <button type="button" className="bd-button bd-secondary" onClick={reset}>
-            Reiniciar
-          </button>
-          <button type="button" className="bd-button bd-primary" onClick={saveScenario}>
-            {saved ? "Guardado" : "Guardar escenario"}
-          </button>
-        </div>
-      </div>
-
       <main>
         <section className="bd-hero">
           <div>
             <p className="bd-eyebrow">BASE / PRIMERA ETAPA</p>
             <h1>Capital claro.<br />Decisiones claras.</h1>
           </div>
-          <p>
-            Comienza con el capital, los gastos mensuales y un horario representativo.
-            Obtén dos respuestas: personas sostenibles y break-even total.
-          </p>
+          <div className="bd-hero-copy">
+            <p>
+              Comienza con el capital, los gastos mensuales y un horario representativo.
+              Obtén dos respuestas: personas sostenibles y break-even total.
+            </p>
+            <div className="bd-hero-actions">
+              <button type="button" className="bd-button bd-secondary" onClick={reset}>
+                Reiniciar
+              </button>
+              <button type="button" className="bd-button bd-primary" onClick={saveScenario}>
+                {saved ? "Guardado" : "Guardar escenario"}
+              </button>
+            </div>
+          </div>
         </section>
 
         <section className="bd-kpis" aria-label="Resultados principales">

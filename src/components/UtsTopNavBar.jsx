@@ -109,10 +109,19 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   return (
     <>
       <style>{`
+        html,
+        body,
+        #root {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+        }
+
         .uts-topbar {
           position: sticky;
           top: 0;
           z-index: 40;
+          width: 100%;
           background: linear-gradient(180deg, #1f2c40 0%, #1b2738 100%);
           border-bottom: 1px solid rgba(255,255,255,0.06);
           box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
