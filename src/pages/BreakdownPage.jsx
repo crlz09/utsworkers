@@ -76,7 +76,6 @@ export default function BreakdownPage() {
   const [playground, setPlayground] = useState(() =>
     loadStored("breakdown-playground-v2", { hours: 40, people: 0, margin: 0 }),
   );
-  const [saved, setSaved] = useState(false);
 
   const model = useMemo(() => {
     const regularHours = Math.min(inputs.hoursPerWeek, inputs.overtimeThreshold);
@@ -124,7 +123,6 @@ export default function BreakdownPage() {
   }, [model.totalBreakEven, playground]);
 
   const update = (key, value) => {
-    setSaved(false);
     setInputs((current) => ({ ...current, [key]: value }));
   };
 
@@ -137,47 +135,11 @@ export default function BreakdownPage() {
     );
   };
 
-  const saveScenario = () => {
-    window.localStorage.setItem("breakdown-foundation-v1", JSON.stringify(inputs));
-    window.localStorage.setItem("breakdown-playground-v2", JSON.stringify(playground));
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1800);
-  };
-
-  const reset = () => {
-    setInputs(DEFAULTS);
-    setPlayground({ hours: 40, people: 0, margin: 0 });
-    setSaved(false);
-    window.localStorage.removeItem("breakdown-foundation-v1");
-    window.localStorage.removeItem("breakdown-playground-v2");
-  };
-
   return (
     <div className="breakdown-page">
       <UtsTopNavBar />
 
       <main>
-        <section className="bd-hero">
-          <div>
-            <p className="bd-eyebrow">BASE / PRIMERA ETAPA</p>
-            <h1>Capital claro.<br />Decisiones claras.</h1>
-          </div>
-          <div className="bd-hero-copy">
-            <p>
-              Comienza con el capital, los gastos mensuales y un horario representativo.
-              Obtén dos respuestas: personas sostenibles y break-even total.
-            </p>
-            <div className="bd-hero-actions">
-              <button type="button" className="bd-button bd-secondary" onClick={reset}>
-                Reiniciar
-              </button>
-              <button type="button" className="bd-button bd-primary" onClick={saveScenario}>
-                {saved ? "Guardado" : "Guardar escenario"}
-              </button>
-            </div>
-          </div>
-        </section>
-
         <section className="bd-kpis" aria-label="Resultados principales">
           <article className="dark">
             <span>Personas sostenibles · 4 semanas</span>
@@ -349,10 +311,6 @@ export default function BreakdownPage() {
           <code className="bd-playground-formula">Horas × Personas × Margen × 4 − Break-even = Total después de gastos</code>
         </section>
       </main>
-      <footer className="bd-footer">
-        <span>Breakdown / Modelo base</span>
-        <span>Estimados de planificación; no constituyen asesoría contable.</span>
-      </footer>
     </div>
   );
 }

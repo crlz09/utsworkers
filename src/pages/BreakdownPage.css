@@ -15,14 +15,7 @@
 
 .breakdown-page * { box-sizing: border-box; }
 .breakdown-page button, .breakdown-page input { font: inherit; }
-.bd-button { border: 1px solid var(--bd-ink); padding: 9px 14px; color: var(--bd-ink); background: transparent; font-size: 11px; font-weight: 800; cursor: pointer; }
-.bd-primary { border-color: var(--bd-ink); background: var(--bd-ink); color: white; }
-.bd-hero { min-height: 310px; padding: 54px 4vw 44px; display: grid; grid-template-columns: 1.6fr .7fr; align-items: end; gap: 48px; border-bottom: 1px solid var(--bd-ink); }
 .bd-eyebrow { margin: 0 0 14px; font: 700 10px monospace; letter-spacing: .15em; }
-.bd-hero h1 { margin: 0; font: 500 clamp(52px, 7vw, 104px)/.84 Georgia, serif; letter-spacing: -.065em; }
-.bd-hero-copy { max-width: 400px; }
-.bd-hero-copy > p { margin: 0; font: 500 18px/1.5 Georgia, serif; }
-.bd-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 .bd-kpis { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--bd-ink); }
 .bd-kpis article { min-height: 168px; padding: 25px; display: flex; flex-direction: column; justify-content: space-between; background: white; border-right: 1px solid var(--bd-ink); }
 .bd-kpis article:last-child { border: 0; }
@@ -86,7 +79,6 @@
 .bd-total.negative { background: var(--bd-red); }
 .bd-total.negative strong { color: white; }
 .bd-playground-formula { display: block; padding: 14px; background: var(--bd-ink); color: #bfd0e5; font-size: 10px; text-align: center; }
-.bd-footer { min-height: 70px; padding: 0 4vw; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: var(--bd-ink); color: #bfd0e5; font: 700 10px monospace; letter-spacing: .07em; }
 
 @media (max-width: 980px) {
   .bd-kpis { grid-template-columns: repeat(2, 1fr); }
@@ -100,9 +92,6 @@
 }
 
 @media (max-width: 680px) {
-  .bd-hero { min-height: 360px; padding: 42px 18px 34px; grid-template-columns: 1fr; }
-  .bd-hero h1 { font-size: 56px; }
-  .bd-hero > p { font-size: 16px; }
   .bd-kpis { grid-template-columns: repeat(2, 1fr); }
   .bd-kpis article { min-height: 125px; padding: 15px 12px; }
   .bd-kpis article:nth-child(even) { border-right: 0; }
@@ -118,10 +107,8 @@
   .bd-results > div:not(.bd-total) { padding: 9px 3px; border-right: 0; border-bottom: 1px solid var(--bd-line); }
   .bd-total { grid-template-columns: 1fr; }
   .bd-total strong { grid-row: auto; grid-column: auto; margin-top: 8px; }
-  .bd-footer { padding: 22px 18px; align-items: start; flex-direction: column; }
 }
 
 @media (max-width: 430px) {
   .bd-field-grid, .bd-field-grid.two { grid-template-columns: 1fr; }
-  .bd-hero h1 { font-size: 48px; }
 }
