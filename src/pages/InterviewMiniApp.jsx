@@ -261,12 +261,12 @@ export default function InterviewMiniApp() {
   );
 
   const allSectionIds = useMemo(() => QUESTION_BANK.map((s) => s.id), []);
-  const initialSetRef = useRef(buildBalancedInterviewSet(QUESTION_BANK));
+  const initialSet = useMemo(() => buildBalancedInterviewSet(QUESTION_BANK), []);
 
   const [candidate, setCandidate] = useState(prefillCandidate);
-  const [activeSections, setActiveSections] = useState(initialSetRef.current);
+  const [activeSections, setActiveSections] = useState(initialSet);
   const [answersMap, setAnswersMap] = useState(() =>
-    buildInitialAnswersMap(initialSetRef.current)
+    buildInitialAnswersMap(initialSet)
   );
   const [sectionLayout, setSectionLayout] = useState(() =>
     buildDefaultLayout(allSectionIds)

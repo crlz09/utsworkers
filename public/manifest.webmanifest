@@ -1,7 +1,7 @@
 {
   "name": "Universal Talent Source",
   "short_name": "UTS Admin",
-  "description": "Recruiting admin workspace for worker registration, profiles, interviews, and job tracking.",
+  "description": "Recruiting admin workspace for worker registration, profiles, and job tracking.",
   "start_url": "/admin",
   "scope": "/",
   "display": "standalone",

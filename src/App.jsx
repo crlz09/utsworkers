@@ -6,8 +6,6 @@ const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminNotificationsPage = lazy(() => import("./pages/AdminNotificationsPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
-const InterviewMiniApp = lazy(() => import("./pages/InterviewMiniApp"));
-const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
 const WorkerProfilePage = lazy(() => import("./pages/WorkerProfilePage"));
 const JobsPageTest = lazy(() => import("./pages/JobsPageTest"));
 const CtsJobDetailPage = lazy(() => import("./pages/CtsJobDetailPage"));
@@ -42,22 +40,8 @@ export default function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/interviews/new"
-          element={
-            <AdminRoute>
-              <InterviewMiniApp />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/interviews"
-          element={
-            <AdminRoute>
-              <InterviewsPage />
-            </AdminRoute>
-          }
-        />
+        {/* Interview pages are retained in src/pages but intentionally disabled. */}
+        <Route path="/interviews/*" element={<Navigate to="/admin" replace />} />
         <Route path="/profile/:slug" element={<WorkerProfilePage />} />
         <Route path="/worker/hours/:token" element={<WorkerHoursPage />} />
         <Route path="/workers/hours/:token" element={<WorkerHoursPage />} />

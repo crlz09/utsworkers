@@ -503,8 +503,10 @@ export default function InterviewsPage() {
   };
 
   useEffect(() => {
-    loadInterviews();
-    loadCatalogs();
+    void Promise.resolve().then(() => {
+      loadInterviews();
+      loadCatalogs();
+    });
   }, []);
 
   const filteredRows = useMemo(() => {

@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   UserPlus,
-  History,
   LogOut,
   Briefcase,
   Clock3,
@@ -23,7 +22,6 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     isAdmin: location.pathname === "/admin",
     isAdminArea: location.pathname.startsWith("/admin"),
     isRegister: location.pathname.startsWith("/register"),
-    isInterviews: location.pathname.startsWith("/interviews"),
     isCtsJobs: location.pathname.startsWith("/cts-jobs"),
     isHours: location.pathname.startsWith("/hours"),
     isInvoice: location.pathname.startsWith("/invoice"),
@@ -66,13 +64,6 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       match: (pathname) => pathname.startsWith("/register"),
       openInNewTab: true,
     },
-    {
-      label: "Interviews",
-      path: "/interviews",
-      icon: History,
-      match: (pathname) => pathname === "/interviews",
-    },
-    
     {
       label: "Jobs",
       path: "/cts-jobs",

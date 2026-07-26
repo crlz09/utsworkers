@@ -2252,7 +2252,9 @@ export default function AdminPage() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const query = params.get("q");
-    if (query) setSearch(query);
+    if (query) {
+      void Promise.resolve().then(() => setSearch(query));
+    }
   }, [location.search]);
 
   useEffect(() => {
