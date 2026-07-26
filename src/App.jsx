@@ -13,6 +13,7 @@ const ClientCtsJobDetailPage = lazy(() => import("./pages/ClientCtsJobDetailPage
 const HoursTrackerPage = lazy(() => import("./pages/HoursTrackerPage"));
 const InvoicePage = lazy(() => import("./pages/InvoicePage"));
 const WorkerHoursPage = lazy(() => import("./pages/WorkerHoursPage"));
+const BreakdownPage = lazy(() => import("./pages/BreakdownPage"));
 
 function RouteFallback() {
   return (
@@ -74,6 +75,14 @@ export default function App() {
           element={
             <AdminRoute>
               <InvoicePage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/breakdown"
+          element={
+            <AdminRoute>
+              <BreakdownPage />
             </AdminRoute>
           }
         />

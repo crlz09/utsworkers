@@ -8,6 +8,7 @@ import {
   Clock3,
   Bell,
   FileText,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
@@ -25,6 +26,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     isCtsJobs: location.pathname.startsWith("/cts-jobs"),
     isHours: location.pathname.startsWith("/hours"),
     isInvoice: location.pathname.startsWith("/invoice"),
+    isBreakdown: location.pathname.startsWith("/breakdown"),
   };
   const [notificationCount, setNotificationCount] = useState(0);
 
@@ -81,6 +83,12 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       path: "/invoice",
       icon: FileText,
       match: (pathname) => pathname.startsWith("/invoice"),
+    },
+    {
+      label: "Breakdown",
+      path: "/breakdown",
+      icon: ChartNoAxesCombined,
+      match: (pathname) => pathname.startsWith("/breakdown"),
     },
   ];
 
@@ -299,7 +307,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
             grid-column: 1 / -1;
             grid-row: 2;
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(6, minmax(0, 1fr));
             gap: 6px;
             overflow: visible;
           }
