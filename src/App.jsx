@@ -145,6 +145,22 @@ export default function App() {
           }
         />
         <Route
+          path="/admin/workers/:workerId/profile"
+          element={
+            <AdminRoute>
+              <CandidateProfilePage adminMode />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/workers/:workerId/documents"
+          element={
+            <AdminRoute>
+              <WorkerDocumentsPage adminMode />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="/admin/notifications"
           element={
             <AdminRoute>

@@ -19,6 +19,7 @@ import {
 import CandidateTopBar from "../components/CandidateTopBar";
 import { supabase } from "../lib/supabase";
 import { findLocationIdByState, lookupUsZipCode, normalizeZipCode } from "../lib/addressLookup";
+import { useParams } from "react-router-dom";
 
 const emptyForm = {
   name: "", phone: "", email: "", address: "", zip_code: "", city: "", state: "",
@@ -52,7 +53,7 @@ function Styles() {
     .candidate-editing-bar{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
     .candidate-section{overflow:hidden}.candidate-section-toggle{width:100%;border:0;background:#fff;padding:20px 22px;display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer;color:#0f172a}
     .candidate-section-toggle:hover{background:#f8fbff}.candidate-section-icon{width:38px;height:38px;border-radius:11px;background:#eff6ff;color:#2563eb;display:grid;place-items:center;flex:0 0 auto}
-    .candidate-section-heading{min-width:0;flex:1}.candidate-section-title{font-size:17px;font-weight:900}.candidate-section-summary{font-size:12px;color:#64748b;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .candidate-section-heading{min-width:0;flex:1;display:grid;gap:4px}.candidate-section-title{font-size:17px;font-weight:900}.candidate-section-summary{display:block;font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .candidate-chevron{transition:transform .2s ease}.candidate-chevron.open{transform:rotate(180deg)}.candidate-section-body{border-top:1px solid #e2e8f0;padding:22px}
     .candidate-profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.candidate-field{display:grid;gap:7px}.candidate-field.full{grid-column:1/-1}
     .candidate-label{font-size:11px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#475569}.candidate-input{width:100%;min-height:47px;border:1px solid #cbd5e1;border-radius:13px;padding:11px 13px;background:#fff;color:#0f172a;outline:none;font:inherit}
@@ -90,7 +91,9 @@ function CatalogOptions({ options, selectedIds, editing, onToggle }) {
   })}</div>;
 }
 
-export default function CandidateProfilePage() {
+export default function CandidateProfilePage({ adminMode = false }) {
+  const { workerId = "" } = useParams();
+  const adminWorkerId = adminMode ? workerId : "";
   const [form, setForm] = useState(emptyForm);
   const [savedForm, setSavedForm] = useState(emptyForm);
   const [trades, setTrades] = useState([]);
@@ -113,7 +116,9 @@ export default function CandidateProfilePage() {
     let active = true;
     const load = async () => {
       const [profileResult, tradesResult, locationsResult, skillsResult, certificationsResult] = await Promise.all([
-        supabase.rpc("get_current_worker_profile"),
+        adminMode
+          ? supabase.rpc("get_admin_worker_portal_profile", { p_worker_id: adminWorkerId })
+          : supabase.rpc("get_current_worker_profile"),
         supabase.from("trades").select("id,name").order("name"),
         supabase.from("locations").select("id,name").order("name"),
         supabase.from("skills").select("id,name").order("name"),
@@ -132,7 +137,7 @@ export default function CandidateProfilePage() {
     };
     void load();
     return () => { active = false; };
-  }, []);
+  }, [adminMode, adminWorkerId]);
 
   useEffect(() => {
     if (!editing) return undefined;
@@ -171,7 +176,8 @@ export default function CandidateProfilePage() {
     event.preventDefault(); setError(""); setSuccess("");
     if (!form.name.trim() || !form.trade_id || !form.location_id) { setError("Name, trade, and location are required."); return; }
     setSaving(true);
-    const { data, error: saveError } = await supabase.rpc("update_current_worker_portal_profile", {
+    const { data, error: saveError } = await supabase.rpc(adminMode ? "update_admin_worker_portal_profile" : "update_current_worker_portal_profile", {
+      ...(adminMode ? { p_worker_id: adminWorkerId } : {}),
       p_name: form.name, p_phone: form.phone, p_address: form.address, p_zip_code: form.zip_code,
       p_city: form.city, p_state: form.state, p_trade_id: form.trade_id, p_location_id: form.location_id,
       p_total_experience_years: Number(form.total_experience_years || 0),
@@ -184,19 +190,19 @@ export default function CandidateProfilePage() {
       p_certification_ids: form.certifications.map((item) => item.id), p_projects: form.projects,
     });
     setSaving(false);
-    if (saveError) { setError(saveError.message || "Could not update your profile."); return; }
+    if (saveError) { setError(saveError.message || `Could not update ${adminMode ? "this" : "your"} profile.`); return; }
     const next = { ...emptyForm, ...data, available_from: data.available_from || "", skills: data.skills || [], certifications: data.certifications || [], languages: data.languages || [], projects: data.projects || [] };
-    setForm(next); setSavedForm(cloneProfile(next)); setEditing(false); setSuccess("Your profile was updated successfully.");
+    setForm(next); setSavedForm(cloneProfile(next)); setEditing(false); setSuccess(adminMode ? "The candidate profile was updated successfully." : "Your profile was updated successfully.");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const selectedSkillIds = form.skills.map((item) => item.id);
   const selectedCertificationIds = form.certifications.map((item) => item.id);
 
-  return <div className="candidate-profile-page"><Styles /><CandidateTopBar workerName={form.name} />
+  return <div className="candidate-profile-page"><Styles /><CandidateTopBar workerName={form.name} adminWorkerId={adminWorkerId} />
     <main className="candidate-profile-shell">
       <section className="candidate-profile-hero">
-        <div><div style={{ color: "#2563eb", fontSize: 11, fontWeight: 850, letterSpacing: ".1em" }}>MY UTS PROFILE</div><h1 style={{ margin: "7px 0", fontSize: "clamp(30px,5vw,42px)", letterSpacing: "-.04em" }}>Personal and professional details</h1><p style={{ color: "#64748b", lineHeight: 1.6, marginBottom: 0 }}>Review your information safely. Select Edit only when you need to make changes.</p></div>
+        <div><div style={{ color: "#2563eb", fontSize: 11, fontWeight: 850, letterSpacing: ".1em" }}>{adminMode ? "ADMIN · CANDIDATE PROFILE" : "MY UTS PROFILE"}</div><h1 style={{ margin: "7px 0", fontSize: "clamp(30px,5vw,42px)", letterSpacing: "-.04em" }}>Personal and professional details</h1><p style={{ color: "#64748b", lineHeight: 1.6, marginBottom: 0 }}>{adminMode ? "Review and update this candidate's information and work history." : "Review your information safely. Select Edit only when you need to make changes."}</p></div>
         <div className="candidate-hero-actions"><div className="candidate-avatar"><UserRound size={34} /></div>{!editing ? <button className="candidate-edit" type="button" disabled={loading} onClick={() => { setEditing(true); setSuccess(""); }}><Pencil size={17} /> Edit</button> : null}</div>
       </section>
       {error ? <div className="candidate-feedback error">{error}</div> : null}
@@ -250,7 +256,7 @@ export default function CandidateProfilePage() {
 
         {editing ? <div className="candidate-editing-bar"><button className="candidate-secondary" type="button" disabled={saving} onClick={cancelEditing}><X size={17} /> Cancel</button><button className="candidate-save" disabled={saving} type="submit">{saving ? <Loader2 className="spin" size={17} /> : <Save size={17} />}{saving ? "Saving..." : "Save changes"}</button></div> : null}
       </form>}
-      <div style={{ display: "flex", gap: 8, color: "#64748b", fontSize: 13, alignItems: "center" }}><ShieldCheck size={16} /> Your profile is linked to your verified email and protected by row-level security.</div>
+      <div style={{ display: "flex", gap: 8, color: "#64748b", fontSize: 13, alignItems: "center" }}><ShieldCheck size={16} /> {adminMode ? "Administrative access is protected by role-based permissions." : "Your profile is linked to your verified email and protected by row-level security."}</div>
     </main>
   </div>;
 }

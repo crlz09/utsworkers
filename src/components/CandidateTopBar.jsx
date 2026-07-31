@@ -1,5 +1,5 @@
 import React from "react";
-import { Clock3, FileText, LogOut, UserRound } from "lucide-react";
+import { ArrowLeft, Clock3, FileText, LogOut, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
@@ -9,7 +9,7 @@ const items = [
   { label: "Hours", path: "/worker/hours", icon: Clock3, disabled: true },
 ];
 
-export default function CandidateTopBar({ workerName = "Candidate portal" }) {
+export default function CandidateTopBar({ workerName = "Candidate portal", adminWorkerId = "" }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -17,6 +17,14 @@ export default function CandidateTopBar({ workerName = "Candidate portal" }) {
     await supabase.auth.signOut();
     window.location.href = "/login";
   };
+
+  const adminMode = Boolean(adminWorkerId);
+  const navItems = adminMode
+    ? [
+        { label: "Profile", path: `/admin/workers/${adminWorkerId}/profile`, icon: UserRound },
+        { label: "Documents", path: `/admin/workers/${adminWorkerId}/documents`, icon: FileText },
+      ]
+    : items;
 
   return (
     <>
@@ -42,15 +50,15 @@ export default function CandidateTopBar({ workerName = "Candidate portal" }) {
       `}</style>
       <header className="candidate-bar">
         <div className="candidate-bar-inner">
-          <div className="candidate-brand" onClick={() => navigate("/worker/profile")} role="button" tabIndex={0}>
+          <div className="candidate-brand" onClick={() => navigate(adminMode ? "/admin" : "/worker/profile")} role="button" tabIndex={0}>
             <img src="/logo.png" alt="UTS" />
             <div className="candidate-brand-copy" style={{ minWidth: 0 }}>
-              <div style={{ color: "#bfdbfe", fontSize: 10, fontWeight: 850, letterSpacing: ".1em" }}>CANDIDATE PORTAL</div>
+              <div style={{ color: "#bfdbfe", fontSize: 10, fontWeight: 850, letterSpacing: ".1em" }}>{adminMode ? "ADMIN · CANDIDATE PROFILE" : "CANDIDATE PORTAL"}</div>
               <div className="candidate-name">{workerName}</div>
             </div>
           </div>
           <nav className="candidate-nav" aria-label="Candidate portal">
-            {items.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const active = location.pathname === item.path;
               return (
@@ -60,8 +68,8 @@ export default function CandidateTopBar({ workerName = "Candidate portal" }) {
               );
             })}
           </nav>
-          <button className="candidate-logout" type="button" onClick={logout}>
-            <LogOut size={16} /> <span>Sign out</span>
+          <button className="candidate-logout" type="button" onClick={adminMode ? () => navigate("/admin") : logout}>
+            {adminMode ? <ArrowLeft size={16} /> : <LogOut size={16} />} <span>{adminMode ? "Dashboard" : "Sign out"}</span>
           </button>
         </div>
       </header>

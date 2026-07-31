@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
@@ -33,6 +33,7 @@ import {
   Link2,
   MessageCircle,
   AlertTriangle,
+  UserRound,
 } from "lucide-react";
 
 function PageStyles() {
@@ -1362,6 +1363,7 @@ function WorkerCard({
   onDocumentsChanged,
   onWorkerReviewed,
 }) {
+  const navigate = useNavigate();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -1654,12 +1656,20 @@ function WorkerCard({
             />
 
             {canEditWorkers ? (
-              <IconButton
-                icon={Pencil}
-                title="Edit worker"
-                aria-label="Edit worker"
-                onClick={() => setEditOpen(true)}
-              />
+              <>
+                <IconButton
+                  icon={UserRound}
+                  title="Manage candidate profile"
+                  aria-label="Manage candidate profile"
+                  onClick={() => navigate(`/admin/workers/${worker.id}/profile`)}
+                />
+                <IconButton
+                  icon={Pencil}
+                  title="Quick edit worker"
+                  aria-label="Quick edit worker"
+                  onClick={() => setEditOpen(true)}
+                />
+              </>
             ) : null}
 
             {canDeleteWorkers ? (

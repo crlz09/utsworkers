@@ -12,6 +12,7 @@ import {
 import { supabase } from "../lib/supabase";
 import { getCurrentUserAccess } from "../lib/userAccess";
 import CandidateTopBar from "../components/CandidateTopBar";
+import { useParams } from "react-router-dom";
 
 const BUCKET_NAME = "worker-documents";
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -30,6 +31,10 @@ const DOCUMENT_TYPES = [
   { value: "osha_card", label: "OSHA Card" },
   { value: "other", label: "Other" },
 ];
+const BOTH_SIDES_REQUIRED_TYPES = new Set([
+  "state_id_or_driver_license",
+  "employment_authorization_card",
+]);
 const LEGACY_DOCUMENT_LABELS = {
   resume: "Resume",
   id: "Government ID",
@@ -108,7 +113,9 @@ function PageStyles() {
   );
 }
 
-export default function WorkerDocumentsPage() {
+export default function WorkerDocumentsPage({ adminMode = false }) {
+  const { workerId: routeWorkerId = "" } = useParams();
+  const adminWorkerId = adminMode ? routeWorkerId : "";
   const frontFileInputRef = useRef(null);
   const backFileInputRef = useRef(null);
   const [worker, setWorker] = useState(null);
@@ -121,6 +128,10 @@ export default function WorkerDocumentsPage() {
   const [busyDocumentId, setBusyDocumentId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const requiresBothSides = BOTH_SIDES_REQUIRED_TYPES.has(documentType);
+  const hasRequiredFiles = requiresBothSides
+    ? Boolean(documentFiles.front && documentFiles.back)
+    : Boolean(documentFiles.front || documentFiles.back);
 
   const loadDocuments = useCallback(async (workerId) => {
     const { data, error: loadError } = await supabase
@@ -138,13 +149,25 @@ export default function WorkerDocumentsPage() {
 
     const load = async () => {
       try {
-        const access = await getCurrentUserAccess();
+        let targetWorker;
+        if (adminMode) {
+          const { data, error: workerError } = await supabase
+            .from("workers")
+            .select("id,name,email")
+            .eq("id", adminWorkerId)
+            .single();
+          if (workerError) throw workerError;
+          targetWorker = data;
+        } else {
+          const access = await getCurrentUserAccess();
+          if (!access.worker?.id) throw new Error("We could not find a candidate profile for this account.");
+          targetWorker = access.worker;
+        }
         if (!active) return;
-        if (!access.worker?.id) throw new Error("We could not find a candidate profile for this account.");
-        setWorker(access.worker);
-        await loadDocuments(access.worker.id);
+        setWorker(targetWorker);
+        await loadDocuments(targetWorker.id);
       } catch (loadError) {
-        if (active) setError(loadError.message || "Could not load your documents.");
+        if (active) setError(loadError.message || `Could not load ${adminMode ? "the candidate's" : "your"} documents.`);
       } finally {
         if (active) setLoading(false);
       }
@@ -152,7 +175,7 @@ export default function WorkerDocumentsPage() {
 
     void load();
     return () => { active = false; };
-  }, [loadDocuments]);
+  }, [adminMode, adminWorkerId, loadDocuments]);
 
   const chooseFile = (side, event) => {
     const file = event.target.files?.[0] || null;
@@ -170,7 +193,7 @@ export default function WorkerDocumentsPage() {
   };
 
   const handleUpload = async () => {
-    if (!worker?.id || !documentFiles.front || !documentFiles.back) return;
+    if (!worker?.id || !hasRequiredFiles) return;
     const trimmedOtherDescription = otherDescription.trim();
     if (documentType === "other" && !trimmedOtherDescription) {
       setError("Describe the document when selecting Other.");
@@ -186,7 +209,7 @@ export default function WorkerDocumentsPage() {
       const baseDocumentLabel = documentType === "other"
         ? `Other: ${trimmedOtherDescription}`
         : getDocumentLabel(documentType);
-      for (const [side, file] of Object.entries(documentFiles)) {
+      for (const [side, file] of Object.entries(documentFiles).filter(([, selectedFile]) => selectedFile)) {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         const path = `${worker.id}/${crypto.randomUUID()}_${side}_${safeName}`;
         const { error: uploadError } = await supabase.storage.from(BUCKET_NAME).upload(path, file, {
@@ -274,19 +297,19 @@ export default function WorkerDocumentsPage() {
   return (
     <div className="worker-doc-page">
       <PageStyles />
-      <CandidateTopBar workerName={worker?.name} />
+      <CandidateTopBar workerName={worker?.name} adminWorkerId={adminWorkerId} />
 
       <main className="worker-doc-shell">
         <section className="worker-doc-hero">
           <div>
             <div style={{ color: "#2563eb", fontSize: 12, fontWeight: 850, letterSpacing: ".1em" }}>
-              YOUR PROFILE
+              {adminMode ? "ADMIN · CANDIDATE PROFILE" : "YOUR PROFILE"}
             </div>
             <h1 style={{ margin: "7px 0 8px", fontSize: "clamp(30px, 5vw, 44px)", letterSpacing: "-.04em" }}>
-              My documents
+              {adminMode ? `${worker?.name || "Candidate"}'s documents` : "My documents"}
             </h1>
             <p style={{ color: "#64748b", lineHeight: 1.6, maxWidth: 700 }}>
-              Upload identification, work authorization, licenses, and certifications. Files are linked directly to your candidate profile for the UTS team to review.
+              {adminMode ? "Upload and manage files linked directly to this candidate's profile." : "Upload identification, work authorization, licenses, and certifications. Files are linked directly to your candidate profile for the UTS team to review."}
             </p>
           </div>
           <ShieldCheck size={58} color="#2563eb" aria-hidden="true" />
@@ -328,19 +351,22 @@ export default function WorkerDocumentsPage() {
               ) : null}
               <div className="worker-doc-sides">
                 <label className="worker-doc-side">
-                  <span className="worker-doc-label">Front</span>
+                  <span className="worker-doc-label">Front {requiresBothSides ? "(required)" : "(optional)"}</span>
                   <input ref={frontFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("front", event)} />
                   {documentFiles.front ? <small style={{ color: "#475569" }}>{documentFiles.front.name} · {formatFileSize(documentFiles.front.size)}</small> : null}
                 </label>
                 <label className="worker-doc-side">
-                  <span className="worker-doc-label">Back</span>
+                  <span className="worker-doc-label">Back {requiresBothSides ? "(required)" : "(optional)"}</span>
                   <input ref={backFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("back", event)} />
                   {documentFiles.back ? <small style={{ color: "#475569" }}>{documentFiles.back.name} · {formatFileSize(documentFiles.back.size)}</small> : null}
                 </label>
               </div>
-              <button className="worker-doc-button primary" type="button" disabled={uploading || !documentFiles.front || !documentFiles.back || (documentType === "other" && !otherDescription.trim())} onClick={handleUpload}>
+              <small style={{ color: "#64748b", lineHeight: 1.5 }}>
+                {requiresBothSides ? "Both front and back are required for this document type." : "Front and back are optional; upload at least one file."}
+              </small>
+              <button className="worker-doc-button primary" type="button" disabled={uploading || !hasRequiredFiles || (documentType === "other" && !otherDescription.trim())} onClick={handleUpload}>
                 {uploading ? <Loader2 size={17} className="spin" /> : <Upload size={17} />}
-                {uploading ? "Uploading..." : "Upload front and back"}
+                {uploading ? "Uploading..." : requiresBothSides ? "Upload front and back" : "Upload selected files"}
               </button>
             </section>
 
