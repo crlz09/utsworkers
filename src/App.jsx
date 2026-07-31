@@ -60,7 +60,7 @@ export default function App() {
           path="/worker/hours"
           element={
             <WorkerRoute>
-              <WorkerHoursPage />
+              <Navigate to="/worker/profile" replace />
             </WorkerRoute>
           }
         />

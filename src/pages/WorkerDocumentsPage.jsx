@@ -24,14 +24,20 @@ const ACCEPTED_TYPES = [
 ];
 
 const DOCUMENT_TYPES = [
-  { value: "resume", label: "Resume" },
-  { value: "id", label: "Government ID" },
-  { value: "work_permit", label: "Work permit" },
-  { value: "osha", label: "OSHA card" },
-  { value: "certification", label: "Certification" },
-  { value: "license", label: "License" },
+  { value: "state_id_or_driver_license", label: "State ID or Driver License" },
+  { value: "employment_authorization_card", label: "Employment Authorization Card" },
+  { value: "osha_card", label: "OSHA Card" },
   { value: "other", label: "Other" },
 ];
+const LEGACY_DOCUMENT_LABELS = {
+  resume: "Resume",
+  id: "Government ID",
+  work_permit: "Work permit",
+  osha: "OSHA card",
+  certification: "Certification",
+  license: "License",
+  other: "Other",
+};
 
 const formatDate = (value) =>
   value
@@ -46,8 +52,13 @@ const formatFileSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const getDocumentLabel = (value) =>
-  DOCUMENT_TYPES.find((option) => option.value === value)?.label || "Other";
+const getDocumentLabel = (value) => {
+  if (String(value || "").toLowerCase().startsWith("other:")) return value;
+  return DOCUMENT_TYPES.find((option) => option.value === value)?.label
+    || LEGACY_DOCUMENT_LABELS[value]
+    || value
+    || "Other";
+};
 
 function PageStyles() {
   return (
@@ -98,7 +109,8 @@ export default function WorkerDocumentsPage() {
   const [worker, setWorker] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [documentType, setDocumentType] = useState("id");
+  const [documentType, setDocumentType] = useState("state_id_or_driver_license");
+  const [otherDescription, setOtherDescription] = useState("");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [busyDocumentId, setBusyDocumentId] = useState("");
@@ -157,6 +169,11 @@ export default function WorkerDocumentsPage() {
 
   const handleUpload = async () => {
     if (!worker?.id || selectedFiles.length === 0) return;
+    const trimmedOtherDescription = otherDescription.trim();
+    if (documentType === "other" && !trimmedOtherDescription) {
+      setError("Describe the document when selecting Other.");
+      return;
+    }
     setUploading(true);
     setError("");
     setSuccess("");
@@ -180,7 +197,7 @@ export default function WorkerDocumentsPage() {
           file_path: path,
           file_type: file.type,
           file_size: file.size,
-          document_type: documentType,
+          document_type: documentType === "other" ? `Other: ${trimmedOtherDescription}` : documentType,
         });
       }
 
@@ -188,6 +205,7 @@ export default function WorkerDocumentsPage() {
       if (insertError) throw insertError;
 
       setSelectedFiles([]);
+      if (documentType === "other") setOtherDescription("");
       if (fileInputRef.current) fileInputRef.current.value = "";
       await loadDocuments(worker.id);
       setSuccess(`${rows.length} document${rows.length === 1 ? "" : "s"} uploaded successfully.`);
@@ -286,10 +304,22 @@ export default function WorkerDocumentsPage() {
               </div>
               <label className="worker-doc-field">
                 <span className="worker-doc-label">Document type</span>
-                <select className="worker-doc-input" value={documentType} onChange={(event) => setDocumentType(event.target.value)}>
+                <select className="worker-doc-input" value={documentType} onChange={(event) => { setDocumentType(event.target.value); setError(""); }}>
                   {DOCUMENT_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
+              {documentType === "other" ? (
+                <label className="worker-doc-field">
+                  <span className="worker-doc-label">Document description</span>
+                  <input
+                    className="worker-doc-input"
+                    value={otherDescription}
+                    maxLength={120}
+                    placeholder="Example: Fall Protection"
+                    onChange={(event) => setOtherDescription(event.target.value)}
+                  />
+                </label>
+              ) : null}
               <label className="worker-doc-field">
                 <span className="worker-doc-label">Choose files</span>
                 <input
@@ -306,7 +336,7 @@ export default function WorkerDocumentsPage() {
                   {selectedFiles.map((file) => <span key={`${file.name}-${file.size}`}>• {file.name} ({formatFileSize(file.size)})</span>)}
                 </div>
               ) : null}
-              <button className="worker-doc-button primary" type="button" disabled={uploading || !selectedFiles.length} onClick={handleUpload}>
+              <button className="worker-doc-button primary" type="button" disabled={uploading || !selectedFiles.length || (documentType === "other" && !otherDescription.trim())} onClick={handleUpload}>
                 {uploading ? <Loader2 size={17} className="spin" /> : <Upload size={17} />}
                 {uploading ? "Uploading..." : "Upload to my profile"}
               </button>

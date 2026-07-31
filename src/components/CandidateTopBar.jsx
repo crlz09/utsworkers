@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabase";
 const items = [
   { label: "Profile", path: "/worker/profile", icon: UserRound },
   { label: "Documents", path: "/worker/documents", icon: FileText },
-  { label: "Hours", path: "/worker/hours", icon: Clock3 },
+  { label: "Hours", path: "/worker/hours", icon: Clock3, disabled: true },
 ];
 
 export default function CandidateTopBar({ workerName = "Candidate portal" }) {
@@ -29,6 +29,7 @@ export default function CandidateTopBar({ workerName = "Candidate portal" }) {
         .candidate-nav { display: flex; gap: 6px; align-items: center; }
         .candidate-nav-button,.candidate-logout { border: 0; border-radius: 11px; padding: 10px 12px; color: rgba(255,255,255,.78); background: transparent; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
         .candidate-nav-button.active { color: white; background: rgba(255,255,255,.12); }
+        .candidate-nav-button:disabled { cursor: not-allowed; opacity: .42; }
         .candidate-logout { justify-self: end; color: white; border: 1px solid rgba(255,255,255,.18); }
         @media(max-width:760px){
           .candidate-bar-inner { width: min(100% - 20px,1080px); min-height: 68px; grid-template-columns: 1fr auto; gap: 8px; }
@@ -53,8 +54,8 @@ export default function CandidateTopBar({ workerName = "Candidate portal" }) {
               const Icon = item.icon;
               const active = location.pathname === item.path;
               return (
-                <button key={item.path} type="button" className={`candidate-nav-button${active ? " active" : ""}`} onClick={() => navigate(item.path)}>
-                  <Icon size={16} /> {item.label}
+                <button key={item.path} type="button" disabled={item.disabled} aria-label={item.disabled ? `${item.label} coming soon` : item.label} title={item.disabled ? "Coming soon" : undefined} className={`candidate-nav-button${active ? " active" : ""}`} onClick={() => navigate(item.path)}>
+                  <Icon size={16} /> {item.label}{item.disabled ? " · Soon" : ""}
                 </button>
               );
             })}
