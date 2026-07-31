@@ -166,6 +166,7 @@ const copy = {
       saving: "Saving...",
       clear: "Clear Form",
       registerAnother: "Register Another Person",
+      openPortal: "Open My Candidate Portal",
     },
   },
   es: {
@@ -282,6 +283,7 @@ const copy = {
       saving: "Guardando...",
       clear: "Limpiar Formulario",
       registerAnother: "Registrar Otra Persona",
+      openPortal: "Abrir Mi Portal de Candidato",
     },
   },
 };
@@ -1153,6 +1155,27 @@ function RegistrationSuccessPanel({ text, onRegisterAnother, summary }) {
         </div>
       ) : null}
 
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10 }}>
+      {summary?.email ? (
+        <a
+          href={`/login?email=${encodeURIComponent(summary.email)}`}
+          style={{
+            marginTop: 6,
+            textDecoration: "none",
+            background: "#2563eb",
+            color: "#ffffff",
+            borderRadius: 14,
+            padding: "14px 20px",
+            fontWeight: 900,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <ShieldCheck size={18} />
+          {text.actions.openPortal}
+        </a>
+      ) : null}
       <button
         type="button"
         onClick={onRegisterAnother}
@@ -1173,6 +1196,7 @@ function RegistrationSuccessPanel({ text, onRegisterAnother, summary }) {
         <Plus size={18} />
         {text.actions.registerAnother}
       </button>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { CalendarDays, CheckCircle2, Loader2, Lock, Minus, Plus, Save } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
+import CandidateTopBar from "../components/CandidateTopBar";
 
 const PRESET_HOURS = [0, 8, 10];
 const HOUR_STEP = 0.25;
@@ -599,6 +600,8 @@ function isRpcSignatureMissing(error) {
 
 export default function WorkerHoursPage() {
   const { token = "" } = useParams();
+  const navigate = useNavigate();
+  const isCandidatePortal = !token;
   const [locale, setLocale] = useState("es");
   const text = copy[locale];
   const today = toDateInputValue(new Date());
@@ -623,10 +626,12 @@ export default function WorkerHoursPage() {
     setLoading(true);
     setFeedback({ error: "", success: "" });
 
-    let response = await supabase.rpc("get_worker_hours_link", { p_token: token, p_week_start: weekStart });
+    let response = isCandidatePortal
+      ? await supabase.rpc("get_current_worker_hours", { p_week_start: weekStart })
+      : await supabase.rpc("get_worker_hours_link", { p_token: token, p_week_start: weekStart });
     let fallbackMode = false;
 
-    if (response.error && isRpcSignatureMissing(response.error)) {
+    if (!isCandidatePortal && response.error && isRpcSignatureMissing(response.error)) {
       response = await supabase.rpc("get_worker_hours_link", { p_token: token });
       fallbackMode = true;
     }
@@ -656,7 +661,7 @@ export default function WorkerHoursPage() {
         success: text.fallbackLoaded,
       });
     }
-  }, [text, token, weekStart]);
+  }, [isCandidatePortal, text, token, weekStart]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());
@@ -691,8 +696,10 @@ export default function WorkerHoursPage() {
         work_date: row.work_date,
         regular_hours: values[row.work_date] === "" ? null : Number(values[row.work_date] || 0),
       }));
-    let response = await supabase.rpc("submit_worker_hours_link", { p_token: token, p_week_start: weekStart, p_entries: entries });
-    if (response.error && isRpcSignatureMissing(response.error)) {
+    let response = isCandidatePortal
+      ? await supabase.rpc("submit_current_worker_hours", { p_week_start: weekStart, p_entries: entries })
+      : await supabase.rpc("submit_worker_hours_link", { p_token: token, p_week_start: weekStart, p_entries: entries });
+    if (!isCandidatePortal && response.error && isRpcSignatureMissing(response.error)) {
       response = await supabase.rpc("submit_worker_hours_link", { p_token: token, p_entries: entries });
     }
     setSaving(false);
@@ -708,6 +715,10 @@ export default function WorkerHoursPage() {
 
   const exitPage = () => {
     setSubmittedOpen(false);
+    if (isCandidatePortal) {
+      navigate("/worker/profile");
+      return;
+    }
     setExited(true);
     window.setTimeout(() => {
       window.close();
@@ -717,12 +728,12 @@ export default function WorkerHoursPage() {
   return (
     <>
       <PageStyles />
-      <header className="worker-topbar">
+      {isCandidatePortal ? <CandidateTopBar workerName={first.worker_name} /> : <header className="worker-topbar">
         <div className="worker-topbar-inner">
           <img className="worker-logo" src={utsLogo} alt="UTS" />
           <button className="language-toggle" type="button" onClick={() => setLocale((prev) => (prev === "en" ? "es" : "en"))} aria-label={text.toggleLabel} title={text.toggleLabel}>{text.toggleLabel}</button>
         </div>
-      </header>
+      </header>}
       {exited ? (
         <main className="worker-shell exit-screen">
           <section className="worker-card exit-card">

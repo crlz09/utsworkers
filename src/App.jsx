@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { AdminRoute, ClientRoute } from "./components/AccessRoute";
+import { AdminRoute, ClientRoute, WorkerRoute } from "./components/AccessRoute";
 
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
@@ -14,6 +14,8 @@ const HoursTrackerPage = lazy(() => import("./pages/HoursTrackerPage"));
 const InvoicePage = lazy(() => import("./pages/InvoicePage"));
 const WorkerHoursPage = lazy(() => import("./pages/WorkerHoursPage"));
 const BreakdownPage = lazy(() => import("./pages/BreakdownPage"));
+const WorkerDocumentsPage = lazy(() => import("./pages/WorkerDocumentsPage"));
+const CandidateProfilePage = lazy(() => import("./pages/CandidateProfilePage"));
 
 function RouteFallback() {
   return (
@@ -46,6 +48,30 @@ export default function App() {
         <Route path="/profile/:slug" element={<WorkerProfilePage />} />
         <Route path="/worker/hours/:token" element={<WorkerHoursPage />} />
         <Route path="/workers/hours/:token" element={<WorkerHoursPage />} />
+        <Route
+          path="/worker/profile"
+          element={
+            <WorkerRoute>
+              <CandidateProfilePage />
+            </WorkerRoute>
+          }
+        />
+        <Route
+          path="/worker/hours"
+          element={
+            <WorkerRoute>
+              <WorkerHoursPage />
+            </WorkerRoute>
+          }
+        />
+        <Route
+          path="/worker/documents"
+          element={
+            <WorkerRoute>
+              <WorkerDocumentsPage />
+            </WorkerRoute>
+          }
+        />
         <Route
           path="/client/cts-jobs"
           element={
