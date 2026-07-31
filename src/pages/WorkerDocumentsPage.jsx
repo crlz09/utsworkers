@@ -26,6 +26,7 @@ const ACCEPTED_TYPES = [
 const DOCUMENT_TYPES = [
   { value: "state_id_or_driver_license", label: "State ID or Driver License" },
   { value: "employment_authorization_card", label: "Employment Authorization Card" },
+  { value: "social_security_card", label: "Social Security Card" },
   { value: "osha_card", label: "OSHA Card" },
   { value: "other", label: "Other" },
 ];
@@ -79,6 +80,8 @@ function PageStyles() {
       .worker-doc-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 18px; align-items: start; }
       .worker-doc-card { min-width: 0; padding: 22px; border: 1px solid #e2e8f0; border-radius: 22px; background: white; box-shadow: 0 14px 34px rgba(15,23,42,.06); }
       .worker-doc-field { display: grid; gap: 7px; }
+      .worker-doc-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .worker-doc-side { display: grid; gap: 8px; padding: 14px; border: 1px solid #dbeafe; border-radius: 15px; background: #f8fbff; }
       .worker-doc-label { color: #475569; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
       .worker-doc-input { width: 100%; min-height: 48px; border: 1px solid #cbd5e1; border-radius: 13px; padding: 11px 13px; background: white; color: #0f172a; outline: none; }
       .worker-doc-input:focus { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
@@ -95,6 +98,7 @@ function PageStyles() {
         .worker-doc-header-inner, .worker-doc-shell { width: min(100% - 24px, 1080px); }
         .worker-doc-brand img { height: 44px; }
         .worker-doc-hero, .worker-doc-grid { grid-template-columns: 1fr; }
+        .worker-doc-sides { grid-template-columns: 1fr; }
         .worker-doc-hero { padding: 21px; }
         .worker-doc-card { padding: 18px; }
         .worker-doc-row { grid-template-columns: 1fr; }
@@ -105,10 +109,11 @@ function PageStyles() {
 }
 
 export default function WorkerDocumentsPage() {
-  const fileInputRef = useRef(null);
+  const frontFileInputRef = useRef(null);
+  const backFileInputRef = useRef(null);
   const [worker, setWorker] = useState(null);
   const [documents, setDocuments] = useState([]);
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [documentFiles, setDocumentFiles] = useState({ front: null, back: null });
   const [documentType, setDocumentType] = useState("state_id_or_driver_license");
   const [otherDescription, setOtherDescription] = useState("");
   const [loading, setLoading] = useState(true);
@@ -149,26 +154,23 @@ export default function WorkerDocumentsPage() {
     return () => { active = false; };
   }, [loadDocuments]);
 
-  const chooseFiles = (event) => {
-    const files = Array.from(event.target.files || []);
-    const invalid = files.find(
-      (file) => !ACCEPTED_TYPES.includes(file.type) || file.size > MAX_FILE_SIZE
-    );
+  const chooseFile = (side, event) => {
+    const file = event.target.files?.[0] || null;
 
     setSuccess("");
-    if (invalid) {
-      setSelectedFiles([]);
-      setError(`${invalid.name} is not an accepted PDF, image, or Word file under 10 MB.`);
+    if (file && (!ACCEPTED_TYPES.includes(file.type) || file.size > MAX_FILE_SIZE)) {
+      setDocumentFiles((previous) => ({ ...previous, [side]: null }));
+      setError(`${file.name} is not an accepted PDF, image, or Word file under 10 MB.`);
       event.target.value = "";
       return;
     }
 
     setError("");
-    setSelectedFiles(files);
+    setDocumentFiles((previous) => ({ ...previous, [side]: file }));
   };
 
   const handleUpload = async () => {
-    if (!worker?.id || selectedFiles.length === 0) return;
+    if (!worker?.id || !documentFiles.front || !documentFiles.back) return;
     const trimmedOtherDescription = otherDescription.trim();
     if (documentType === "other" && !trimmedOtherDescription) {
       setError("Describe the document when selecting Other.");
@@ -181,9 +183,12 @@ export default function WorkerDocumentsPage() {
 
     try {
       const rows = [];
-      for (const file of selectedFiles) {
+      const baseDocumentLabel = documentType === "other"
+        ? `Other: ${trimmedOtherDescription}`
+        : getDocumentLabel(documentType);
+      for (const [side, file] of Object.entries(documentFiles)) {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `${worker.id}/${crypto.randomUUID()}_${safeName}`;
+        const path = `${worker.id}/${crypto.randomUUID()}_${side}_${safeName}`;
         const { error: uploadError } = await supabase.storage.from(BUCKET_NAME).upload(path, file, {
           cacheControl: "3600",
           upsert: false,
@@ -197,16 +202,17 @@ export default function WorkerDocumentsPage() {
           file_path: path,
           file_type: file.type,
           file_size: file.size,
-          document_type: documentType === "other" ? `Other: ${trimmedOtherDescription}` : documentType,
+          document_type: `${baseDocumentLabel} - ${side === "front" ? "Front" : "Back"}`,
         });
       }
 
       const { error: insertError } = await supabase.from("worker_documents").insert(rows);
       if (insertError) throw insertError;
 
-      setSelectedFiles([]);
+      setDocumentFiles({ front: null, back: null });
       if (documentType === "other") setOtherDescription("");
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (frontFileInputRef.current) frontFileInputRef.current.value = "";
+      if (backFileInputRef.current) backFileInputRef.current.value = "";
       await loadDocuments(worker.id);
       setSuccess(`${rows.length} document${rows.length === 1 ? "" : "s"} uploaded successfully.`);
     } catch (uploadError) {
@@ -320,25 +326,21 @@ export default function WorkerDocumentsPage() {
                   />
                 </label>
               ) : null}
-              <label className="worker-doc-field">
-                <span className="worker-doc-label">Choose files</span>
-                <input
-                  ref={fileInputRef}
-                  className="worker-doc-input"
-                  type="file"
-                  multiple
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                  onChange={chooseFiles}
-                />
-              </label>
-              {selectedFiles.length ? (
-                <div style={{ display: "grid", gap: 6, color: "#475569", fontSize: 13 }}>
-                  {selectedFiles.map((file) => <span key={`${file.name}-${file.size}`}>• {file.name} ({formatFileSize(file.size)})</span>)}
-                </div>
-              ) : null}
-              <button className="worker-doc-button primary" type="button" disabled={uploading || !selectedFiles.length || (documentType === "other" && !otherDescription.trim())} onClick={handleUpload}>
+              <div className="worker-doc-sides">
+                <label className="worker-doc-side">
+                  <span className="worker-doc-label">Front</span>
+                  <input ref={frontFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("front", event)} />
+                  {documentFiles.front ? <small style={{ color: "#475569" }}>{documentFiles.front.name} · {formatFileSize(documentFiles.front.size)}</small> : null}
+                </label>
+                <label className="worker-doc-side">
+                  <span className="worker-doc-label">Back</span>
+                  <input ref={backFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("back", event)} />
+                  {documentFiles.back ? <small style={{ color: "#475569" }}>{documentFiles.back.name} · {formatFileSize(documentFiles.back.size)}</small> : null}
+                </label>
+              </div>
+              <button className="worker-doc-button primary" type="button" disabled={uploading || !documentFiles.front || !documentFiles.back || (documentType === "other" && !otherDescription.trim())} onClick={handleUpload}>
                 {uploading ? <Loader2 size={17} className="spin" /> : <Upload size={17} />}
-                {uploading ? "Uploading..." : "Upload to my profile"}
+                {uploading ? "Uploading..." : "Upload front and back"}
               </button>
             </section>
 
