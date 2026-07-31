@@ -13,6 +13,12 @@ import { supabase } from "../lib/supabase";
 import { getCurrentUserAccess } from "../lib/userAccess";
 import CandidateTopBar from "../components/CandidateTopBar";
 import { useParams } from "react-router-dom";
+import {
+  getWorkerDocumentCategoryKey,
+  getWorkerDocumentLabel,
+  TWO_SIDED_WORKER_DOCUMENT_TYPES,
+  WORKER_DOCUMENT_TYPES,
+} from "../lib/workerDocuments";
 
 const BUCKET_NAME = "worker-documents";
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -23,28 +29,6 @@ const ACCEPTED_TYPES = [
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
-
-const DOCUMENT_TYPES = [
-  { value: "resume", label: "Resume" },
-  { value: "state_id_or_driver_license", label: "State ID or Driver License" },
-  { value: "employment_authorization_card", label: "Employment Authorization Card" },
-  { value: "social_security_card", label: "Social Security Card" },
-  { value: "osha_card", label: "OSHA Card" },
-  { value: "other", label: "Other" },
-];
-const BOTH_SIDES_REQUIRED_TYPES = new Set([
-  "state_id_or_driver_license",
-  "employment_authorization_card",
-]);
-const LEGACY_DOCUMENT_LABELS = {
-  resume: "Resume",
-  id: "Government ID",
-  work_permit: "Work permit",
-  osha: "OSHA card",
-  certification: "Certification",
-  license: "License",
-  other: "Other",
-};
 
 const formatDate = (value) =>
   value
@@ -58,20 +42,6 @@ const formatFileSize = (bytes) => {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
-
-const getDocumentLabel = (value) => {
-  if (String(value || "").toLowerCase().startsWith("other:")) return value;
-  return DOCUMENT_TYPES.find((option) => option.value === value)?.label
-    || LEGACY_DOCUMENT_LABELS[value]
-    || value
-    || "Other";
-};
-
-const getDocumentCategoryKey = (value) =>
-  String(getDocumentLabel(value) || "")
-    .replace(/\s+-\s+(front|back)$/i, "")
-    .trim()
-    .toLowerCase();
 
 function PageStyles() {
   return (
@@ -135,7 +105,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
   const [busyDocumentId, setBusyDocumentId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const requiresBothSides = BOTH_SIDES_REQUIRED_TYPES.has(documentType);
+  const requiresBothSides = TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType);
   const hasRequiredFiles = requiresBothSides
     ? Boolean(documentFiles.front && documentFiles.back)
     : Boolean(documentFiles.front);
@@ -225,12 +195,12 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
       const rows = [];
       const baseDocumentLabel = documentType === "other"
         ? `Other: ${trimmedOtherDescription}`
-        : getDocumentLabel(documentType);
+        : getWorkerDocumentLabel(documentType);
       const filesToUpload = requiresBothSides
         ? [["front", documentFiles.front], ["back", documentFiles.back]]
         : [["document", documentFiles.front]];
       const existingDocuments = documents.filter(
-        (document) => getDocumentCategoryKey(document.document_type) === getDocumentCategoryKey(baseDocumentLabel)
+        (document) => getWorkerDocumentCategoryKey(document.document_type) === getWorkerDocumentCategoryKey(baseDocumentLabel)
       );
 
       for (const [side, file] of filesToUpload) {
@@ -389,7 +359,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
               <label className="worker-doc-field">
                 <span className="worker-doc-label">Document type</span>
                 <select className="worker-doc-input" value={documentType} onChange={(event) => changeDocumentType(event.target.value)}>
-                  {DOCUMENT_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  {WORKER_DOCUMENT_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
               {documentType === "other" ? (
@@ -448,7 +418,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 850, overflowWrap: "anywhere" }}>{document.file_name}</div>
                         <div style={{ marginTop: 5, color: "#64748b", fontSize: 12, lineHeight: 1.45 }}>
-                          {getDocumentLabel(document.document_type)} · {formatFileSize(document.file_size)} · {formatDate(document.uploaded_at)}
+                          {getWorkerDocumentLabel(document.document_type)} · {formatFileSize(document.file_size)} · {formatDate(document.uploaded_at)}
                         </div>
                       </div>
                     </div>

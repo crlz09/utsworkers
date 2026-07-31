@@ -4,6 +4,12 @@ import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import {
+  getWorkerDocumentCategoryKey,
+  getWorkerDocumentLabel,
+  TWO_SIDED_WORKER_DOCUMENT_TYPES,
+  WORKER_DOCUMENT_TYPES,
+} from "../lib/workerDocuments";
+import {
   findLocationIdByState,
   lookupUsZipCode,
   normalizeZipCode,
@@ -1080,24 +1086,60 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
 }
 
 function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState({ single: null, front: null, back: null });
   const [documentType, setDocumentType] = useState("resume");
+  const [otherDescription, setOtherDescription] = useState("");
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [downloadingId, setDownloadingId] = useState("");
+  const requiresBothSides = TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType);
+  const hasRequiredFiles = requiresBothSides
+    ? Boolean(selectedFiles.front && selectedFiles.back)
+    : Boolean(selectedFiles.single);
+
+  const resetSelectedFiles = () => {
+    setSelectedFiles({ single: null, front: null, back: null });
+    setFileInputKey((value) => value + 1);
+  };
+
+  const selectFile = (side, file) => {
+    setSelectedFiles((previous) => ({ ...previous, [side]: file || null }));
+    setError("");
+    setSuccess("");
+  };
 
   const handleUpload = async () => {
-    if (!selectedFiles.length) return;
+    if (!hasRequiredFiles) return;
+    const trimmedOtherDescription = otherDescription.trim();
+    if (documentType === "other" && !trimmedOtherDescription) {
+      setError("Describe the document when selecting Other.");
+      return;
+    }
 
     setUploading(true);
     setError("");
+    setSuccess("");
+    const uploadedPaths = [];
+    let insertedDocumentIds = [];
 
     try {
       const uploadedRows = [];
+      const baseDocumentLabel = documentType === "other"
+        ? `Other: ${trimmedOtherDescription}`
+        : getWorkerDocumentLabel(documentType);
+      const filesToUpload = requiresBothSides
+        ? [["front", selectedFiles.front], ["back", selectedFiles.back]]
+        : [["document", selectedFiles.single]];
+      const existingDocuments = documents.filter(
+        (document) => getWorkerDocumentCategoryKey(document.document_type)
+          === getWorkerDocumentCategoryKey(baseDocumentLabel)
+      );
 
-      for (const file of selectedFiles) {
-        const safeName = file.name.replace(/\s+/g, "_");
-        const path = `${workerId}/${Date.now()}_${safeName}`;
+      for (const [side, file] of filesToUpload) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `${workerId}/${crypto.randomUUID()}_${side}_${safeName}`;
 
         const { error: uploadError } = await supabase.storage
           .from("worker-documents")
@@ -1108,6 +1150,7 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
           });
 
         if (uploadError) throw uploadError;
+        uploadedPaths.push(path);
 
         uploadedRows.push({
           worker_id: workerId,
@@ -1115,19 +1158,53 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
           file_path: path,
           file_type: file.type || null,
           file_size: file.size || null,
-          document_type: documentType,
+          document_type: requiresBothSides
+            ? `${baseDocumentLabel} - ${side === "front" ? "Front" : "Back"}`
+            : baseDocumentLabel,
         });
       }
 
-      const { error: insertError } = await supabase
+      const { data: insertedDocuments, error: insertError } = await supabase
         .from("worker_documents")
-        .insert(uploadedRows);
+        .insert(uploadedRows)
+        .select("id");
 
       if (insertError) throw insertError;
+      insertedDocumentIds = (insertedDocuments || []).map((document) => document.id);
 
-      setSelectedFiles([]);
-      onDocumentsChanged();
+      if (existingDocuments.length) {
+        const { error: deleteOldRowsError } = await supabase
+          .from("worker_documents")
+          .delete()
+          .eq("worker_id", workerId)
+          .in("id", existingDocuments.map((document) => document.id));
+        if (deleteOldRowsError) throw deleteOldRowsError;
+
+        const { error: deleteOldFilesError } = await supabase.storage
+          .from("worker-documents")
+          .remove(existingDocuments.map((document) => document.file_path));
+        if (deleteOldFilesError) {
+          console.error("Old document files could not be removed after replacement.", deleteOldFilesError);
+        }
+      }
+
+      resetSelectedFiles();
+      if (documentType === "other") setOtherDescription("");
+      await onDocumentsChanged();
+      setSuccess(existingDocuments.length
+        ? `${baseDocumentLabel} replaced successfully.`
+        : `${baseDocumentLabel} uploaded successfully.`);
     } catch (err) {
+      if (insertedDocumentIds.length) {
+        await supabase
+          .from("worker_documents")
+          .delete()
+          .eq("worker_id", workerId)
+          .in("id", insertedDocumentIds);
+      }
+      if (uploadedPaths.length) {
+        await supabase.storage.from("worker-documents").remove(uploadedPaths);
+      }
       setError(err.message || "Could not upload files.");
     } finally {
       setUploading(false);
@@ -1206,45 +1283,70 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
         className="document-upload-grid"
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 220px auto",
+          gridTemplateColumns: "minmax(220px, .8fr) minmax(0, 1.2fr)",
           gap: 12,
         }}
       >
-        <input
-          type="file"
-          multiple
-          onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
-          style={inputStyle}
-        />
-
         <select
           value={documentType}
-          onChange={(e) => setDocumentType(e.target.value)}
+          onChange={(e) => {
+            setDocumentType(e.target.value);
+            resetSelectedFiles();
+            setError("");
+            setSuccess("");
+          }}
           style={inputStyle}
         >
-          <option value="resume">Resume</option>
-          <option value="osha">OSHA Card</option>
-          <option value="certification">Certification</option>
-          <option value="license">License</option>
-          <option value="id">ID</option>
-          <option value="other">Other</option>
+          {WORKER_DOCUMENT_TYPES.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
         </select>
+
+        {documentType === "other" ? (
+          <input
+            value={otherDescription}
+            maxLength={120}
+            placeholder="Document description, e.g. Fall Protection"
+            onChange={(e) => setOtherDescription(e.target.value)}
+            style={inputStyle}
+          />
+        ) : <div />}
+
+        {requiresBothSides ? (
+          <>
+            <label style={{ display: "grid", gap: 6, color: "#475569", fontSize: 12, fontWeight: 800 }}>
+              FRONT (REQUIRED)
+              <input key={`front-${fileInputKey}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => selectFile("front", e.target.files?.[0])} style={inputStyle} />
+            </label>
+            <label style={{ display: "grid", gap: 6, color: "#475569", fontSize: 12, fontWeight: 800 }}>
+              BACK (REQUIRED)
+              <input key={`back-${fileInputKey}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => selectFile("back", e.target.files?.[0])} style={inputStyle} />
+            </label>
+          </>
+        ) : (
+          <label style={{ display: "grid", gap: 6, color: "#475569", fontSize: 12, fontWeight: 800, gridColumn: "1 / -1" }}>
+            DOCUMENT (REQUIRED)
+            <input key={`single-${fileInputKey}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => selectFile("single", e.target.files?.[0])} style={inputStyle} />
+          </label>
+        )}
 
         <button
           type="button"
           onClick={handleUpload}
-          disabled={uploading || selectedFiles.length === 0}
+          disabled={uploading || !hasRequiredFiles || (documentType === "other" && !otherDescription.trim())}
           style={{
             border: "none",
-            background: uploading || selectedFiles.length === 0 ? "#94a3b8" : "#0f172a",
+            background: uploading || !hasRequiredFiles ? "#94a3b8" : "#0f172a",
             color: "#ffffff",
             borderRadius: 14,
             padding: "12px 16px",
             fontWeight: 800,
-            cursor: uploading || selectedFiles.length === 0 ? "not-allowed" : "pointer",
+            cursor: uploading || !hasRequiredFiles ? "not-allowed" : "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 8,
+            gridColumn: "1 / -1",
+            justifyContent: "center",
           }}
         >
           <Upload size={16} />
@@ -1252,11 +1354,11 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
         </button>
       </div>
 
-      {selectedFiles.length > 0 ? (
-        <div style={{ color: "#475569", fontSize: 14 }}>
-          {selectedFiles.length} file(s) selected
-        </div>
-      ) : null}
+      <div style={{ color: "#64748b", fontSize: 13 }}>
+        {requiresBothSides
+          ? "Both front and back are required for this document type."
+          : "Upload one file for this document type."} A new upload replaces the existing document in the same category.
+      </div>
 
       {error ? (
         <div
@@ -1271,6 +1373,12 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
           }}
         >
           {error}
+        </div>
+      ) : null}
+
+      {success ? (
+        <div style={{ padding: "12px 14px", borderRadius: 14, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontWeight: 700 }}>
+          {success}
         </div>
       ) : null}
 
@@ -1295,7 +1403,7 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
               <div style={{ display: "grid", gap: 4 }}>
                 <div style={{ fontWeight: 800, color: "#0f172a" }}>{doc.file_name}</div>
                 <div style={{ color: "#64748b", fontSize: 13 }}>
-                  Type: {doc.document_type || "other"} • Uploaded: {formatDate(doc.uploaded_at)}
+                  Type: {getWorkerDocumentLabel(doc.document_type)} • Uploaded: {formatDate(doc.uploaded_at)}
                 </div>
               </div>
 
