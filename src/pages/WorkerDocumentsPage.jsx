@@ -25,6 +25,7 @@ const ACCEPTED_TYPES = [
 ];
 
 const DOCUMENT_TYPES = [
+  { value: "resume", label: "Resume" },
   { value: "state_id_or_driver_license", label: "State ID or Driver License" },
   { value: "employment_authorization_card", label: "Employment Authorization Card" },
   { value: "social_security_card", label: "Social Security Card" },
@@ -65,6 +66,12 @@ const getDocumentLabel = (value) => {
     || value
     || "Other";
 };
+
+const getDocumentCategoryKey = (value) =>
+  String(getDocumentLabel(value) || "")
+    .replace(/\s+-\s+(front|back)$/i, "")
+    .trim()
+    .toLowerCase();
 
 function PageStyles() {
   return (
@@ -131,7 +138,16 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
   const requiresBothSides = BOTH_SIDES_REQUIRED_TYPES.has(documentType);
   const hasRequiredFiles = requiresBothSides
     ? Boolean(documentFiles.front && documentFiles.back)
-    : Boolean(documentFiles.front || documentFiles.back);
+    : Boolean(documentFiles.front);
+
+  const changeDocumentType = (nextType) => {
+    setDocumentType(nextType);
+    setDocumentFiles({ front: null, back: null });
+    setError("");
+    setSuccess("");
+    if (frontFileInputRef.current) frontFileInputRef.current.value = "";
+    if (backFileInputRef.current) backFileInputRef.current.value = "";
+  };
 
   const loadDocuments = useCallback(async (workerId) => {
     const { data, error: loadError } = await supabase
@@ -203,13 +219,21 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
     setError("");
     setSuccess("");
     const uploadedPaths = [];
+    let insertedDocumentIds = [];
 
     try {
       const rows = [];
       const baseDocumentLabel = documentType === "other"
         ? `Other: ${trimmedOtherDescription}`
         : getDocumentLabel(documentType);
-      for (const [side, file] of Object.entries(documentFiles).filter(([, selectedFile]) => selectedFile)) {
+      const filesToUpload = requiresBothSides
+        ? [["front", documentFiles.front], ["back", documentFiles.back]]
+        : [["document", documentFiles.front]];
+      const existingDocuments = documents.filter(
+        (document) => getDocumentCategoryKey(document.document_type) === getDocumentCategoryKey(baseDocumentLabel)
+      );
+
+      for (const [side, file] of filesToUpload) {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         const path = `${worker.id}/${crypto.randomUUID()}_${side}_${safeName}`;
         const { error: uploadError } = await supabase.storage.from(BUCKET_NAME).upload(path, file, {
@@ -225,20 +249,51 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
           file_path: path,
           file_type: file.type,
           file_size: file.size,
-          document_type: `${baseDocumentLabel} - ${side === "front" ? "Front" : "Back"}`,
+          document_type: requiresBothSides
+            ? `${baseDocumentLabel} - ${side === "front" ? "Front" : "Back"}`
+            : baseDocumentLabel,
         });
       }
 
-      const { error: insertError } = await supabase.from("worker_documents").insert(rows);
+      const { data: insertedDocuments, error: insertError } = await supabase
+        .from("worker_documents")
+        .insert(rows)
+        .select("id");
       if (insertError) throw insertError;
+      insertedDocumentIds = (insertedDocuments || []).map((document) => document.id);
+
+      if (existingDocuments.length) {
+        const { error: deleteOldRowsError } = await supabase
+          .from("worker_documents")
+          .delete()
+          .eq("worker_id", worker.id)
+          .in("id", existingDocuments.map((document) => document.id));
+        if (deleteOldRowsError) throw deleteOldRowsError;
+
+        const { error: deleteOldFilesError } = await supabase.storage
+          .from(BUCKET_NAME)
+          .remove(existingDocuments.map((document) => document.file_path));
+        if (deleteOldFilesError) {
+          console.error("Old document files could not be removed after replacement.", deleteOldFilesError);
+        }
+      }
 
       setDocumentFiles({ front: null, back: null });
       if (documentType === "other") setOtherDescription("");
       if (frontFileInputRef.current) frontFileInputRef.current.value = "";
       if (backFileInputRef.current) backFileInputRef.current.value = "";
       await loadDocuments(worker.id);
-      setSuccess(`${rows.length} document${rows.length === 1 ? "" : "s"} uploaded successfully.`);
+      setSuccess(existingDocuments.length
+        ? `${baseDocumentLabel} replaced successfully.`
+        : `${rows.length} document${rows.length === 1 ? "" : "s"} uploaded successfully.`);
     } catch (uploadError) {
+      if (insertedDocumentIds.length) {
+        await supabase
+          .from("worker_documents")
+          .delete()
+          .eq("worker_id", worker.id)
+          .in("id", insertedDocumentIds);
+      }
       if (uploadedPaths.length) await supabase.storage.from(BUCKET_NAME).remove(uploadedPaths);
       setError(uploadError.message || "Could not upload your documents.");
     } finally {
@@ -333,7 +388,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
               </div>
               <label className="worker-doc-field">
                 <span className="worker-doc-label">Document type</span>
-                <select className="worker-doc-input" value={documentType} onChange={(event) => { setDocumentType(event.target.value); setError(""); }}>
+                <select className="worker-doc-input" value={documentType} onChange={(event) => changeDocumentType(event.target.value)}>
                   {DOCUMENT_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
@@ -349,24 +404,26 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
                   />
                 </label>
               ) : null}
-              <div className="worker-doc-sides">
+              <div className={requiresBothSides ? "worker-doc-sides" : "worker-doc-field"}>
                 <label className="worker-doc-side">
-                  <span className="worker-doc-label">Front {requiresBothSides ? "(required)" : "(optional)"}</span>
+                  <span className="worker-doc-label">{requiresBothSides ? "Front (required)" : "Document (required)"}</span>
                   <input ref={frontFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("front", event)} />
                   {documentFiles.front ? <small style={{ color: "#475569" }}>{documentFiles.front.name} · {formatFileSize(documentFiles.front.size)}</small> : null}
                 </label>
-                <label className="worker-doc-side">
-                  <span className="worker-doc-label">Back {requiresBothSides ? "(required)" : "(optional)"}</span>
-                  <input ref={backFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("back", event)} />
-                  {documentFiles.back ? <small style={{ color: "#475569" }}>{documentFiles.back.name} · {formatFileSize(documentFiles.back.size)}</small> : null}
-                </label>
+                {requiresBothSides ? (
+                  <label className="worker-doc-side">
+                    <span className="worker-doc-label">Back (required)</span>
+                    <input ref={backFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("back", event)} />
+                    {documentFiles.back ? <small style={{ color: "#475569" }}>{documentFiles.back.name} · {formatFileSize(documentFiles.back.size)}</small> : null}
+                  </label>
+                ) : null}
               </div>
               <small style={{ color: "#64748b", lineHeight: 1.5 }}>
-                {requiresBothSides ? "Both front and back are required for this document type." : "Front and back are optional; upload at least one file."}
+                {requiresBothSides ? "Both front and back are required for this document type." : "Upload one file for this document type."} A new upload replaces the existing document in the same category.
               </small>
               <button className="worker-doc-button primary" type="button" disabled={uploading || !hasRequiredFiles || (documentType === "other" && !otherDescription.trim())} onClick={handleUpload}>
                 {uploading ? <Loader2 size={17} className="spin" /> : <Upload size={17} />}
-                {uploading ? "Uploading..." : requiresBothSides ? "Upload front and back" : "Upload selected files"}
+                {uploading ? "Uploading..." : requiresBothSides ? "Upload front and back" : "Upload document"}
               </button>
             </section>
 
