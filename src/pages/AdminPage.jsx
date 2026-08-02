@@ -638,6 +638,15 @@ function getWorkerQualityIssues(worker) {
   if (!formatWorkerAddress(worker)) issues.push("Missing address");
   if (!String(worker.public_profile_slug || "").trim()) issues.push("No profile link");
 
+  const documentBadgeCutoff = new Date("2026-07-27T00:00:00-04:00").getTime();
+  const registeredAt = new Date(worker.created_at || 0).getTime();
+  if (registeredAt >= documentBadgeCutoff) {
+    const documents = worker.worker_documents || [];
+    const hasRequiredId = getWorkerDocumentStatus(documents, "state_id_or_driver_license").complete;
+    const hasSocialSecurity = getWorkerDocumentStatus(documents, "social_security_card").complete;
+    if (!hasRequiredId || !hasSocialSecurity) issues.push("Missing documents");
+  }
+
   return issues;
 }
 
