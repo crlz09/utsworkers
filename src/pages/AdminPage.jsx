@@ -305,11 +305,13 @@ function PageStyles() {
         }
 
         .worker-card-title-row {
-          grid-template-columns: 1fr !important;
+          grid-template-columns: minmax(0, 1fr) auto !important;
+          align-items: start !important;
         }
 
         .worker-card-actions {
-          justify-content: flex-start !important;
+          justify-content: flex-end !important;
+          align-self: start !important;
         }
 
         .worker-desktop-actions { display: none !important; }
