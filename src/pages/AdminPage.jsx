@@ -2036,7 +2036,7 @@ function WorkerCard({
                 />
                 <button
                   type="button"
-                  title="Generate an editable CTS BIO"
+                  title="Generate CTS BIO"
                   aria-label="Generate CTS BIO"
                   onClick={() => setBioOpen(true)}
                   style={{
@@ -2055,7 +2055,7 @@ function WorkerCard({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  <FileText size={16} /> Generate CTS BIO
+                  <FileText size={16} /> BIO
                 </button>
                 <IconButton
                   icon={Mail}
