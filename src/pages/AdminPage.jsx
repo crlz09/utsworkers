@@ -44,6 +44,7 @@ import {
   MessageCircle,
   AlertTriangle,
   UserRound,
+  MoreVertical,
 } from "lucide-react";
 
 function PageStyles() {
@@ -79,6 +80,8 @@ function PageStyles() {
       .spin {
         animation: spin 1s linear infinite;
       }
+
+      .worker-mobile-action-menu { display: none; }
 
       @keyframes spin {
         from { transform: rotate(0deg); }
@@ -308,6 +311,10 @@ function PageStyles() {
         .worker-card-actions {
           justify-content: flex-start !important;
         }
+
+        .worker-desktop-actions { display: none !important; }
+
+        .worker-mobile-action-menu { display: block !important; }
       }
 
       @media (min-width: 951px) {
@@ -473,6 +480,23 @@ function IconButton({ icon: Icon, tone = "neutral", ...props }) {
       {...props}
     />
   );
+}
+
+function mobileActionMenuItemStyle(disabled = false, danger = false) {
+  return {
+    width: "100%",
+    border: 0,
+    borderRadius: 10,
+    padding: "11px 12px",
+    background: "transparent",
+    color: disabled ? "#94a3b8" : danger ? "#b91c1c" : "#0f172a",
+    fontWeight: 800,
+    cursor: disabled ? "not-allowed" : "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: 9,
+    textAlign: "left",
+  };
 }
 
 function fieldGroupTitleStyle() {
@@ -1741,6 +1765,7 @@ function WorkerCard({
   const [copyingHoursLink, setCopyingHoursLink] = useState(false);
   const [reminderRequestId, setReminderRequestId] = useState(0);
   const [bioOpen, setBioOpen] = useState(false);
+  const [actionMenuOpen, setActionMenuOpen] = useState(false);
 
   const [recruiterUserId, setRecruiterUserId] = useState(worker.recruiter_user_id || "");
   const [savingRecruiter, setSavingRecruiter] = useState(false);
@@ -2026,37 +2051,21 @@ function WorkerCard({
               }}
             />
 
-            {canEditWorkers ? (
-              <>
+            <div className="worker-desktop-actions" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {canEditWorkers ? (
+                <>
                 <IconButton
                   icon={UserRound}
                   title="Manage candidate profile"
                   aria-label="Manage candidate profile"
                   onClick={() => navigate(`/admin/workers/${worker.id}/profile`)}
                 />
-                <button
-                  type="button"
+                <IconButton
+                  icon={FileText}
                   title="Generate CTS BIO"
                   aria-label="Generate CTS BIO"
                   onClick={() => setBioOpen(true)}
-                  style={{
-                    minHeight: 40,
-                    border: "1px solid #93c5fd",
-                    borderRadius: 12,
-                    padding: "9px 12px",
-                    background: "#eff6ff",
-                    color: "#1d4ed8",
-                    fontWeight: 900,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 7,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  <FileText size={16} /> BIO
-                </button>
+                />
                 <IconButton
                   icon={Mail}
                   title={worker.email ? "Remind candidate to upload documents" : "Candidate has no email address"}
@@ -2073,17 +2082,45 @@ function WorkerCard({
                   aria-label="Quick edit worker"
                   onClick={() => setEditOpen(true)}
                 />
-              </>
-            ) : null}
+                </>
+              ) : null}
 
-            {canDeleteWorkers ? (
-              <IconButton
-                icon={Trash2}
-                tone="danger"
-                title="Delete worker"
-                aria-label="Delete worker"
-                onClick={() => onWorkerDeleted(worker)}
-              />
+              {canDeleteWorkers ? (
+                <IconButton
+                  icon={Trash2}
+                  tone="danger"
+                  title="Delete worker"
+                  aria-label="Delete worker"
+                  onClick={() => onWorkerDeleted(worker)}
+                />
+              ) : null}
+            </div>
+
+            {(canEditWorkers || canDeleteWorkers) ? (
+              <div className="worker-mobile-action-menu" style={{ position: "relative" }}>
+                <IconButton
+                  icon={MoreVertical}
+                  title="Candidate actions"
+                  aria-label="Candidate actions"
+                  aria-expanded={actionMenuOpen}
+                  onClick={() => setActionMenuOpen((open) => !open)}
+                />
+                {actionMenuOpen ? (
+                  <div style={{ position: "absolute", top: 42, left: 0, zIndex: 20, width: 230, padding: 7, display: "grid", gap: 3, border: "1px solid #dbeafe", borderRadius: 14, background: "#ffffff", boxShadow: "0 18px 45px rgba(15,23,42,.2)" }}>
+                    {canEditWorkers ? (
+                      <>
+                        <button type="button" onClick={() => { setActionMenuOpen(false); navigate(`/admin/workers/${worker.id}/profile`); }} style={mobileActionMenuItemStyle()}><UserRound size={16} /> Manage candidate profile</button>
+                        <button type="button" onClick={() => { setActionMenuOpen(false); setBioOpen(true); }} style={mobileActionMenuItemStyle()}><FileText size={16} /> Generate CTS BIO</button>
+                        <button type="button" disabled={!worker.email} onClick={() => { setActionMenuOpen(false); setDetailsOpen(true); setReminderRequestId((value) => value + 1); }} style={mobileActionMenuItemStyle(!worker.email)}><Mail size={16} /> Remind documents</button>
+                        <button type="button" onClick={() => { setActionMenuOpen(false); setEditOpen(true); }} style={mobileActionMenuItemStyle()}><Pencil size={16} /> Quick edit worker</button>
+                      </>
+                    ) : null}
+                    {canDeleteWorkers ? (
+                      <button type="button" onClick={() => { setActionMenuOpen(false); onWorkerDeleted(worker); }} style={mobileActionMenuItemStyle(false, true)}><Trash2 size={16} /> Delete worker</button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             </div>
           </div>
