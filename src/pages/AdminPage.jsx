@@ -7,10 +7,12 @@ import {
   getWorkerDocumentCategoryKey,
   getWorkerDocumentLabel,
   getWorkerDocumentStatus,
+  CTS_BIO_DOCUMENT_LABEL,
   REMINDER_WORKER_DOCUMENT_TYPES,
   TWO_SIDED_WORKER_DOCUMENT_TYPES,
   WORKER_DOCUMENT_TYPES,
 } from "../lib/workerDocuments";
+import { buildCtsBioBlob, createInitialCtsBio, sanitizeBioFileName } from "../lib/ctsBio";
 import {
   findLocationIdByState,
   lookupUsZipCode,
@@ -1087,6 +1089,171 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
   );
 }
 
+const bioInputStyle = {
+  width: "100%",
+  minHeight: 44,
+  border: "1px solid #cbd5e1",
+  borderRadius: 12,
+  padding: "10px 12px",
+  background: "#ffffff",
+  color: "#0f172a",
+};
+
+function CtsBioModal({ worker, onClose, onSaved }) {
+  const [bio, setBio] = useState(() => createInitialCtsBio(worker));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const update = (field, value) => setBio((previous) => ({ ...previous, [field]: value }));
+
+  const saveBio = async () => {
+    if (!bio.name.trim()) {
+      setError("Candidate name is required.");
+      return;
+    }
+    const experiencePercentageTotal = [bio.commercialExperience, bio.industrialExperience, bio.residentialExperience]
+      .reduce((sum, value) => sum + Number(value || 0), 0);
+    if (experiencePercentageTotal !== 100) {
+      setError(`Commercial, industrial, and residential experience must add up to 100%. Current total: ${experiencePercentageTotal}%.`);
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    let uploadedPath = "";
+    let insertedId = "";
+
+    try {
+      const blob = await buildCtsBioBlob(bio);
+      const fileName = sanitizeBioFileName(bio.name);
+      const path = `${worker.id}/${crypto.randomUUID()}_bio_${fileName}`;
+      const existingBios = (worker.worker_documents || []).filter(
+        (document) => getWorkerDocumentCategoryKey(document.document_type)
+          === getWorkerDocumentCategoryKey(CTS_BIO_DOCUMENT_LABEL)
+      );
+
+      const { error: uploadError } = await supabase.storage
+        .from("worker-documents")
+        .upload(path, blob, {
+          cacheControl: "3600",
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          upsert: false,
+        });
+      if (uploadError) throw uploadError;
+      uploadedPath = path;
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("worker_documents")
+        .insert({
+          worker_id: worker.id,
+          file_name: fileName,
+          file_path: path,
+          file_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          file_size: blob.size,
+          document_type: CTS_BIO_DOCUMENT_LABEL,
+        })
+        .select("id")
+        .single();
+      if (insertError) throw insertError;
+      insertedId = inserted.id;
+
+      if (existingBios.length) {
+        const { error: deleteRowsError } = await supabase
+          .from("worker_documents")
+          .delete()
+          .eq("worker_id", worker.id)
+          .in("id", existingBios.map((document) => document.id));
+        if (deleteRowsError) throw deleteRowsError;
+        const { error: removeFilesError } = await supabase.storage
+          .from("worker-documents")
+          .remove(existingBios.map((document) => document.file_path));
+        if (removeFilesError) console.error("The previous BIO file could not be removed.", removeFilesError);
+      }
+
+      await onSaved();
+      onClose();
+    } catch (saveError) {
+      if (insertedId) {
+        await supabase.from("worker_documents").delete().eq("id", insertedId);
+      }
+      if (uploadedPath) {
+        await supabase.storage.from("worker-documents").remove([uploadedPath]);
+      }
+      setError(saveError.message || "Could not generate the CTS BIO.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fields = [
+    ["name", "Name"], ["phone", "Phone"], ["email", "Email"], ["location", "Location"],
+    ["trade", "Trade"], ["totalExperience", "Total experience in trade (years)"],
+    ["commercialExperience", "Commercial experience (%)"],
+    ["industrialExperience", "Industrial experience (%)"],
+    ["residentialExperience", "Residential experience (%)"],
+  ];
+  const percentageTotal = [bio.commercialExperience, bio.industrialExperience, bio.residentialExperience]
+    .reduce((sum, value) => sum + Number(value || 0), 0);
+
+  return (
+    <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(15,23,42,.55)", display: "grid", placeItems: "center", padding: 16 }}>
+      <div style={{ width: "min(920px, 100%)", maxHeight: "94dvh", overflow: "auto", background: "white", borderRadius: 22, padding: 22, boxShadow: "0 28px 90px rgba(15,23,42,.28)", display: "grid", gap: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "start" }}>
+          <div>
+            <div style={{ color: "#2563eb", fontSize: 12, fontWeight: 900, letterSpacing: ".1em" }}>CTS CANDIDATE BIO</div>
+            <h2 style={{ margin: "6px 0 5px", fontSize: 27 }}>Review before generating</h2>
+            <div style={{ color: "#64748b", lineHeight: 1.5 }}>This is an independent copy. Changes here will not modify the candidate profile.</div>
+          </div>
+          <IconButton icon={X} onClick={onClose} title="Close" aria-label="Close BIO editor" />
+        </div>
+
+        <div className="filters-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 13 }}>
+          {fields.map(([fieldName, label]) => (
+            <Field key={fieldName} label={label}>
+              <input
+                type={fieldName.includes("Experience") ? "number" : "text"}
+                min={fieldName.includes("Experience") ? "0" : undefined}
+                max={fieldName !== "totalExperience" && fieldName.includes("Experience") ? "100" : undefined}
+                value={bio[fieldName]}
+                onChange={(event) => update(fieldName, event.target.value)}
+                style={bioInputStyle}
+              />
+            </Field>
+          ))}
+        </div>
+        <div style={{ color: percentageTotal === 100 ? "#166534" : "#b45309", background: percentageTotal === 100 ? "#f0fdf4" : "#fffbeb", border: `1px solid ${percentageTotal === 100 ? "#bbf7d0" : "#fde68a"}`, borderRadius: 12, padding: "10px 12px", fontWeight: 800 }}>
+          Experience distribution: {percentageTotal}% {percentageTotal === 100 ? "✓" : "— must total 100%"}
+        </div>
+
+        <div style={{ display: "grid", gap: 13 }}>
+          <Field label="Project history — one project per line">
+            <textarea value={bio.projects} onChange={(event) => update("projects", event.target.value)} style={{ ...bioInputStyle, minHeight: 105, resize: "vertical" }} />
+          </Field>
+          <Field label="Strengths — one strength per line">
+            <textarea value={bio.strengths} onChange={(event) => update("strengths", event.target.value)} style={{ ...bioInputStyle, minHeight: 130, resize: "vertical" }} />
+          </Field>
+          <Field label="Certifications">
+            <textarea value={bio.certifications} onChange={(event) => update("certifications", event.target.value)} style={{ ...bioInputStyle, minHeight: 76, resize: "vertical" }} />
+          </Field>
+          <Field label="Languages">
+            <input value={bio.languages} onChange={(event) => update("languages", event.target.value)} style={bioInputStyle} />
+          </Field>
+          <Field label="Closing note">
+            <textarea value={bio.notes} onChange={(event) => update("notes", event.target.value)} style={{ ...bioInputStyle, minHeight: 76, resize: "vertical" }} />
+          </Field>
+        </div>
+
+        {error ? <div style={{ padding: "11px 13px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontWeight: 800 }}>{error}</div> : null}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
+          <Button onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={saveBio} disabled={saving} tone="dark" icon={saving ? Loader2 : FileText} iconClassName={saving ? "spin" : undefined}>
+            {saving ? "Generating BIO..." : "Generate and save BIO"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openReminderRequestId = 0 }) {
   const workerId = worker.id;
   const lastReminderRequestRef = useRef(0);
@@ -1573,6 +1740,7 @@ function WorkerCard({
   const [copiedHoursLink, setCopiedHoursLink] = useState(false);
   const [copyingHoursLink, setCopyingHoursLink] = useState(false);
   const [reminderRequestId, setReminderRequestId] = useState(0);
+  const [bioOpen, setBioOpen] = useState(false);
 
   const [recruiterUserId, setRecruiterUserId] = useState(worker.recruiter_user_id || "");
   const [savingRecruiter, setSavingRecruiter] = useState(false);
@@ -1866,6 +2034,29 @@ function WorkerCard({
                   aria-label="Manage candidate profile"
                   onClick={() => navigate(`/admin/workers/${worker.id}/profile`)}
                 />
+                <button
+                  type="button"
+                  title="Generate an editable CTS BIO"
+                  aria-label="Generate CTS BIO"
+                  onClick={() => setBioOpen(true)}
+                  style={{
+                    minHeight: 40,
+                    border: "1px solid #93c5fd",
+                    borderRadius: 12,
+                    padding: "9px 12px",
+                    background: "#eff6ff",
+                    color: "#1d4ed8",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 7,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <FileText size={16} /> Generate CTS BIO
+                </button>
                 <IconButton
                   icon={Mail}
                   title={worker.email ? "Remind candidate to upload documents" : "Candidate has no email address"}
@@ -2434,6 +2625,14 @@ function WorkerCard({
             </div>
           ) : null}
         </>
+      ) : null}
+
+      {bioOpen ? (
+        <CtsBioModal
+          worker={worker}
+          onClose={() => setBioOpen(false)}
+          onSaved={onDocumentsChanged}
+        />
       ) : null}
 
       {editOpen ? (

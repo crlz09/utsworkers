@@ -7,6 +7,8 @@ export const WORKER_DOCUMENT_TYPES = [
   { value: "other", label: "Other" },
 ];
 
+export const CTS_BIO_DOCUMENT_LABEL = "BIO";
+
 export const TWO_SIDED_WORKER_DOCUMENT_TYPES = new Set([
   "state_id_or_driver_license",
   "employment_authorization_card",
