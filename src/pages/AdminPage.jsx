@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
@@ -6,6 +6,8 @@ import GoToTopButton from "../components/GoToTopButton";
 import {
   getWorkerDocumentCategoryKey,
   getWorkerDocumentLabel,
+  getWorkerDocumentStatus,
+  REMINDER_WORKER_DOCUMENT_TYPES,
   TWO_SIDED_WORKER_DOCUMENT_TYPES,
   WORKER_DOCUMENT_TYPES,
 } from "../lib/workerDocuments";
@@ -1085,7 +1087,9 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
   );
 }
 
-function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
+function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openReminderRequestId = 0 }) {
+  const workerId = worker.id;
+  const lastReminderRequestRef = useRef(0);
   const [selectedFiles, setSelectedFiles] = useState({ single: null, front: null, back: null });
   const [documentType, setDocumentType] = useState("resume");
   const [otherDescription, setOtherDescription] = useState("");
@@ -1094,6 +1098,11 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [downloadingId, setDownloadingId] = useState("");
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const [reminderTypes, setReminderTypes] = useState([]);
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [reminderError, setReminderError] = useState("");
+  const [reminderSuccess, setReminderSuccess] = useState("");
   const requiresBothSides = TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType);
   const hasRequiredFiles = requiresBothSides
     ? Boolean(selectedFiles.front && selectedFiles.back)
@@ -1108,6 +1117,52 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
     setSelectedFiles((previous) => ({ ...previous, [side]: file || null }));
     setError("");
     setSuccess("");
+  };
+
+  const openReminder = () => {
+    setReminderTypes(
+      REMINDER_WORKER_DOCUMENT_TYPES
+        .filter((type) => type.required && !getWorkerDocumentStatus(documents, type.value).complete)
+        .map((type) => type.value)
+    );
+    setReminderError("");
+    setReminderSuccess("");
+    setReminderOpen(true);
+  };
+
+  useEffect(() => {
+    if (!openReminderRequestId || openReminderRequestId === lastReminderRequestRef.current) return;
+    lastReminderRequestRef.current = openReminderRequestId;
+    setReminderTypes(
+      REMINDER_WORKER_DOCUMENT_TYPES
+        .filter((type) => type.required && !getWorkerDocumentStatus(documents, type.value).complete)
+        .map((type) => type.value)
+    );
+    setReminderError("");
+    setReminderSuccess("");
+    setReminderOpen(true);
+  }, [documents, openReminderRequestId]);
+
+  const toggleReminderType = (type) => {
+    setReminderTypes((previous) => previous.includes(type)
+      ? previous.filter((value) => value !== type)
+      : [...previous, type]);
+  };
+
+  const sendDocumentReminder = async () => {
+    if (!reminderTypes.length) return;
+    setSendingReminder(true);
+    setReminderError("");
+    const { data, error: invokeError } = await supabase.functions.invoke("send-document-reminder", {
+      body: { mode: "manual", workerId, documentTypes: reminderTypes },
+    });
+    setSendingReminder(false);
+    if (invokeError || data?.error) {
+      setReminderError(data?.error || invokeError?.message || "Could not send the reminder.");
+      return;
+    }
+    setReminderOpen(false);
+    setReminderSuccess(`Reminder sent to ${worker.email}.`);
   };
 
   const handleUpload = async () => {
@@ -1274,10 +1329,49 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
         gap: 14,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "#0f172a" }}>
-        <Paperclip size={16} />
-        <span>Documents</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", fontWeight: 800, color: "#0f172a" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Paperclip size={16} /> Documents</span>
+        <button
+          type="button"
+          onClick={openReminder}
+          disabled={!worker.email}
+          title={worker.email ? "Choose documents and send a reminder" : "This candidate has no email address"}
+          style={{ border: "1px solid #bfdbfe", background: "#eff6ff", color: "#1d4ed8", borderRadius: 12, padding: "9px 12px", fontWeight: 850, cursor: worker.email ? "pointer" : "not-allowed", display: "inline-flex", alignItems: "center", gap: 7, opacity: worker.email ? 1 : .55 }}
+        >
+          <Mail size={15} /> Remind documents
+        </button>
       </div>
+
+      {reminderOpen ? (
+        <div style={{ padding: 16, borderRadius: 16, border: "1px solid #bfdbfe", background: "#ffffff", display: "grid", gap: 13 }}>
+          <div>
+            <div style={{ fontWeight: 900, color: "#0f172a" }}>Send document reminder</div>
+            <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>Choose what {worker.name || "this candidate"} should upload. Missing required documents are selected automatically.</div>
+          </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {REMINDER_WORKER_DOCUMENT_TYPES.map((type) => {
+              const status = getWorkerDocumentStatus(documents, type.value);
+              return (
+                <label key={type.value} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: 12, cursor: "pointer" }}>
+                  <input type="checkbox" checked={reminderTypes.includes(type.value)} onChange={() => toggleReminderType(type.value)} />
+                  <span style={{ flex: 1, fontWeight: 800 }}>{type.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 850, color: type.required ? "#9a3412" : "#64748b" }}>{type.required ? "REQUIRED" : "OPTIONAL"}</span>
+                  <span style={{ fontSize: 11, fontWeight: 850, color: status.complete ? "#166534" : "#b91c1c" }}>{status.complete ? "UPLOADED" : "MISSING"}</span>
+                </label>
+              );
+            })}
+          </div>
+          {reminderError ? <div style={{ color: "#b91c1c", fontWeight: 750, fontSize: 13 }}>{reminderError}</div> : null}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, flexWrap: "wrap" }}>
+            <button type="button" onClick={() => setReminderOpen(false)} disabled={sendingReminder} style={{ border: "1px solid #cbd5e1", background: "#fff", borderRadius: 12, padding: "10px 13px", fontWeight: 800, cursor: "pointer" }}>Cancel</button>
+            <button type="button" onClick={sendDocumentReminder} disabled={sendingReminder || !reminderTypes.length} style={{ border: 0, background: sendingReminder || !reminderTypes.length ? "#94a3b8" : "#1f2c40", color: "#fff", borderRadius: 12, padding: "10px 14px", fontWeight: 850, cursor: sendingReminder || !reminderTypes.length ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 7 }}>
+              {sendingReminder ? <Loader2 size={15} className="spin" /> : <Mail size={15} />} {sendingReminder ? "Sending..." : "Send reminder"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {reminderSuccess ? <div style={{ padding: "11px 13px", borderRadius: 13, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontWeight: 750 }}>{reminderSuccess}</div> : null}
 
       <div
         className="document-upload-grid"
@@ -1478,6 +1572,7 @@ function WorkerCard({
   const [copiedProfile, setCopiedProfile] = useState(false);
   const [copiedHoursLink, setCopiedHoursLink] = useState(false);
   const [copyingHoursLink, setCopyingHoursLink] = useState(false);
+  const [reminderRequestId, setReminderRequestId] = useState(0);
 
   const [recruiterUserId, setRecruiterUserId] = useState(worker.recruiter_user_id || "");
   const [savingRecruiter, setSavingRecruiter] = useState(false);
@@ -1770,6 +1865,16 @@ function WorkerCard({
                   title="Manage candidate profile"
                   aria-label="Manage candidate profile"
                   onClick={() => navigate(`/admin/workers/${worker.id}/profile`)}
+                />
+                <IconButton
+                  icon={Mail}
+                  title={worker.email ? "Remind candidate to upload documents" : "Candidate has no email address"}
+                  aria-label="Remind candidate to upload documents"
+                  disabled={!worker.email}
+                  onClick={() => {
+                    setDetailsOpen(true);
+                    setReminderRequestId((value) => value + 1);
+                  }}
                 />
                 <IconButton
                   icon={Pencil}
@@ -2183,9 +2288,10 @@ function WorkerCard({
           </div>
 
           <WorkerDocumentsPanel
-            workerId={worker.id}
+            worker={worker}
             documents={worker.worker_documents || []}
             onDocumentsChanged={onDocumentsChanged}
+            openReminderRequestId={reminderRequestId}
           />
 
           <div style={{ display: "grid", gap: 16 }}>

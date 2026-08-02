@@ -12,6 +12,16 @@ export const TWO_SIDED_WORKER_DOCUMENT_TYPES = new Set([
   "employment_authorization_card",
 ]);
 
+export const REQUIRED_WORKER_DOCUMENT_TYPES = new Set([
+  "state_id_or_driver_license",
+  "social_security_card",
+]);
+
+export const REMINDER_WORKER_DOCUMENT_TYPES = WORKER_DOCUMENT_TYPES.map((type) => ({
+  ...type,
+  required: REQUIRED_WORKER_DOCUMENT_TYPES.has(type.value),
+}));
+
 const LEGACY_DOCUMENT_LABELS = {
   resume: "Resume",
   id: "Government ID",
@@ -35,3 +45,27 @@ export const getWorkerDocumentCategoryKey = (value) =>
     .replace(/\s+-\s+(front|back)$/i, "")
     .trim()
     .toLowerCase();
+
+export const getWorkerDocumentStatus = (documents, documentType) => {
+  if (documentType === "other") {
+    return {
+      complete: (documents || []).some((document) =>
+        String(document.document_type || "").toLowerCase().startsWith("other")
+      ),
+    };
+  }
+  const label = getWorkerDocumentLabel(documentType);
+  const matching = (documents || []).filter(
+    (document) => getWorkerDocumentCategoryKey(document.document_type)
+      === getWorkerDocumentCategoryKey(label)
+  );
+
+  if (TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType)) {
+    const sides = matching.map((document) => String(document.document_type || "").toLowerCase());
+    const front = sides.some((value) => /\s-\sfront$/.test(value));
+    const back = sides.some((value) => /\s-\sback$/.test(value));
+    return { complete: front && back, front, back };
+  }
+
+  return { complete: matching.length > 0 };
+};
