@@ -2108,7 +2108,7 @@ function WorkerCard({
                   onClick={() => setActionMenuOpen((open) => !open)}
                 />
                 {actionMenuOpen ? (
-                  <div style={{ position: "absolute", top: 42, left: 0, zIndex: 20, width: 230, padding: 7, display: "grid", gap: 3, border: "1px solid #dbeafe", borderRadius: 14, background: "#ffffff", boxShadow: "0 18px 45px rgba(15,23,42,.2)" }}>
+                  <div style={{ position: "absolute", top: 42, right: 0, zIndex: 20, width: 230, padding: 7, display: "grid", gap: 3, border: "1px solid #dbeafe", borderRadius: 14, background: "#ffffff", boxShadow: "0 18px 45px rgba(15,23,42,.2)" }}>
                     {canEditWorkers ? (
                       <>
                         <button type="button" onClick={() => { setActionMenuOpen(false); navigate(`/admin/workers/${worker.id}/profile`); }} style={mobileActionMenuItemStyle()}><UserRound size={16} /> Manage candidate profile</button>
