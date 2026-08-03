@@ -1066,7 +1066,7 @@ export default function InvoicePage() {
     });
 
     return jobs
-      .filter((job) => countsByJobId.has(job.id))
+      .filter((job) => countsByJobId.has(job.id) || approvedHoursByJobId.has(job.id))
       .map((job) => ({
         ...job,
         placedCount: countsByJobId.get(job.id) || 0,
@@ -1175,7 +1175,6 @@ export default function InvoicePage() {
 
       const candidate = candidatesById.get(entry.cts_job_candidate_id);
       if (!candidate) return;
-      if (String(candidate.candidate_status || "").toLowerCase() !== "placed") return;
       const job = jobsById.get(entry.cts_job_id || candidate.cts_job_id);
       if (!job) return;
       if (!selectedProjectIdSet.has(job.id)) return;
