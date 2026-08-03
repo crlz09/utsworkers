@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Download,
   ExternalLink,
   Loader2,
@@ -506,6 +509,25 @@ function PageStyles() {
         font-weight: 700;
       }
 
+      .sortable-header-button {
+        width: 100%;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        text-align: left;
+        text-transform: inherit;
+        letter-spacing: inherit;
+        font: inherit;
+      }
+
+      .sortable-header-button:hover { color: #1d4ed8; }
+      .sortable-header-button svg { flex: 0 0 auto; }
+
       tbody tr {
         transition: background-color 0.16s ease;
       }
@@ -984,14 +1006,6 @@ function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
 }
 
-function getCandidateStatusPriority(status) {
-  const normalizedStatus = String(status || "sourced").toLowerCase();
-
-  if (normalizedStatus === "placed") return 1;
-  if (normalizedStatus === "sourced") return 2;
-  return 3;
-}
-
 function getCandidateStatusClass(status) {
   const normalizedStatus = String(status || "sourced").toLowerCase();
   if (normalizedStatus === "placed") return "placed";
@@ -1122,7 +1136,26 @@ function CandidatePrintReport({ candidates, title, subtitle }) {
   );
 }
 
-function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChange, onCandidateSave, onCandidateDelete, onPlacementPaidToggle, savingIds = {}, deletingIds = {} }) {
+function SortableCandidateHeader({ column, label, sortConfig, onSort }) {
+  const active = sortConfig.key === column;
+  const Icon = active ? (sortConfig.direction === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  const ariaSort = active ? (sortConfig.direction === "asc" ? "ascending" : "descending") : "none";
+
+  return (
+    <th aria-sort={ariaSort}>
+      <button
+        type="button"
+        className="sortable-header-button"
+        onClick={() => onSort(column)}
+        title={`Sort by ${label}`}
+      >
+        {label} <Icon size={13} aria-hidden="true" />
+      </button>
+    </th>
+  );
+}
+
+function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChange, onCandidateSave, onCandidateDelete, onPlacementPaidToggle, savingIds = {}, deletingIds = {}, sortConfig, onSort }) {
   if (candidates.length === 0) {
     return <div className="empty-state">No candidates found for this view.</div>;
   }
@@ -1132,12 +1165,12 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
       <table>
         <thead>
           <tr>
-            <th>Name</th>
+            <SortableCandidateHeader column="name" label="Name" sortConfig={sortConfig} onSort={onSort} />
             <th>Profile</th>
-            <th>Project</th>
-            <th>Status</th>
-            <th>Placement Fee</th>
-            <th>Last Modified</th>
+            <SortableCandidateHeader column="project" label="Project" sortConfig={sortConfig} onSort={onSort} />
+            <SortableCandidateHeader column="status" label="Status" sortConfig={sortConfig} onSort={onSort} />
+            <SortableCandidateHeader column="placement_fee" label="Placement Fee" sortConfig={sortConfig} onSort={onSort} />
+            <SortableCandidateHeader column="last_modified" label="Last Modified" sortConfig={sortConfig} onSort={onSort} />
           </tr>
         </thead>
         <tbody>
@@ -1570,6 +1603,8 @@ function JobDetailView({
   deletingJob = false,
   onPrintCandidates,
   onExportCandidates,
+  candidateSort,
+  onCandidateSort,
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [editingJobField, setEditingJobField] = useState("");
@@ -1759,6 +1794,8 @@ function JobDetailView({
           savingIds={savingIds}
           deletingIds={deletingIds}
           onPlacementPaidToggle={onPlacementPaidToggle}
+          sortConfig={candidateSort}
+          onSort={onCandidateSort}
         />
       </div>
 
@@ -1774,6 +1811,7 @@ export default function JobsPageTest({ mode = "admin" }) {
   const [feedback, setFeedback] = useState({ error: "", success: "" });
   const [search, setSearch] = useState("");
   const [candidateStatusFilter, setCandidateStatusFilter] = useState("");
+  const [candidateSort, setCandidateSort] = useState({ key: "last_modified", direction: "desc" });
   const [activeView, setActiveView] = useState({ type: "candidate", status: "placed" });
   const [jobsListOpen, setJobsListOpen] = useState(true);
   const [jobModalOpen, setJobModalOpen] = useState(false);
@@ -2130,20 +2168,33 @@ export default function JobsPageTest({ mode = "admin" }) {
     return counts;
   }, [jobCandidates]);
 
-  const sortedCandidates = useMemo(
-    () => [...jobCandidates].sort((a, b) => {
-      const statusPriorityA = getCandidateStatusPriority(a.candidate_status);
-      const statusPriorityB = getCandidateStatusPriority(b.candidate_status);
-      if (statusPriorityA !== statusPriorityB) return statusPriorityA - statusPriorityB;
+  const sortedCandidates = useMemo(() => {
+    const direction = candidateSort.direction === "asc" ? 1 : -1;
+    return [...jobCandidates].sort((a, b) => {
+      let comparison = 0;
+      if (candidateSort.key === "name") {
+        comparison = normalizeText(getCandidateName(a)).localeCompare(normalizeText(getCandidateName(b)));
+      } else if (candidateSort.key === "project") {
+        comparison = normalizeText(getCandidateProjectName(a)).localeCompare(normalizeText(getCandidateProjectName(b)));
+      } else if (candidateSort.key === "status") {
+        comparison = normalizeText(formatStatus(a.candidate_status)).localeCompare(normalizeText(formatStatus(b.candidate_status)));
+      } else if (candidateSort.key === "placement_fee") {
+        comparison = Number(Boolean(a.placement_fee_paid)) - Number(Boolean(b.placement_fee_paid));
+      } else {
+        comparison = getTimestamp(a.updated_at || a.created_at) - getTimestamp(b.updated_at || b.created_at);
+      }
 
-      const updatedAtA = getTimestamp(a.updated_at || a.created_at);
-      const updatedAtB = getTimestamp(b.updated_at || b.created_at);
-      if (updatedAtA !== updatedAtB) return updatedAtB - updatedAtA;
+      if (comparison === 0) comparison = getTimestamp(a.created_at) - getTimestamp(b.created_at);
+      return comparison * direction;
+    });
+  }, [candidateSort, jobCandidates]);
 
-      return getTimestamp(b.created_at) - getTimestamp(a.created_at);
-    }),
-    [jobCandidates]
-  );
+  const changeCandidateSort = (key) => {
+    setCandidateSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
 
   const viewCandidates = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -2237,7 +2288,7 @@ export default function JobsPageTest({ mode = "admin" }) {
   }, [activeView, selectedJob]);
 
   const activeSubtitle = useMemo(() => {
-    if (activeView.type === "candidate") return "Candidates are ordered by Status priority, then Last Modified from newest to oldest.";
+    if (activeView.type === "candidate") return "Select a column heading to organize candidates in ascending or descending order.";
     if (activeView.type === "jobs") return "Select any project from the left navigation or open its full detail page.";
     return "";
   }, [activeView.type]);
@@ -2446,6 +2497,8 @@ export default function JobsPageTest({ mode = "admin" }) {
                 deletingJob={!!deletingJobIds[selectedJob?.id]}
                 onPrintCandidates={printCandidateView}
                 onExportCandidates={exportCandidateCsv}
+                candidateSort={candidateSort}
+                onCandidateSort={changeCandidateSort}
                 searchToolbar={(
                   <SearchToolbar
                     search={search}
@@ -2466,6 +2519,8 @@ export default function JobsPageTest({ mode = "admin" }) {
                 savingIds={savingIds}
                 deletingIds={deletingIds}
                 onPlacementPaidToggle={togglePlacementFeePaid}
+                sortConfig={candidateSort}
+                onSort={changeCandidateSort}
               />
             )}
           </section>
