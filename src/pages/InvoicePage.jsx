@@ -954,6 +954,7 @@ export default function InvoicePage() {
   const [candidates, setCandidates] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [hoursEntries, setHoursEntries] = useState([]);
+  const [ctsImportedHours, setCtsImportedHours] = useState([]);
   const [weeklyReviews, setWeeklyReviews] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
@@ -984,7 +985,7 @@ export default function InvoicePage() {
     setFeedback({ error: "", success: "" });
 
     const reviewStart = toDateInputValue(startOfWeek(new Date(`${dateFrom}T00:00:00`)));
-    const [jobsRes, candidatesRes, workersRes, hoursRes, reviewsRes, invoicesRes] = await Promise.all([
+    const [jobsRes, candidatesRes, workersRes, hoursRes, importedHoursRes, reviewsRes, invoicesRes] = await Promise.all([
       supabase.from("cts_jobs").select("*").order("created_at", { ascending: false }),
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }),
       supabase.from("workers").select("id, name, phone, email"),
@@ -994,6 +995,11 @@ export default function InvoicePage() {
         .eq("source", "admin")
         .gte("work_date", dateFrom)
         .lte("work_date", dateTo),
+      supabase
+        .from("cts_hours_import_rows")
+        .select("*")
+        .gte("week_ending_date", dateFrom)
+        .lte("week_ending_date", dateTo),
       supabase
         .from("weekly_hours_reviews")
         .select("*")
@@ -1007,13 +1013,14 @@ export default function InvoicePage() {
         .limit(30),
     ]);
 
-    if (jobsRes.error || candidatesRes.error || workersRes.error || hoursRes.error || reviewsRes.error || invoicesRes.error) {
+    if (jobsRes.error || candidatesRes.error || workersRes.error || hoursRes.error || importedHoursRes.error || reviewsRes.error || invoicesRes.error) {
       setFeedback({
         error:
           jobsRes.error?.message ||
           candidatesRes.error?.message ||
           workersRes.error?.message ||
           hoursRes.error?.message ||
+          importedHoursRes.error?.message ||
           reviewsRes.error?.message ||
           invoicesRes.error?.message ||
           "Could not load invoice data.",
@@ -1023,6 +1030,7 @@ export default function InvoicePage() {
       setCandidates([]);
       setWorkers([]);
       setHoursEntries([]);
+      setCtsImportedHours([]);
       setWeeklyReviews([]);
       setInvoices([]);
       setLoading(false);
@@ -1033,10 +1041,11 @@ export default function InvoicePage() {
     setCandidates(candidatesRes.data || []);
     setWorkers(workersRes.data || []);
     setHoursEntries(hoursRes.data || []);
+    setCtsImportedHours(importedHoursRes.data || []);
     setWeeklyReviews(reviewsRes.data || []);
     setInvoices(invoicesRes.data || []);
     setLoading(false);
-  }, [dateFrom, dateTo, setCandidates, setFeedback, setHoursEntries, setInvoices, setJobs, setLoading, setWeeklyReviews, setWorkers]);
+  }, [dateFrom, dateTo, setCandidates, setCtsImportedHours, setFeedback, setHoursEntries, setInvoices, setJobs, setLoading, setWeeklyReviews, setWorkers]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());
@@ -1064,6 +1073,10 @@ export default function InvoicePage() {
       if (!jobId) return;
       approvedHoursByJobId.set(jobId, (approvedHoursByJobId.get(jobId) || 0) + Number(entry.regular_hours || 0));
     });
+    ctsImportedHours.forEach((entry) => {
+      if (!entry.cts_job_id) return;
+      approvedHoursByJobId.set(entry.cts_job_id, (approvedHoursByJobId.get(entry.cts_job_id) || 0) + Number(entry.total_hours || 0));
+    });
 
     return jobs
       .filter((job) => countsByJobId.has(job.id) || approvedHoursByJobId.has(job.id))
@@ -1075,7 +1088,7 @@ export default function InvoicePage() {
         projectLocation: [job.city, job.state].filter(Boolean).join(", "),
       }))
       .sort((a, b) => a.projectName.localeCompare(b.projectName));
-  }, [approvedReviewKeys, candidates, candidatesById, hoursEntries, jobs]);
+  }, [approvedReviewKeys, candidates, candidatesById, ctsImportedHours, hoursEntries, jobs]);
 
   const effectiveSelectedProjectIds = selectedProjectIds ?? projectOptions.map((project) => project.id);
   const selectedProjectIdSet = useMemo(() => new Set(effectiveSelectedProjectIds), [effectiveSelectedProjectIds]);
@@ -1166,10 +1179,63 @@ export default function InvoicePage() {
   const invoiceRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     const grouped = new Map();
+    const importedCandidateWeeks = new Set(ctsImportedHours.map((entry) => `${entry.cts_job_candidate_id}|${entry.week_start_date}`));
+
+    ctsImportedHours.forEach((entry) => {
+      const hours = Number(entry.total_hours || 0);
+      if (!hours) return;
+      const candidate = candidatesById.get(entry.cts_job_candidate_id);
+      if (!candidate) return;
+      const job = jobsById.get(entry.cts_job_id || candidate.cts_job_id);
+      if (!job || !selectedProjectIdSet.has(job.id)) return;
+      const worker = workersById.get(entry.worker_id || candidate.worker_id) || {};
+      const candidateName = candidate.name_snapshot || worker.name || entry.source_employee_name || "Unnamed worker";
+      const projectName = job.level_type || "Untitled project";
+      const projectLocation = [job.city, job.state].filter(Boolean).join(", ");
+      const searchable = [candidateName, projectName, projectLocation, entry.source_memo, entry.source_invoice_number]
+        .filter(Boolean).join(" ").toLowerCase();
+      if (query && !searchable.includes(query)) return;
+
+      const key = `${candidate.id}|${job.id}`;
+      const existing = grouped.get(key) || {
+        key,
+        candidateId: candidate.id,
+        jobId: job.id,
+        candidateName,
+        workerEmail: worker.email || "",
+        workerPhone: candidate.phone_snapshot || worker.phone || "",
+        projectName,
+        projectLocation,
+        jobCode: job.job_code || "",
+        clientName: (job.client_name || "CTS").trim() || "CTS",
+        lineType: "hours",
+        workerId: entry.worker_id || candidate.worker_id || null,
+        hours: 0,
+        qty: 0,
+        firstDate: entry.week_start_date,
+        lastDate: entry.week_ending_date,
+        serviceName: DEFAULT_PRODUCT_SERVICES[0].name,
+        defaultServiceId: DEFAULT_PRODUCT_SERVICES[0].id,
+        defaultRate: 1,
+        ctsRegularHours: 0,
+        ctsOvertimeHours: 0,
+        ctsDoubleTimeHours: 0,
+        ctsSource: true,
+      };
+      existing.hours += hours;
+      existing.qty += hours;
+      existing.ctsRegularHours += Number(entry.regular_hours || 0);
+      existing.ctsOvertimeHours += Number(entry.overtime_hours || 0);
+      existing.ctsDoubleTimeHours += Number(entry.double_time_hours || 0);
+      if (entry.week_start_date < existing.firstDate) existing.firstDate = entry.week_start_date;
+      if (entry.week_ending_date > existing.lastDate) existing.lastDate = entry.week_ending_date;
+      grouped.set(key, existing);
+    });
 
     hoursEntries.forEach((entry) => {
       if (entry.source !== "admin") return;
       if (!approvedReviewKeys.has(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)) return;
+      if (importedCandidateWeeks.has(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)) return;
       const hours = Number(entry.regular_hours || 0);
       if (!hours) return;
 
@@ -1271,13 +1337,13 @@ export default function InvoicePage() {
       if (projectCompare !== 0) return projectCompare;
       return a.candidateName.localeCompare(b.candidateName);
     });
-  }, [approvedReviewKeys, candidates, candidatesById, dateFrom, dateTo, hoursEntries, jobsById, search, selectedProjectIdSet, workersById]);
+  }, [approvedReviewKeys, candidates, candidatesById, ctsImportedHours, dateFrom, dateTo, hoursEntries, jobsById, search, selectedProjectIdSet, workersById]);
 
   const rowsWithTotals = useMemo(
     () => invoiceRows.map((row) => {
       const serviceId = lineServiceIds[row.key] || row.defaultServiceId || DEFAULT_PRODUCT_SERVICES[0].id;
       const service = servicesById.get(serviceId) || servicesById.get(row.defaultServiceId) || DEFAULT_PRODUCT_SERVICES[0];
-      const rate = Number(lineRates[row.key] ?? row.defaultRate ?? service.rate ?? 0);
+      const rate = row.ctsSource ? 1 : Number(lineRates[row.key] ?? row.defaultRate ?? service.rate ?? 0);
       return {
         ...row,
         serviceId,
@@ -1295,7 +1361,7 @@ export default function InvoicePage() {
     () => (loadedInvoiceRows || rowsWithTotals).map((row) => {
       const serviceId = lineServiceIds[row.key] || row.serviceId || row.defaultServiceId || DEFAULT_PRODUCT_SERVICES[0].id;
       const service = servicesById.get(serviceId) || servicesById.get(row.defaultServiceId) || { id: serviceId, name: row.serviceName, rate: row.rate || 0 };
-      const rate = Number(lineRates[row.key] ?? row.rate ?? row.defaultRate ?? service.rate ?? 0);
+      const rate = row.ctsSource ? 1 : Number(lineRates[row.key] ?? row.rate ?? row.defaultRate ?? service.rate ?? 0);
       const qty = Number(row.qty ?? row.hours ?? 0);
       return {
         ...row,
@@ -2006,13 +2072,14 @@ export default function InvoicePage() {
                               <td>
                                 <div className="line-primary">{row.projectName}</div>
                                 <div className="line-secondary">{[row.projectLocation, `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}`, row.jobCode ? `Code: ${row.jobCode}` : ""].filter(Boolean).join(" · ") || "No location"}</div>
+                                {row.ctsSource ? <div className="line-secondary">CTS: REG {formatHours(row.ctsRegularHours)} · OT {formatHours(row.ctsOvertimeHours)} · DT {formatHours(row.ctsDoubleTimeHours)} · all at $1/hr</div> : null}
                                 {row.lineType === "placement_fee" && !invoiceReadOnly ? (
                                   <button className="row-action-btn" type="button" onClick={() => markPlacementFeePaid(row)}>Mark Placement Paid</button>
                                 ) : null}
                               </td>
                               <td style={{ textAlign: "right" }}>{formatHours(row.qty ?? row.hours)}</td>
                               <td style={{ textAlign: "right" }}>
-                                {invoiceReadOnly ? <span>{formatCurrency(row.rate)}</span> : (
+                                {invoiceReadOnly || row.ctsSource ? <span>{formatCurrency(row.rate)}</span> : (
                                   <input
                                     className="rate-input"
                                     type="number"
