@@ -940,6 +940,14 @@ const DEFAULT_PRODUCT_SERVICES = [
   { id: "placement-fee", name: "Placement Fee", rate: 0 },
 ];
 
+const DEFAULT_CTS_CLIENT = {
+  name: "CTS",
+  address: "3924 Pendleton Way, Indianapolis, IN 46226",
+  contact: "Jerry Rasberry",
+  phone: "(317) 377-1988",
+  email: "",
+};
+
 
 function loadStoredProductServices() {
   if (typeof window === "undefined") return DEFAULT_PRODUCT_SERVICES;
@@ -1013,7 +1021,7 @@ export default function InvoicePage() {
   const [lineServiceIds, setLineServiceIds] = useState({});
   const [lineRates, setLineRates] = useState({});
   const [serviceModal, setServiceModal] = useState({ open: false, rowKey: "", name: "", rate: "0" });
-  const [clientModal, setClientModal] = useState({ open: false, name: "", address: "", phone: "", email: "" });
+  const [clientModal, setClientModal] = useState({ open: false, name: "", address: "", contact: "", phone: "", email: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1138,7 +1146,14 @@ export default function InvoicePage() {
       const id = `project-${slugifyId(name)}`;
       if (seen.has(id)) return clients;
       seen.add(id);
-      clients.push({ id, name, address: "", phone: "", email: "" });
+      clients.push({
+        id,
+        name,
+        address: name.toUpperCase() === "CTS" ? DEFAULT_CTS_CLIENT.address : "",
+        contact: name.toUpperCase() === "CTS" ? DEFAULT_CTS_CLIENT.contact : "",
+        phone: name.toUpperCase() === "CTS" ? DEFAULT_CTS_CLIENT.phone : "",
+        email: name.toUpperCase() === "CTS" ? DEFAULT_CTS_CLIENT.email : "",
+      });
       return clients;
     }, []);
   }, [selectedProjects]);
@@ -1177,14 +1192,14 @@ export default function InvoicePage() {
 
   const handleClientChange = (value) => {
     if (value === "__new__") {
-      setClientModal({ open: true, name: "", address: "", phone: "", email: "" });
+      setClientModal({ open: true, name: "", address: "", contact: "", phone: "", email: "" });
       return;
     }
     setSelectedClientId(value);
   };
 
   const closeClientModal = () => {
-    setClientModal({ open: false, name: "", address: "", phone: "", email: "" });
+    setClientModal({ open: false, name: "", address: "", contact: "", phone: "", email: "" });
   };
 
   const createInvoiceClient = () => {
@@ -1198,6 +1213,7 @@ export default function InvoicePage() {
       id: `custom-${Date.now()}`,
       name,
       address: clientModal.address.trim(),
+      contact: clientModal.contact.trim(),
       phone: clientModal.phone.trim(),
       email: clientModal.email.trim(),
     };
@@ -1491,6 +1507,7 @@ export default function InvoicePage() {
     status,
     client_name: selectedClientName,
     client_address: selectedClient?.address || "",
+    client_contact_name: selectedClient?.contact || "",
     client_phone: selectedClient?.phone || "",
     client_email: selectedClient?.email || "",
     date_from: dateFrom,
@@ -1671,6 +1688,7 @@ export default function InvoicePage() {
       id: clientId,
       name: invoice.client_name || "Saved client",
       address: invoice.client_address || "",
+      contact: invoice.client_contact_name || "",
       phone: invoice.client_phone || "",
       email: invoice.client_email || "",
     };
@@ -2082,6 +2100,7 @@ export default function InvoicePage() {
                     <div className="bill-heading">Bill To</div>
                     <div className="bill-main">{selectedClientName}</div>
                     {selectedClient?.address ? <div className="invoice-muted">{selectedClient.address}</div> : null}
+                    {selectedClient?.contact ? <div className="invoice-muted"><strong>Attn:</strong> {selectedClient.contact}</div> : null}
                     {selectedClient?.phone ? <div className="invoice-muted">{selectedClient.phone}</div> : null}
                     {selectedClient?.email ? <div className="invoice-muted">{selectedClient.email}</div> : null}
                   </div>
@@ -2250,6 +2269,16 @@ export default function InvoicePage() {
                 value={clientModal.address}
                 onChange={(event) => setClientModal((prev) => ({ ...prev, address: event.target.value }))}
                 placeholder="Billing address"
+              />
+            </div>
+
+            <div className="invoice-field">
+              <label className="invoice-label">Contact Person</label>
+              <input
+                className="invoice-input"
+                value={clientModal.contact}
+                onChange={(event) => setClientModal((prev) => ({ ...prev, contact: event.target.value }))}
+                placeholder="Contact person"
               />
             </div>
 
