@@ -504,6 +504,28 @@ function InvoiceStyles() {
         line-height: 1.35;
       }
 
+      .contact-line { display: block; }
+
+      .invoice-section-row td {
+        padding: 9px 10px;
+        border-top: 1px solid #dbeafe;
+        border-bottom: 1px solid #dbeafe;
+        background: #eff6ff;
+        color: #1e3a8a;
+        font-size: 11px;
+        font-weight: 850;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .section-row-meta {
+        float: right;
+        color: #64748b;
+        font-weight: 750;
+        letter-spacing: 0;
+        text-transform: none;
+      }
+
       .print-service-name,
       .print-rate-value {
         display: none;
@@ -806,7 +828,7 @@ function InvoiceStyles() {
         .invoice-doc-title { font-size: 25px; }
         .invoice-doc-meta { font-size: 10px; gap: 3px; }
         .invoice-logo { width: 88px; }
-        .invoice-bill-grid { padding: 11px 0; gap: 12px; }
+        .invoice-bill-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 11px 0; gap: 12px; }
         .bill-main { font-size: 13px; }
         .bill-heading { font-size: 9px; }
         .invoice-muted { font-size: 9.5px; line-height: 1.3; }
@@ -814,9 +836,12 @@ function InvoiceStyles() {
         .invoice-table { min-width: 0; width: 100%; table-layout: fixed; font-size: 9px; }
         .invoice-table th, .invoice-table td { padding: 5px 4px; overflow-wrap: anywhere; }
         .invoice-table th { font-size: 8px; letter-spacing: 0.035em; }
+        .invoice-table thead { display: table-header-group; }
         .invoice-table tr { break-inside: avoid; page-break-inside: avoid; }
+        .invoice-section-row td { padding: 5px 4px; font-size: 8px; }
         .line-primary { font-size: 9px; }
         .line-secondary { font-size: 8px; line-height: 1.25; }
+        .screen-service-value, .screen-rate-value { display: none !important; }
         .invoice-total-panel { padding: 10px 0 0; }
         .total-box { min-width: 230px; gap: 5px; }
         .total-row { font-size: 10px; }
@@ -858,6 +883,16 @@ function formatCurrency(value) {
     currency: "USD",
     minimumFractionDigits: 2,
   });
+}
+
+function parseSavedCtsHours(details) {
+  const match = String(details || "").match(/CTS hours:\s*REG\s*([\d.]+)\s*·\s*OT\s*([\d.]+)\s*·\s*DT\s*([\d.]+)/i);
+  if (!match) return null;
+  return {
+    regular: Number(match[1] || 0),
+    overtime: Number(match[2] || 0),
+    doubleTime: Number(match[3] || 0),
+  };
 }
 
 function formatHours(value) {
@@ -1378,15 +1413,33 @@ export default function InvoicePage() {
   const summary = useMemo(() => {
     const totalHours = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "hours" ? row.hours : 0), 0);
     const totalPlacements = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "placement_fee" ? Number(row.qty || 0) : 0), 0);
+    const importedHours = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "hours" && row.ctsSource ? Number(row.hours || 0) : 0), 0);
+    const manualHours = Math.max(0, totalHours - importedHours);
+    const regularHours = activeRowsWithTotals.reduce((total, row) => total + Number(row.ctsRegularHours || 0), 0);
+    const overtimeHours = activeRowsWithTotals.reduce((total, row) => total + Number(row.ctsOvertimeHours || 0), 0);
+    const doubleTimeHours = activeRowsWithTotals.reduce((total, row) => total + Number(row.ctsDoubleTimeHours || 0), 0);
+    const hourlySubtotal = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "hours" ? row.amount : 0), 0);
+    const placementSubtotal = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "placement_fee" ? row.amount : 0), 0);
     const subtotal = activeRowsWithTotals.reduce((total, row) => total + row.amount, 0);
     return {
       totalHours,
       totalPlacements,
+      importedHours,
+      manualHours,
+      regularHours,
+      overtimeHours,
+      doubleTimeHours,
+      hourlySubtotal,
+      placementSubtotal,
       subtotal,
       total: subtotal,
       lineCount: activeRowsWithTotals.length,
     };
   }, [activeRowsWithTotals]);
+
+  const invoiceProjectSummary = selectedProjects.length === 1
+    ? selectedProjects[0].projectName
+    : `${selectedProjects.length} selected CTS project${selectedProjects.length === 1 ? "" : "s"}`;
 
   const refreshData = async () => {
     await load();
@@ -1482,7 +1535,12 @@ export default function InvoicePage() {
     product_service_name: row.serviceName,
     worker_name: row.candidateName,
     project_name: row.projectName,
-    details: [row.projectLocation, row.firstDate && row.lastDate ? `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}` : "", row.jobCode ? `Code: ${row.jobCode}` : ""].filter(Boolean).join(" · "),
+    details: [
+      row.projectLocation,
+      row.firstDate && row.lastDate ? `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}` : "",
+      row.jobCode ? `Code: ${row.jobCode}` : "",
+      row.ctsSource ? `CTS hours: REG ${formatHours(row.ctsRegularHours)} · OT ${formatHours(row.ctsOvertimeHours)} · DT ${formatHours(row.ctsDoubleTimeHours)}` : "",
+    ].filter(Boolean).join(" · "),
     qty: Number((row.qty ?? row.hours ?? 0).toFixed(2)),
     rate: Number(row.rate.toFixed(2)),
     amount: Number(row.amount.toFixed(2)),
@@ -1565,7 +1623,9 @@ export default function InvoicePage() {
 
 
 
-  const mapInvoiceLineToRow = (line) => ({
+  const mapInvoiceLineToRow = (line) => {
+    const savedCtsHours = parseSavedCtsHours(line.details);
+    return {
     key: `saved-${line.id}`,
     lineType: line.line_type || "hours",
     candidateId: line.cts_job_candidate_id || null,
@@ -1577,6 +1637,7 @@ export default function InvoicePage() {
     projectName: line.project_name || "Untitled project",
     projectLocation: "",
     jobCode: "",
+    savedDetails: line.details || "",
     clientName: selectedClientName,
     hours: line.line_type === "hours" ? Number(line.qty || 0) : 0,
     qty: Number(line.qty || 0),
@@ -1588,8 +1649,13 @@ export default function InvoicePage() {
     defaultRate: Number(line.rate || 0),
     rate: Number(line.rate || 0),
     amount: Number(line.amount || 0),
+    ctsSource: !!savedCtsHours,
+    ctsRegularHours: savedCtsHours?.regular || 0,
+    ctsOvertimeHours: savedCtsHours?.overtime || 0,
+    ctsDoubleTimeHours: savedCtsHours?.doubleTime || 0,
     savedLineId: line.id,
-  });
+    };
+  };
 
   const loadInvoiceIntoView = (invoice, readOnly = true) => {
     setCurrentInvoiceId(invoice.id);
@@ -1998,7 +2064,7 @@ export default function InvoicePage() {
                     <div className="invoice-title-meta">
                       <div className="bill-heading">Service Period</div>
                       <div className="bill-main">{formatDate(dateFrom)} – {formatDate(dateTo)}</div>
-                      <div className="invoice-muted">All active projects</div>
+                      <div className="invoice-muted">{invoiceProjectSummary}</div>
                     </div>
                   </div>
                   <div className="invoice-doc-meta">
@@ -2046,11 +2112,21 @@ export default function InvoicePage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {activeRowsWithTotals.map((row, index) => (
-                            <tr key={row.key}>
+                          {activeRowsWithTotals.map((row, index) => {
+                            const startsSection = index === 0 || activeRowsWithTotals[index - 1]?.lineType !== row.lineType;
+                            const sectionLabel = row.lineType === "placement_fee" ? "Placement fees" : "Approved hours";
+                            const sectionAmount = row.lineType === "placement_fee" ? summary.placementSubtotal : summary.hourlySubtotal;
+                            return (
+                            <React.Fragment key={row.key}>
+                              {startsSection ? (
+                                <tr className="invoice-section-row">
+                                  <td colSpan={7}>{sectionLabel}<span className="section-row-meta">Subtotal {formatCurrency(sectionAmount)}</span></td>
+                                </tr>
+                              ) : null}
+                            <tr>
                               <td style={{ textAlign: "right" }}>{index + 1}</td>
                               <td>
-                                {invoiceReadOnly ? <span>{row.serviceName}</span> : (
+                                {invoiceReadOnly ? <span className="screen-service-value">{row.serviceName}</span> : (
                                   <select
                                     className="service-select"
                                     value={row.serviceId}
@@ -2067,7 +2143,11 @@ export default function InvoicePage() {
                               </td>
                               <td>
                                 <div className="line-primary">{row.candidateName}</div>
-                                <div className="line-secondary">{[row.workerPhone, row.workerEmail].filter(Boolean).join(" · ") || "No contact"}</div>
+                                <div className="line-secondary">
+                                  {row.workerPhone ? <span className="contact-line">{row.workerPhone}</span> : null}
+                                  {row.workerEmail ? <span className="contact-line">{row.workerEmail}</span> : null}
+                                  {!row.workerPhone && !row.workerEmail ? "No contact" : null}
+                                </div>
                               </td>
                               <td>
                                 <div className="line-primary">{row.projectName}</div>
@@ -2079,7 +2159,7 @@ export default function InvoicePage() {
                               </td>
                               <td style={{ textAlign: "right" }}>{formatHours(row.qty ?? row.hours)}</td>
                               <td style={{ textAlign: "right" }}>
-                                {invoiceReadOnly || row.ctsSource ? <span>{formatCurrency(row.rate)}</span> : (
+                                {invoiceReadOnly || row.ctsSource ? <span className="screen-rate-value">{formatCurrency(row.rate)}</span> : (
                                   <input
                                     className="rate-input"
                                     type="number"
@@ -2094,15 +2174,21 @@ export default function InvoicePage() {
                               </td>
                               <td style={{ textAlign: "right", fontWeight: 750 }}>{formatCurrency(row.amount)}</td>
                             </tr>
-                          ))}
+                            </React.Fragment>
+                          );})}
                         </tbody>
                       </table>
                     </div>
 
                     <div className="invoice-total-panel">
                       <div className="total-box">
+                        {summary.importedHours > 0 ? <div className="total-row"><span>CTS Imported Hours</span><strong>{formatHours(summary.importedHours)}</strong></div> : null}
+                        {summary.importedHours > 0 ? <div className="total-row"><span>REG / OT / DT</span><strong>{formatHours(summary.regularHours)} / {formatHours(summary.overtimeHours)} / {formatHours(summary.doubleTimeHours)}</strong></div> : null}
+                        {summary.manualHours > 0 ? <div className="total-row"><span>Manually Entered Hours</span><strong>{formatHours(summary.manualHours)}</strong></div> : null}
                         <div className="total-row"><span>Total Hours</span><strong>{formatHours(summary.totalHours)}</strong></div>
+                        <div className="total-row"><span>Hourly Fees</span><strong>{formatCurrency(summary.hourlySubtotal)}</strong></div>
                         <div className="total-row"><span>Total Placements</span><strong>{formatCount(summary.totalPlacements)}</strong></div>
+                        <div className="total-row"><span>Placement Fees</span><strong>{formatCurrency(summary.placementSubtotal)}</strong></div>
                         <div className="total-row grand"><span>Total Due</span><span>{formatCurrency(summary.total)}</span></div>
                       </div>
                     </div>
