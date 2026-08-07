@@ -11,6 +11,7 @@ import {
   Loader2,
   RefreshCw,
   Save,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -197,6 +198,8 @@ function PageStyles() {
       .btn.dark { background: #0f172a; border-color: #0f172a; color: #ffffff; }
       .btn.success { background: #16a34a; border-color: #16a34a; color: #ffffff; }
       .btn.link { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+      .btn.danger { background: #fff1f2; border-color: #fecdd3; color: #be123c; }
+      .btn.danger:hover:not(:disabled) { border-color: #fda4af; background: #ffe4e6; }
       .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
 
       .feedback { border-radius: 16px; padding: 12px 14px; font-size: 13px; font-weight: 800; }
@@ -743,6 +746,46 @@ export default function HoursTrackerPage() {
     }
   };
 
+  const resetWeek = async (assignment) => {
+    const confirmed = window.confirm(
+      `Clear all hours for ${assignment.name} for ${formatWeekRange(weekStart)}? This also removes hours imported from CTS XLSX and cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setSavingKey(`reset-${assignment.id}`);
+    setFeedback({ error: "", success: "" });
+    try {
+      const { error: entriesError } = await supabase
+        .from("hours_entries")
+        .delete()
+        .eq("cts_job_candidate_id", assignment.id)
+        .gte("work_date", weekStart)
+        .lte("work_date", days[6]);
+      if (entriesError) throw entriesError;
+
+      const { error: importedError } = await supabase
+        .from("cts_hours_import_rows")
+        .delete()
+        .eq("cts_job_candidate_id", assignment.id)
+        .eq("week_start_date", weekStart);
+      if (importedError) throw importedError;
+
+      const { error: reviewError } = await supabase
+        .from("weekly_hours_reviews")
+        .delete()
+        .eq("cts_job_candidate_id", assignment.id)
+        .eq("week_start_date", weekStart);
+      if (reviewError) throw reviewError;
+
+      await load({ preserveFeedback: true });
+      setFeedback({ error: "", success: `All hours cleared for ${assignment.name} for ${formatWeekRange(weekStart)}.` });
+    } catch (error) {
+      setFeedback({ error: error.message || "Could not clear the week's hours.", success: "" });
+    } finally {
+      setSavingKey("");
+    }
+  };
+
   const updateStatus = async (assignment, status) => {
     setSavingKey(`${status}-${assignment.id}`);
     setFeedback({ error: "", success: "" });
@@ -934,10 +977,9 @@ export default function HoursTrackerPage() {
       const importedTotal = importPreview.reduce((sum, row) => sum + importedHoursTotal(row), 0);
       closeImportPreview();
       await load({ preserveFeedback: true });
-      setFeedback({ error: "", success: `${importedCount} CTS weekly rows imported and approved (${formatHours(importedTotal)} hours at $1/hour).` });
+      setFeedback({ error: "", success: `${importedCount} CTS weekly rows imported, approved, and used to replace any previous CTS hours for the same candidates and weeks (${formatHours(importedTotal)} hours at $1/hour).` });
     } catch (error) {
-      const duplicate = String(error.message || "").toLowerCase().includes("duplicate");
-      setFeedback({ error: duplicate ? "This exact CTS spreadsheet was already imported." : (error.message || "Could not import CTS hours."), success: "" });
+      setFeedback({ error: error.message || "Could not import CTS hours.", success: "" });
     } finally {
       setImporting(false);
     }
@@ -1115,6 +1157,9 @@ export default function HoursTrackerPage() {
                             </button>
                             <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Reviewed</button>
                             <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Approve</button>
+                            <button className="btn danger" type="button" onClick={() => resetWeek(assignment)} disabled={!!savingKey || (total <= 0 && workerTotal <= 0)} title="Clear all hours for this week, including CTS imports">
+                              {savingKey === `reset-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />} Clear week
+                            </button>
                             <button className="btn link" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!linkSavingKey} title="Generate and copy worker hours link">
                               {linkSavingKey === assignment.id ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Link
                             </button>
@@ -1168,6 +1213,9 @@ export default function HoursTrackerPage() {
                       </button>
                       <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Reviewed</button>
                       <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Approve</button>
+                      <button className="btn danger" type="button" onClick={() => resetWeek(assignment)} disabled={!!savingKey || (total <= 0 && workerTotal <= 0)}>
+                        {savingKey === `reset-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />} Clear week
+                      </button>
                       <button className="btn link" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!linkSavingKey}>
                         {linkSavingKey === assignment.id ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Link
                       </button>
