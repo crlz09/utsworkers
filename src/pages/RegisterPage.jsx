@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
+import { supabase } from "../lib/supabase";
 import {
   findLocationIdByState,
   getFullStateName,
@@ -25,11 +25,6 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 const AUTOSAVE_KEY = "uts_public_register_draft_v2";
-
-const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
 
 const languageOptions = ["English", "Spanish"];
 const experienceFields = [
@@ -171,6 +166,7 @@ const copy = {
       saving: "Saving...",
       clear: "Clear Form",
       registerAnother: "Register Another Person",
+      openPortal: "Open My Candidate Portal",
     },
   },
   es: {
@@ -287,6 +283,7 @@ const copy = {
       saving: "Guardando...",
       clear: "Limpiar Formulario",
       registerAnother: "Registrar Otra Persona",
+      openPortal: "Abrir Mi Portal de Candidato",
     },
   },
 };
@@ -1158,6 +1155,27 @@ function RegistrationSuccessPanel({ text, onRegisterAnother, summary }) {
         </div>
       ) : null}
 
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10 }}>
+      {summary?.email ? (
+        <a
+          href={`/login?email=${encodeURIComponent(summary.email)}`}
+          style={{
+            marginTop: 6,
+            textDecoration: "none",
+            background: "#2563eb",
+            color: "#ffffff",
+            borderRadius: 14,
+            padding: "14px 20px",
+            fontWeight: 900,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <ShieldCheck size={18} />
+          {text.actions.openPortal}
+        </a>
+      ) : null}
       <button
         type="button"
         onClick={onRegisterAnother}
@@ -1178,6 +1196,7 @@ function RegistrationSuccessPanel({ text, onRegisterAnother, summary }) {
         <Plus size={18} />
         {text.actions.registerAnother}
       </button>
+      </div>
     </div>
   );
 }
@@ -1213,36 +1232,38 @@ export default function RegisterPage() {
   }));
 
   useEffect(() => {
-    try {
-      const savedDraft = JSON.parse(localStorage.getItem(AUTOSAVE_KEY) || "null");
-      if (!savedDraft || typeof savedDraft !== "object") return;
+    void Promise.resolve().then(() => {
+      try {
+        const savedDraft = JSON.parse(localStorage.getItem(AUTOSAVE_KEY) || "null");
+        if (!savedDraft || typeof savedDraft !== "object") return;
 
-      if (savedDraft.form && typeof savedDraft.form === "object") {
-        setForm({ ...initialForm, ...savedDraft.form });
+        if (savedDraft.form && typeof savedDraft.form === "object") {
+          setForm({ ...initialForm, ...savedDraft.form });
+        }
+        if (Array.isArray(savedDraft.projects) && savedDraft.projects.length > 0) {
+          setProjects(savedDraft.projects.map((project) => ({ ...emptyProject(), ...project })));
+        }
+        if (Array.isArray(savedDraft.languages)) {
+          setLanguages(savedDraft.languages);
+        }
+        if (savedDraft.englishProficiency) {
+          setEnglishProficiency(String(savedDraft.englishProficiency));
+        }
+        if (Array.isArray(savedDraft.selectedSkillIds)) {
+          setSelectedSkillIds(savedDraft.selectedSkillIds);
+        }
+        if (Array.isArray(savedDraft.selectedCertificationIds)) {
+          setSelectedCertificationIds(savedDraft.selectedCertificationIds);
+        }
+        if (Number.isInteger(savedDraft.currentStep)) {
+          setCurrentStep(Math.min(Math.max(savedDraft.currentStep, 0), registrationStepFields.length - 1));
+        }
+        setDraftRestored(true);
+        window.setTimeout(() => setDraftRestored(false), 3500);
+      } catch {
+        localStorage.removeItem(AUTOSAVE_KEY);
       }
-      if (Array.isArray(savedDraft.projects) && savedDraft.projects.length > 0) {
-        setProjects(savedDraft.projects.map((project) => ({ ...emptyProject(), ...project })));
-      }
-      if (Array.isArray(savedDraft.languages)) {
-        setLanguages(savedDraft.languages);
-      }
-      if (savedDraft.englishProficiency) {
-        setEnglishProficiency(String(savedDraft.englishProficiency));
-      }
-      if (Array.isArray(savedDraft.selectedSkillIds)) {
-        setSelectedSkillIds(savedDraft.selectedSkillIds);
-      }
-      if (Array.isArray(savedDraft.selectedCertificationIds)) {
-        setSelectedCertificationIds(savedDraft.selectedCertificationIds);
-      }
-      if (Number.isInteger(savedDraft.currentStep)) {
-        setCurrentStep(Math.min(Math.max(savedDraft.currentStep, 0), registrationStepFields.length - 1));
-      }
-      setDraftRestored(true);
-      window.setTimeout(() => setDraftRestored(false), 3500);
-    } catch {
-      localStorage.removeItem(AUTOSAVE_KEY);
-    }
+    });
   }, []);
 
   useEffect(() => {

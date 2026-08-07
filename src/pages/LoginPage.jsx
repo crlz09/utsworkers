@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Eye, EyeOff, Lock, Mail } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import { Eye, EyeOff, KeyRound, Lock, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getCurrentUserAccess } from "../lib/userAccess";
@@ -7,12 +7,34 @@ import { getCurrentUserAccess } from "../lib/userAccess";
 export default function LoginPage() {
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(
+    () => new URLSearchParams(window.location.search).get("email") || "",
+  );
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState("");
+  const [mode, setMode] = useState("candidate");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+
+  const routeCurrentUser = useCallback(async () => {
+    const access = await getCurrentUserAccess();
+    const nextPath = access.isAdmin
+      ? "/admin"
+      : access.isClient
+        ? "/client/cts-jobs"
+        : access.isWorker
+          ? "/worker/profile"
+          : "/login";
+    if (!access.isAdmin && !access.isClient && !access.isWorker) {
+      await supabase.auth.signOut();
+      setError("No candidate profile is registered with this email address.");
+      return;
+    }
+    navigate(nextPath, { replace: true });
+  }, [navigate]);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -21,17 +43,7 @@ export default function LoginPage() {
       } = await supabase.auth.getSession();
 
       if (session) {
-        const access = await getCurrentUserAccess();
-        const nextPath = access.isAdmin
-          ? "/admin"
-          : access.isClient
-            ? "/client/cts-jobs"
-            : access.isWorker
-              ? "/worker/hours"
-              : "/login";
-        navigate(nextPath, {
-          replace: true,
-        });
+        await routeCurrentUser();
         return;
       }
 
@@ -39,36 +51,51 @@ export default function LoginPage() {
     };
 
     checkSession();
-  }, [navigate]);
+  }, [routeCurrentUser]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error: loginError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
 
-    if (error) {
-      setError(error.message || "Login failed.");
+    if (loginError) {
+      setError(loginError.message || "Login failed.");
       setLoading(false);
       return;
     }
 
     setLoading(false);
-    const access = await getCurrentUserAccess();
-    const nextPath = access.isAdmin
-      ? "/admin"
-      : access.isClient
-        ? "/client/cts-jobs"
-        : access.isWorker
-          ? "/worker/hours"
-          : "/login";
-    navigate(nextPath, {
-      replace: true,
+    await routeCurrentUser();
+  };
+
+  const sendCandidateOtp = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { shouldCreateUser: true },
     });
+    setLoading(false);
+    if (otpError) { setError(otpError.message || "Could not send the access code."); return; }
+    setOtpSent(true);
+  };
+
+  const verifyCandidateOtp = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email: email.trim(), token: otp.trim(), type: "email",
+    });
+    setLoading(false);
+    if (verifyError) { setError(verifyError.message || "The code is invalid or expired."); return; }
+    await routeCurrentUser();
   };
 
   const inputWrapperStyle = {
@@ -295,7 +322,7 @@ export default function LoginPage() {
                 color: "#0f172a",
               }}
             >
-              Portal Login
+              {mode === "candidate" ? "Candidate Portal" : "Team Login"}
             </h1>
 
             <p
@@ -307,12 +334,22 @@ export default function LoginPage() {
                 lineHeight: 1.6,
               }}
             >
-              Sign in to access your dashboard.
+              {mode === "candidate"
+                ? "Use the code sent to your registered email to manage your profile, documents, and hours."
+                : "Administrators and clients can sign in with their password."}
             </p>
           </div>
 
-          <form onSubmit={handleLogin} style={{ display: "grid", gap: 14 }}>
-            <div style={inputWrapperStyle}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, padding: 5, borderRadius: 13, background: "#f1f5f9" }}>
+            {[{ value: "candidate", label: "Candidate" }, { value: "team", label: "Admin / Client" }].map((option) => (
+              <button key={option.value} type="button" onClick={() => { setMode(option.value); setError(""); setOtpSent(false); setOtp(""); }} style={{ border: 0, borderRadius: 10, padding: "10px 8px", fontWeight: 850, cursor: "pointer", background: mode === option.value ? "#ffffff" : "transparent", color: mode === option.value ? "#0f172a" : "#64748b", boxShadow: mode === option.value ? "0 2px 8px rgba(15,23,42,.08)" : "none" }}>
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <form onSubmit={mode === "candidate" ? (otpSent ? verifyCandidateOtp : sendCandidateOtp) : handleLogin} style={{ display: "grid", gap: 14 }}>
+            {(mode === "team" || (mode === "candidate" && !otpSent)) ? <div style={inputWrapperStyle}>
               <Mail size={18} style={inputIconStyle} />
               <input
                 type="email"
@@ -332,9 +369,18 @@ export default function LoginPage() {
                 style={inputStyle}
                 className="login-input"
               />
-            </div>
+            </div> : null}
 
-            <div style={inputWrapperStyle}>
+            {mode === "candidate" && otpSent ? (
+              <div style={inputWrapperStyle}>
+                <KeyRound size={18} style={inputIconStyle} />
+                <input className="login-input" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit access code" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} required minLength={6} maxLength={6} style={{ ...inputStyle, letterSpacing: ".22em", fontWeight: 850 }} />
+              </div>
+            ) : null}
+
+            {mode === "candidate" && otpSent ? <div style={{ color: "#475569", fontSize: 13, lineHeight: 1.5 }}>We sent a one-time code to <strong>{email}</strong>. It may take a minute to arrive.</div> : null}
+
+            {mode === "team" ? <div style={inputWrapperStyle}>
               <Lock size={18} style={inputIconStyle} />
               <input
                 type={showPassword ? "text" : "password"}
@@ -378,7 +424,7 @@ export default function LoginPage() {
               >
                 {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
               </button>
-            </div>
+            </div> : null}
 
             {error ? (
               <div
@@ -425,8 +471,9 @@ export default function LoginPage() {
                   "transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease",
               }}
             >
-              {loading ? "Signing in..." : "Login"}
+              {loading ? "Please wait..." : mode === "team" ? "Login" : otpSent ? "Verify and enter" : "Send access code"}
             </button>
+            {mode === "candidate" && otpSent ? <button type="button" onClick={() => { setOtpSent(false); setOtp(""); setError(""); }} style={{ border: 0, background: "transparent", color: "#2563eb", fontWeight: 800, cursor: "pointer" }}>Use a different email</button> : null}
           </form>
         </div>
       </div>

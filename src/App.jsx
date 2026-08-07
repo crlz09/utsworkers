@@ -1,13 +1,11 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { AdminRoute, ClientRoute } from "./components/AccessRoute";
+import { AdminRoute, ClientRoute, WorkerRoute } from "./components/AccessRoute";
 
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminNotificationsPage = lazy(() => import("./pages/AdminNotificationsPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
-const InterviewMiniApp = lazy(() => import("./pages/InterviewMiniApp"));
-const InterviewsPage = lazy(() => import("./pages/InterviewsPage"));
 const WorkerProfilePage = lazy(() => import("./pages/WorkerProfilePage"));
 const JobsPageTest = lazy(() => import("./pages/JobsPageTest"));
 const CtsJobDetailPage = lazy(() => import("./pages/CtsJobDetailPage"));
@@ -15,6 +13,9 @@ const ClientCtsJobDetailPage = lazy(() => import("./pages/ClientCtsJobDetailPage
 const HoursTrackerPage = lazy(() => import("./pages/HoursTrackerPage"));
 const InvoicePage = lazy(() => import("./pages/InvoicePage"));
 const WorkerHoursPage = lazy(() => import("./pages/WorkerHoursPage"));
+const BreakdownPage = lazy(() => import("./pages/BreakdownPage"));
+const WorkerDocumentsPage = lazy(() => import("./pages/WorkerDocumentsPage"));
+const CandidateProfilePage = lazy(() => import("./pages/CandidateProfilePage"));
 
 function RouteFallback() {
   return (
@@ -42,25 +43,35 @@ export default function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/interviews/new"
-          element={
-            <AdminRoute>
-              <InterviewMiniApp />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/interviews"
-          element={
-            <AdminRoute>
-              <InterviewsPage />
-            </AdminRoute>
-          }
-        />
+        {/* Interview pages are retained in src/pages but intentionally disabled. */}
+        <Route path="/interviews/*" element={<Navigate to="/admin" replace />} />
         <Route path="/profile/:slug" element={<WorkerProfilePage />} />
         <Route path="/worker/hours/:token" element={<WorkerHoursPage />} />
         <Route path="/workers/hours/:token" element={<WorkerHoursPage />} />
+        <Route
+          path="/worker/profile"
+          element={
+            <WorkerRoute>
+              <CandidateProfilePage />
+            </WorkerRoute>
+          }
+        />
+        <Route
+          path="/worker/hours"
+          element={
+            <WorkerRoute>
+              <Navigate to="/worker/profile" replace />
+            </WorkerRoute>
+          }
+        />
+        <Route
+          path="/worker/documents"
+          element={
+            <WorkerRoute>
+              <WorkerDocumentsPage />
+            </WorkerRoute>
+          }
+        />
         <Route
           path="/client/cts-jobs"
           element={
@@ -94,6 +105,14 @@ export default function App() {
           }
         />
         <Route
+          path="/breakdown"
+          element={
+            <AdminRoute>
+              <BreakdownPage />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="/cts-jobs"
           element={
             <AdminRoute>
@@ -122,6 +141,22 @@ export default function App() {
           element={
             <AdminRoute>
               <AdminPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/workers/:workerId/profile"
+          element={
+            <AdminRoute>
+              <CandidateProfilePage adminMode />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/workers/:workerId/documents"
+          element={
+            <AdminRoute>
+              <WorkerDocumentsPage adminMode />
             </AdminRoute>
           }
         />

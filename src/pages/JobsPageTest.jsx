@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Download,
   ExternalLink,
   Loader2,
@@ -506,6 +509,25 @@ function PageStyles() {
         font-weight: 700;
       }
 
+      .sortable-header-button {
+        width: 100%;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        text-align: left;
+        text-transform: inherit;
+        letter-spacing: inherit;
+        font: inherit;
+      }
+
+      .sortable-header-button:hover { color: #1d4ed8; }
+      .sortable-header-button svg { flex: 0 0 auto; }
+
       tbody tr {
         transition: background-color 0.16s ease;
       }
@@ -775,7 +797,7 @@ function PageStyles() {
       @media print {
         @page {
           size: letter portrait;
-          margin: 0.42in;
+          margin: 0.45in;
         }
 
         html, body, #root {
@@ -785,61 +807,42 @@ function PageStyles() {
           background: #ffffff !important;
         }
 
-        .uts-topbar,
-        .client-topbar,
-        .hero-card,
-        .side-nav,
-        .view-header,
-        .toolbar-row,
-        .table-scroll,
-        .empty-state,
-        .go-to-top-button {
-          display: none !important;
-        }
-
-        .jobs-test-shell,
-        .dashboard-layout,
-        .view-panel {
-          display: block !important;
-          width: 100% !important;
-          max-width: none !important;
-          min-height: 0 !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          border: 0 !important;
-          border-radius: 0 !important;
-          background: #ffffff !important;
+        body * {
+          visibility: hidden !important;
           box-shadow: none !important;
           text-shadow: none !important;
         }
 
+        .print-candidates-report,
+        .print-candidates-report * {
+          visibility: visible !important;
+        }
+
         .print-candidates-report {
           display: block !important;
-          position: static !important;
+          position: absolute;
+          inset: 0 auto auto 0;
           width: 100% !important;
           padding: 0 !important;
           color: #0f172a !important;
-          font-size: 10.5px !important;
-          line-height: 1.28 !important;
-          break-after: auto !important;
-          page-break-after: auto !important;
+          font-size: 11px !important;
+          line-height: 1.35 !important;
         }
 
         .print-report-head {
-          display: grid !important;
-          grid-template-columns: 1fr auto;
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
           gap: 14px;
-          align-items: end;
           padding-bottom: 12px;
           margin-bottom: 12px;
-          border-bottom: 3px solid #0f172a;
+          border-bottom: 2px solid #0f172a;
         }
 
         .print-report-title {
           margin: 0;
-          font-size: 24px;
-          line-height: 1.08;
-          letter-spacing: 0;
+          font-size: 20px;
+          letter-spacing: -0.02em;
         }
 
         .print-report-meta {
@@ -850,55 +853,30 @@ function PageStyles() {
 
         .print-candidates-table {
           width: 100% !important;
-          border-collapse: separate !important;
-          border-spacing: 0 !important;
+          border-collapse: collapse !important;
           table-layout: fixed !important;
-          border: 1px solid #dbeafe !important;
-          border-radius: 10px !important;
-          overflow: hidden !important;
-          break-after: auto !important;
-          page-break-after: auto !important;
         }
 
         .print-candidates-table th,
         .print-candidates-table td {
-          border: 0 !important;
-          border-bottom: 1px solid #e2e8f0 !important;
+          border: 1px solid #cbd5e1 !important;
           padding: 7px 8px !important;
-          vertical-align: middle !important;
+          vertical-align: top !important;
           color: #0f172a !important;
           background: #ffffff !important;
           word-break: break-word !important;
         }
 
         .print-candidates-table th {
-          background: #eff6ff !important;
-          color: #1e3a8a !important;
-          font-size: 9.5px !important;
+          background: #f1f5f9 !important;
+          font-size: 10px !important;
           text-transform: uppercase !important;
           letter-spacing: 0.08em !important;
           font-weight: 800 !important;
         }
 
         .print-candidates-table td {
-          font-size: 10.5px !important;
-        }
-
-        .print-candidates-table tbody tr:nth-child(even) td {
-          background: #f8fbff !important;
-        }
-
-        .print-candidates-table tbody tr:last-child td {
-          border-bottom: 0 !important;
-        }
-
-        .print-candidates-table thead {
-          display: table-header-group !important;
-        }
-
-        .print-candidates-table tr {
-          break-inside: avoid !important;
-          page-break-inside: avoid !important;
+          font-size: 11px !important;
         }
 
         .print-main-text {
@@ -912,13 +890,10 @@ function PageStyles() {
         }
 
         .print-status {
-          display: inline-flex !important;
-          align-items: center;
-          justify-content: center;
-          min-width: 58px;
+          display: inline-block !important;
           border: 1px solid #cbd5e1 !important;
           border-radius: 999px !important;
-          padding: 4px 8px !important;
+          padding: 3px 8px !important;
           font-weight: 800 !important;
           background: #f8fafc !important;
         }
@@ -1031,14 +1006,6 @@ function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
 }
 
-function getCandidateStatusPriority(status) {
-  const normalizedStatus = String(status || "sourced").toLowerCase();
-
-  if (normalizedStatus === "placed") return 1;
-  if (normalizedStatus === "sourced") return 2;
-  return 3;
-}
-
 function getCandidateStatusClass(status) {
   const normalizedStatus = String(status || "sourced").toLowerCase();
   if (normalizedStatus === "placed") return "placed";
@@ -1139,10 +1106,10 @@ function CandidatePrintReport({ candidates, title, subtitle }) {
         <thead>
           <tr>
             <th style={{ width: "23%" }}>Name</th>
-            <th style={{ width: "26%" }}>Email</th>
-            <th style={{ width: "17%" }}>Phone</th>
-            <th style={{ width: "23%" }}>Project</th>
-            <th style={{ width: "11%" }}>Status</th>
+            <th style={{ width: "24%" }}>Email</th>
+            <th style={{ width: "16%" }}>Phone</th>
+            <th style={{ width: "25%" }}>Project</th>
+            <th style={{ width: "12%" }}>Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1151,12 +1118,8 @@ function CandidatePrintReport({ candidates, title, subtitle }) {
               <td>
                 <div className="print-main-text">{getCandidateName(candidate)}</div>
               </td>
-              <td>
-                {candidate.worker?.email || "—"}
-              </td>
-              <td>
-                {getCandidatePhone(candidate) || "—"}
-              </td>
+              <td>{candidate.worker?.email || "—"}</td>
+              <td>{getCandidatePhone(candidate) || "—"}</td>
               <td>
                 <div className="print-main-text">{getCandidateProjectName(candidate)}</div>
               </td>
@@ -1173,7 +1136,26 @@ function CandidatePrintReport({ candidates, title, subtitle }) {
   );
 }
 
-function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChange, onCandidateSave, onCandidateDelete, onPlacementPaidToggle, savingIds = {}, deletingIds = {} }) {
+function SortableCandidateHeader({ column, label, sortConfig, onSort }) {
+  const active = sortConfig.key === column;
+  const Icon = active ? (sortConfig.direction === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  const ariaSort = active ? (sortConfig.direction === "asc" ? "ascending" : "descending") : "none";
+
+  return (
+    <th aria-sort={ariaSort}>
+      <button
+        type="button"
+        className="sortable-header-button"
+        onClick={() => onSort(column)}
+        title={`Sort by ${label}`}
+      >
+        {label} <Icon size={13} aria-hidden="true" />
+      </button>
+    </th>
+  );
+}
+
+function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChange, onCandidateSave, onCandidateDelete, onPlacementPaidToggle, savingIds = {}, deletingIds = {}, sortConfig, onSort }) {
   if (candidates.length === 0) {
     return <div className="empty-state">No candidates found for this view.</div>;
   }
@@ -1183,12 +1165,12 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
       <table>
         <thead>
           <tr>
-            <th>Name</th>
+            <SortableCandidateHeader column="name" label="Name" sortConfig={sortConfig} onSort={onSort} />
             <th>Profile</th>
-            <th>Project</th>
-            <th>Status</th>
-            <th>Placement Fee</th>
-            <th>Last Modified</th>
+            <SortableCandidateHeader column="project" label="Project" sortConfig={sortConfig} onSort={onSort} />
+            <SortableCandidateHeader column="status" label="Status" sortConfig={sortConfig} onSort={onSort} />
+            <SortableCandidateHeader column="placement_fee" label="Placement Fee" sortConfig={sortConfig} onSort={onSort} />
+            <SortableCandidateHeader column="last_modified" label="Last Modified" sortConfig={sortConfig} onSort={onSort} />
           </tr>
         </thead>
         <tbody>
@@ -1621,6 +1603,8 @@ function JobDetailView({
   deletingJob = false,
   onPrintCandidates,
   onExportCandidates,
+  candidateSort,
+  onCandidateSort,
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [editingJobField, setEditingJobField] = useState("");
@@ -1810,6 +1794,8 @@ function JobDetailView({
           savingIds={savingIds}
           deletingIds={deletingIds}
           onPlacementPaidToggle={onPlacementPaidToggle}
+          sortConfig={candidateSort}
+          onSort={onCandidateSort}
         />
       </div>
 
@@ -1825,6 +1811,7 @@ export default function JobsPageTest({ mode = "admin" }) {
   const [feedback, setFeedback] = useState({ error: "", success: "" });
   const [search, setSearch] = useState("");
   const [candidateStatusFilter, setCandidateStatusFilter] = useState("");
+  const [candidateSort, setCandidateSort] = useState({ key: "last_modified", direction: "desc" });
   const [activeView, setActiveView] = useState({ type: "candidate", status: "placed" });
   const [jobsListOpen, setJobsListOpen] = useState(true);
   const [jobModalOpen, setJobModalOpen] = useState(false);
@@ -2181,20 +2168,33 @@ export default function JobsPageTest({ mode = "admin" }) {
     return counts;
   }, [jobCandidates]);
 
-  const sortedCandidates = useMemo(
-    () => [...jobCandidates].sort((a, b) => {
-      const statusPriorityA = getCandidateStatusPriority(a.candidate_status);
-      const statusPriorityB = getCandidateStatusPriority(b.candidate_status);
-      if (statusPriorityA !== statusPriorityB) return statusPriorityA - statusPriorityB;
+  const sortedCandidates = useMemo(() => {
+    const direction = candidateSort.direction === "asc" ? 1 : -1;
+    return [...jobCandidates].sort((a, b) => {
+      let comparison = 0;
+      if (candidateSort.key === "name") {
+        comparison = normalizeText(getCandidateName(a)).localeCompare(normalizeText(getCandidateName(b)));
+      } else if (candidateSort.key === "project") {
+        comparison = normalizeText(getCandidateProjectName(a)).localeCompare(normalizeText(getCandidateProjectName(b)));
+      } else if (candidateSort.key === "status") {
+        comparison = normalizeText(formatStatus(a.candidate_status)).localeCompare(normalizeText(formatStatus(b.candidate_status)));
+      } else if (candidateSort.key === "placement_fee") {
+        comparison = Number(Boolean(a.placement_fee_paid)) - Number(Boolean(b.placement_fee_paid));
+      } else {
+        comparison = getTimestamp(a.updated_at || a.created_at) - getTimestamp(b.updated_at || b.created_at);
+      }
 
-      const updatedAtA = getTimestamp(a.updated_at || a.created_at);
-      const updatedAtB = getTimestamp(b.updated_at || b.created_at);
-      if (updatedAtA !== updatedAtB) return updatedAtB - updatedAtA;
+      if (comparison === 0) comparison = getTimestamp(a.created_at) - getTimestamp(b.created_at);
+      return comparison * direction;
+    });
+  }, [candidateSort, jobCandidates]);
 
-      return getTimestamp(b.created_at) - getTimestamp(a.created_at);
-    }),
-    [jobCandidates]
-  );
+  const changeCandidateSort = (key) => {
+    setCandidateSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
 
   const viewCandidates = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -2288,7 +2288,7 @@ export default function JobsPageTest({ mode = "admin" }) {
   }, [activeView, selectedJob]);
 
   const activeSubtitle = useMemo(() => {
-    if (activeView.type === "candidate") return "Candidates are ordered by Status priority, then Last Modified from newest to oldest.";
+    if (activeView.type === "candidate") return "Select a column heading to organize candidates in ascending or descending order.";
     if (activeView.type === "jobs") return "Select any project from the left navigation or open its full detail page.";
     return "";
   }, [activeView.type]);
@@ -2497,6 +2497,8 @@ export default function JobsPageTest({ mode = "admin" }) {
                 deletingJob={!!deletingJobIds[selectedJob?.id]}
                 onPrintCandidates={printCandidateView}
                 onExportCandidates={exportCandidateCsv}
+                candidateSort={candidateSort}
+                onCandidateSort={changeCandidateSort}
                 searchToolbar={(
                   <SearchToolbar
                     search={search}
@@ -2517,6 +2519,8 @@ export default function JobsPageTest({ mode = "admin" }) {
                 savingIds={savingIds}
                 deletingIds={deletingIds}
                 onPlacementPaidToggle={togglePlacementFeePaid}
+                sortConfig={candidateSort}
+                onSort={changeCandidateSort}
               />
             )}
           </section>

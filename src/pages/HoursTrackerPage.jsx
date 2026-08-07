@@ -1,16 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  AlertTriangle,
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
   Download,
+  FileSpreadsheet,
   Link2,
   Loader2,
   RefreshCw,
   Save,
+  Upload,
+  X,
 } from "lucide-react";
+import readXlsxFile from "read-excel-file/browser";
 import { supabase } from "../lib/supabase";
+import { importedHoursTotal, parseCtsHoursRows } from "../lib/ctsHoursImport";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 
@@ -196,6 +202,19 @@ function PageStyles() {
       .feedback { border-radius: 16px; padding: 12px 14px; font-size: 13px; font-weight: 800; }
       .feedback.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
       .feedback.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+
+      .import-panel { padding: 16px; display: grid; gap: 14px; }
+      .import-summary { display: flex; gap: 8px; flex-wrap: wrap; }
+      .import-chip { padding: 7px 10px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 850; }
+      .import-chip.warning { background: #fff7ed; color: #c2410c; }
+      .import-table-wrap { width: 100%; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 14px; }
+      .import-table { width: 100%; min-width: 980px; border-collapse: collapse; }
+      .import-table th { padding: 9px 10px; background: #f8fafc; color: #64748b; font-size: 10px; text-transform: uppercase; text-align: left; }
+      .import-table td { padding: 9px 10px; border-top: 1px solid #eef2f7; color: #334155; font-size: 12px; }
+      .import-table .select { min-width: 260px; min-height: 36px; padding: 6px 9px; }
+      .source-hours { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+      .source-hours span { padding: 4px 7px; border-radius: 8px; background: #f1f5f9; font-size: 10px; font-weight: 800; white-space: nowrap; }
+      .cts-hours-note { margin-top: 5px; color: #0f766e; font-size: 10px; font-weight: 850; }
 
       .timesheet-section { padding: 16px; }
       .section-head {
@@ -444,6 +463,8 @@ function getStatusLabel(status) {
 export default function HoursTrackerPage() {
   const navigate = useNavigate();
   const [assignments, setAssignments] = useState([]);
+  const [allAssignments, setAllAssignments] = useState([]);
+  const [importedRows, setImportedRows] = useState([]);
   const [entriesByKey, setEntriesByKey] = useState(new Map());
   const [workerEntriesByKey, setWorkerEntriesByKey] = useState(new Map());
   const [draftHours, setDraftHours] = useState(new Map());
@@ -457,6 +478,10 @@ export default function HoursTrackerPage() {
   const [savingKey, setSavingKey] = useState("");
   const [linkSavingKey, setLinkSavingKey] = useState("");
   const [exportingLinks, setExportingLinks] = useState(false);
+  const [importPreview, setImportPreview] = useState([]);
+  const [importFile, setImportFile] = useState(null);
+  const [importFileHash, setImportFileHash] = useState("");
+  const [importing, setImporting] = useState(false);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
 
   const days = useMemo(
@@ -468,7 +493,7 @@ export default function HoursTrackerPage() {
     setLoading(true);
     if (!preserveFeedback) setFeedback({ error: "", success: "" });
 
-    const [candidateRes, jobsRes, workersRes, hoursRes, workerHoursRes, reviewsRes] = await Promise.all([
+    const [candidateRes, jobsRes, workersRes, hoursRes, workerHoursRes, reviewsRes, importedRes] = await Promise.all([
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
       supabase.from("cts_jobs").select("id, level_type, city, state, status").order("created_at", { ascending: false }),
       supabase.from("workers").select("id, name, phone, email, public_profile_slug"),
@@ -488,9 +513,13 @@ export default function HoursTrackerPage() {
         .from("weekly_hours_reviews")
         .select("*")
         .eq("week_start_date", weekStart),
+      supabase
+        .from("cts_hours_import_rows")
+        .select("*")
+        .eq("week_start_date", weekStart),
     ]);
 
-    if (candidateRes.error || jobsRes.error || workersRes.error || hoursRes.error || workerHoursRes.error || reviewsRes.error) {
+    if (candidateRes.error || jobsRes.error || workersRes.error || hoursRes.error || workerHoursRes.error || reviewsRes.error || importedRes.error) {
       setFeedback({
         error:
           candidateRes.error?.message ||
@@ -499,6 +528,7 @@ export default function HoursTrackerPage() {
           hoursRes.error?.message ||
           workerHoursRes.error?.message ||
           reviewsRes.error?.message ||
+          importedRes.error?.message ||
           "Could not load hours control.",
         success: "",
       });
@@ -507,6 +537,7 @@ export default function HoursTrackerPage() {
       setWorkerEntriesByKey(new Map());
       setDraftHours(new Map());
       setReviewsByKey(new Map());
+      setImportedRows([]);
       setLoading(false);
       return;
     }
@@ -514,9 +545,7 @@ export default function HoursTrackerPage() {
     const jobsById = new Map((jobsRes.data || []).map((job) => [job.id, job]));
     const workersById = new Map((workersRes.data || []).map((worker) => [worker.id, worker]));
 
-    const nextAssignments = (candidateRes.data || [])
-      .filter((candidate) => String(candidate.candidate_status || "").toLowerCase() === "placed")
-      .map((candidate) => {
+    const enrichedAssignments = (candidateRes.data || []).map((candidate) => {
         const job = jobsById.get(candidate.cts_job_id) || {};
         const worker = workersById.get(candidate.worker_id) || {};
         return {
@@ -530,7 +559,11 @@ export default function HoursTrackerPage() {
           jobStatus: job.status || "",
           phoneDigits: normalizePhoneDigits(candidate.phone_snapshot || worker.phone || ""),
         };
-      })
+      });
+
+    const importedCandidateIds = new Set((importedRes.data || []).map((row) => row.cts_job_candidate_id));
+    const nextAssignments = enrichedAssignments
+      .filter((candidate) => String(candidate.candidate_status || "").toLowerCase() === "placed" || importedCandidateIds.has(candidate.id))
       .sort((a, b) => {
         const projectCompare = (a.project || "").localeCompare(b.project || "");
         if (projectCompare !== 0) return projectCompare;
@@ -556,7 +589,9 @@ export default function HoursTrackerPage() {
     });
 
     setJobs(jobsRes.data || []);
+    setAllAssignments(enrichedAssignments);
     setAssignments(nextAssignments);
+    setImportedRows(importedRes.data || []);
     setEntriesByKey(nextEntries);
     setWorkerEntriesByKey(nextWorkerEntries);
     setDraftHours(nextDraft);
@@ -567,6 +602,19 @@ export default function HoursTrackerPage() {
   useEffect(() => {
     void Promise.resolve().then(() => load());
   }, [load]);
+
+  const importedByCandidate = useMemo(() => {
+    const next = new Map();
+    importedRows.forEach((row) => {
+      const current = next.get(row.cts_job_candidate_id) || { regular: 0, overtime: 0, doubleTime: 0, total: 0 };
+      current.regular += Number(row.regular_hours || 0);
+      current.overtime += Number(row.overtime_hours || 0);
+      current.doubleTime += Number(row.double_time_hours || 0);
+      current.total += Number(row.total_hours || 0);
+      next.set(row.cts_job_candidate_id, current);
+    });
+    return next;
+  }, [importedRows]);
 
   const rows = useMemo(() => assignments.map((assignment) => {
     const values = {};
@@ -584,9 +632,11 @@ export default function HoursTrackerPage() {
       workerTotal += Number(workerValue || 0);
     });
     const review = reviewsByKey.get(reviewKey(assignment.id, weekStart));
-    const status = getRowStatus(total, review);
-    return { assignment, values, total, workerValues, workerTotal, review, status };
-  }), [assignments, days, draftHours, reviewsByKey, weekStart, workerEntriesByKey]);
+    const ctsHours = importedByCandidate.get(assignment.id) || null;
+    const effectiveTotal = ctsHours?.total || total;
+    const status = getRowStatus(effectiveTotal, review);
+    return { assignment, values, total: effectiveTotal, manualTotal: total, ctsHours, workerValues, workerTotal, review, status };
+  }), [assignments, days, draftHours, importedByCandidate, reviewsByKey, weekStart, workerEntriesByKey]);
 
   const filteredRows = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -770,6 +820,7 @@ export default function HoursTrackerPage() {
 
   const saveVisible = async () => {
     for (const row of filteredRows) {
+      if (row.ctsHours) continue;
       await saveRow(row.assignment);
     }
   };
@@ -804,6 +855,97 @@ export default function HoursTrackerPage() {
     }
   };
 
+  const assignmentOptions = useMemo(
+    () => [...allAssignments].sort((a, b) => `${a.name} ${a.project}`.localeCompare(`${b.name} ${b.project}`)),
+    [allAssignments]
+  );
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    setFeedback({ error: "", success: "" });
+    try {
+      const [workbookResult, digest] = await Promise.all([
+        readXlsxFile(file),
+        file.arrayBuffer().then((buffer) => crypto.subtle.digest("SHA-256", buffer)),
+      ]);
+      const hash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      const sheetRows = workbookResult[0]?.data || workbookResult;
+      setImportFile(file);
+      setImportFileHash(hash);
+      setImportPreview(parseCtsHoursRows(sheetRows, assignmentOptions));
+    } catch (error) {
+      setImportFile(null);
+      setImportFileHash("");
+      setImportPreview([]);
+      setFeedback({ error: error.message || "Could not read the CTS spreadsheet.", success: "" });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const updateImportAssignment = (sourceRowKey, assignmentId) => {
+    setImportPreview((prev) => prev.map((row) => row.source_row_key === sourceRowKey ? { ...row, assignmentId } : row));
+  };
+
+  const closeImportPreview = () => {
+    setImportFile(null);
+    setImportFileHash("");
+    setImportPreview([]);
+  };
+
+  const commitCtsImport = async () => {
+    const unresolved = importPreview.filter((row) => !row.assignmentId);
+    if (unresolved.length) {
+      setFeedback({ error: `Select a candidate assignment for ${unresolved.length} unresolved row${unresolved.length === 1 ? "" : "s"}.`, success: "" });
+      return;
+    }
+
+    setImporting(true);
+    setFeedback({ error: "", success: "" });
+    try {
+      const rowsPayload = importPreview.map((row) => {
+        const assignment = assignmentOptions.find((option) => option.id === row.assignmentId);
+        if (!assignment) throw new Error(`The assignment selected for ${row.source_employee_name} is no longer available.`);
+        return {
+          source_row_key: row.source_row_key,
+          source_employee_name: row.source_employee_name,
+          source_memo: row.source_memo,
+          source_customer: row.source_customer,
+          source_invoice_number: row.source_invoice_number,
+          week_ending_date: row.week_ending_date,
+          regular_hours: row.regular_hours,
+          overtime_hours: row.overtime_hours,
+          double_time_hours: row.double_time_hours,
+          cts_job_candidate_id: assignment.id,
+          cts_job_id: assignment.cts_job_id,
+          worker_id: assignment.worker_id,
+        };
+      });
+      const { error } = await supabase.rpc("import_cts_weekly_hours", {
+        p_filename: importFile?.name || "CTS hours.xlsx",
+        p_file_sha256: importFileHash,
+        p_rows: rowsPayload,
+      });
+      if (error) throw error;
+      const importedCount = importPreview.length;
+      const importedTotal = importPreview.reduce((sum, row) => sum + importedHoursTotal(row), 0);
+      closeImportPreview();
+      await load({ preserveFeedback: true });
+      setFeedback({ error: "", success: `${importedCount} CTS weekly rows imported and approved (${formatHours(importedTotal)} hours at $1/hour).` });
+    } catch (error) {
+      const duplicate = String(error.message || "").toLowerCase().includes("duplicate");
+      setFeedback({ error: duplicate ? "This exact CTS spreadsheet was already imported." : (error.message || "Could not import CTS hours."), success: "" });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const unresolvedImportCount = importPreview.filter((row) => !row.assignmentId).length;
+  const previewTotal = importPreview.reduce((sum, row) => sum + importedHoursTotal(row), 0);
+
   return (
     <>
       <PageStyles />
@@ -824,6 +966,10 @@ export default function HoursTrackerPage() {
               <div className="summary-chip"><strong>{summary.approved}</strong><span>Approved</span></div>
             </div>
             <button className="btn" type="button" onClick={() => navigate("/admin")}><ArrowLeft size={15} /> Admin</button>
+            <label className="btn dark" aria-disabled={importing}>
+              {importing ? <Loader2 className="spin" size={15} /> : <Upload size={15} />} Import CTS XLSX
+              <input type="file" accept=".xlsx,.xls" hidden disabled={importing} onChange={handleImportFile} />
+            </label>
           </div>
         </section>
 
@@ -860,6 +1006,50 @@ export default function HoursTrackerPage() {
           </div>
         </section>
 
+        {importPreview.length ? (
+          <section className="card import-panel">
+            <div className="section-head">
+              <div>
+                <div className="kicker"><FileSpreadsheet size={15} /> CTS spreadsheet preview</div>
+                <h2 className="section-title">Review candidate matches before importing</h2>
+                <p className="section-subtitle">{importFile?.name} · CTS rows become approved weekly hours and invoice at one dollar per hour.</p>
+              </div>
+              <div className="table-actions">
+                <button className="btn" type="button" onClick={closeImportPreview} disabled={importing}><X size={14} /> Cancel</button>
+                <button className="btn success" type="button" onClick={commitCtsImport} disabled={importing || unresolvedImportCount > 0}>
+                  {importing ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />} Import & approve
+                </button>
+              </div>
+            </div>
+            <div className="import-summary">
+              <span className="import-chip">{importPreview.length} weekly rows</span>
+              <span className="import-chip">{formatHours(previewTotal)} total hours = ${formatHours(previewTotal)}</span>
+              {unresolvedImportCount ? <span className="import-chip warning"><AlertTriangle size={12} /> {unresolvedImportCount} need matching</span> : <span className="import-chip">All candidates matched</span>}
+            </div>
+            <div className="import-table-wrap">
+              <table className="import-table">
+                <thead><tr><th>CTS employee</th><th>Week ending</th><th>CTS memo</th><th>Hours</th><th>Candidate / project</th></tr></thead>
+                <tbody>
+                  {importPreview.map((row) => (
+                    <tr key={row.source_row_key}>
+                      <td><strong>{row.source_employee_name}</strong><div className="worker-meta">Invoice {row.source_invoice_number || "—"}</div></td>
+                      <td>{row.week_ending_date}</td>
+                      <td>{row.source_memo || "—"}<div className="worker-meta">{row.source_customer || ""}</div></td>
+                      <td><div className="source-hours"><span>REG {formatHours(row.regular_hours)}</span><span>OT {formatHours(row.overtime_hours)}</span><span>DT {formatHours(row.double_time_hours)}</span><span>Total {formatHours(importedHoursTotal(row))}</span></div></td>
+                      <td>
+                        <select className="select" value={row.assignmentId} onChange={(event) => updateImportAssignment(row.source_row_key, event.target.value)}>
+                          <option value="">Select candidate / project</option>
+                          {assignmentOptions.map((option) => <option key={option.id} value={option.id}>{option.name} — {option.project} ({option.candidate_status})</option>)}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
+
         <section className="card timesheet-section">
           <div className="section-head">
             <div>
@@ -890,7 +1080,7 @@ export default function HoursTrackerPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRows.map(({ assignment, values, total, workerValues, workerTotal, status }) => (
+                    {filteredRows.map(({ assignment, values, total, ctsHours, workerValues, workerTotal, status }) => (
                       <tr key={assignment.id}>
                         <td>
                           <div className="worker-name">{assignment.name}</div>
@@ -908,21 +1098,23 @@ export default function HoursTrackerPage() {
                               pattern="[0-9]*[.,]?[0-9]{0,2}"
                               placeholder="—"
                               value={values[day] ?? ""}
+                              disabled={!!ctsHours}
+                              title={ctsHours ? "Hours imported from the approved CTS spreadsheet" : undefined}
                               onChange={(event) => updateHours(assignment.id, day, event.target.value)}
                               aria-label={`${assignment.name} ${day} hours`}
                             />
                             {Number(workerValues[day] || 0) > 0 ? <div className="worker-hint">W {formatHours(workerValues[day])}</div> : null}
                           </td>
                         ))}
-                        <td className="total-cell">{formatHours(total)}{workerTotal > 0 ? <div className="worker-hint">Worker {formatHours(workerTotal)}</div> : null}</td>
+                        <td className="total-cell">{formatHours(total)}{ctsHours ? <div className="cts-hours-note">CTS · R {formatHours(ctsHours.regular)} · OT {formatHours(ctsHours.overtime)} · DT {formatHours(ctsHours.doubleTime)}</div> : null}{workerTotal > 0 ? <div className="worker-hint">Worker {formatHours(workerTotal)}</div> : null}</td>
                         <td><span className={`status-pill ${status}`}>{status === "approved" ? <CheckCircle2 size={13} /> : null}{getStatusLabel(status)}</span></td>
                         <td>
                           <div className="row-actions">
-                            <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey}>
+                            <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey || !!ctsHours}>
                               {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
                             </button>
-                            <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Reviewed</button>
-                            <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Approve</button>
+                            <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Reviewed</button>
+                            <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Approve</button>
                             <button className="btn link" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!linkSavingKey} title="Generate and copy worker hours link">
                               {linkSavingKey === assignment.id ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Link
                             </button>
@@ -935,7 +1127,7 @@ export default function HoursTrackerPage() {
               </div>
 
               <div className="mobile-cards">
-                {filteredRows.map(({ assignment, values, total, workerValues, workerTotal, status }) => (
+                {filteredRows.map(({ assignment, values, total, ctsHours, workerValues, workerTotal, status }) => (
                   <article className="worker-card" key={assignment.id}>
                     <div className="worker-card-head">
                       <div>
@@ -949,7 +1141,7 @@ export default function HoursTrackerPage() {
                         <div className="project">{assignment.project}</div>
                         <div className="project-meta">{assignment.projectLocation || "No location"}</div>
                       </div>
-                      <div className="total-cell">{formatHours(total)} hrs{workerTotal > 0 ? <div className="worker-hint">Worker {formatHours(workerTotal)}</div> : null}</div>
+                      <div className="total-cell">{formatHours(total)} hrs{ctsHours ? <div className="cts-hours-note">CTS · R {formatHours(ctsHours.regular)} · OT {formatHours(ctsHours.overtime)} · DT {formatHours(ctsHours.doubleTime)}</div> : null}{workerTotal > 0 ? <div className="worker-hint">Worker {formatHours(workerTotal)}</div> : null}</div>
                     </div>
                     <div className="mobile-days">
                       {days.map((day, index) => (
@@ -961,6 +1153,8 @@ export default function HoursTrackerPage() {
                             pattern="[0-9]*[.,]?[0-9]{0,2}"
                             placeholder="—"
                             value={values[day] ?? ""}
+                            disabled={!!ctsHours}
+                            title={ctsHours ? "Hours imported from the approved CTS spreadsheet" : undefined}
                             onChange={(event) => updateHours(assignment.id, day, event.target.value)}
                             aria-label={`${assignment.name} ${day} hours`}
                           />
@@ -969,11 +1163,11 @@ export default function HoursTrackerPage() {
                       ))}
                     </div>
                     <div className="mobile-card-actions">
-                      <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey}>
+                      <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey || !!ctsHours}>
                         {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
                       </button>
-                      <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0}>Reviewed</button>
-                      <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0}>Approve</button>
+                      <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Reviewed</button>
+                      <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Approve</button>
                       <button className="btn link" type="button" onClick={() => generateWorkerLink(assignment)} disabled={!!linkSavingKey}>
                         {linkSavingKey === assignment.id ? <Loader2 className="spin" size={14} /> : <Link2 size={14} />} Link
                       </button>

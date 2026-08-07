@@ -17,7 +17,27 @@ export async function getCurrentUserAccess() {
     };
   }
 
-  const [adminRes, clientRes, workerRes] = await Promise.all([
+  // Claims an existing candidate profile after the email has been verified.
+  // Admin/client accounts simply receive a no-profile error, which is intentionally ignored.
+  await supabase.rpc("claim_current_worker_profile");
+
+  let workerRes = await supabase
+    .from("workers")
+    .select("id, name, email, auth_user_id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+
+  if (!workerRes.data && user.email) {
+    workerRes = await supabase
+      .from("workers")
+      .select("id, name, email, auth_user_id")
+      .ilike("email", user.email)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+  }
+
+  const [adminRes, clientRes] = await Promise.all([
     supabase
       .from("admin_permissions")
       .select("user_id, can_edit_workers, can_delete_workers")
@@ -28,13 +48,6 @@ export async function getCurrentUserAccess() {
       .select("user_id, client_name, recruiter_name, is_active, can_view_cts_jobs")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .maybeSingle(),
-    supabase
-      .from("workers")
-      .select("id, name, email")
-      .ilike("email", user.email || "")
-      .order("created_at", { ascending: false })
-      .limit(1)
       .maybeSingle(),
   ]);
 

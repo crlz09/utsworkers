@@ -1,8 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
+import {
+  getWorkerDocumentCategoryKey,
+  getWorkerDocumentLabel,
+  getWorkerDocumentStatus,
+  CTS_BIO_DOCUMENT_LABEL,
+  REMINDER_WORKER_DOCUMENT_TYPES,
+  TWO_SIDED_WORKER_DOCUMENT_TYPES,
+  WORKER_DOCUMENT_TYPES,
+} from "../lib/workerDocuments";
+import { buildCtsBioBlob, createInitialCtsBio, sanitizeBioFileName } from "../lib/ctsBio";
 import {
   findLocationIdByState,
   lookupUsZipCode,
@@ -33,6 +43,8 @@ import {
   Link2,
   MessageCircle,
   AlertTriangle,
+  UserRound,
+  MoreVertical,
 } from "lucide-react";
 
 function PageStyles() {
@@ -68,6 +80,8 @@ function PageStyles() {
       .spin {
         animation: spin 1s linear infinite;
       }
+
+      .worker-mobile-action-menu { display: none; }
 
       @keyframes spin {
         from { transform: rotate(0deg); }
@@ -291,12 +305,18 @@ function PageStyles() {
         }
 
         .worker-card-title-row {
-          grid-template-columns: 1fr !important;
+          grid-template-columns: minmax(0, 1fr) auto !important;
+          align-items: start !important;
         }
 
         .worker-card-actions {
-          justify-content: flex-start !important;
+          justify-content: flex-end !important;
+          align-self: start !important;
         }
+
+        .worker-desktop-actions { display: none !important; }
+
+        .worker-mobile-action-menu { display: block !important; }
       }
 
       @media (min-width: 951px) {
@@ -464,6 +484,23 @@ function IconButton({ icon: Icon, tone = "neutral", ...props }) {
   );
 }
 
+function mobileActionMenuItemStyle(disabled = false, danger = false) {
+  return {
+    width: "100%",
+    border: 0,
+    borderRadius: 10,
+    padding: "11px 12px",
+    background: "transparent",
+    color: disabled ? "#94a3b8" : danger ? "#b91c1c" : "#0f172a",
+    fontWeight: 800,
+    cursor: disabled ? "not-allowed" : "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: 9,
+    textAlign: "left",
+  };
+}
+
 function fieldGroupTitleStyle() {
   return {
     fontWeight: 800,
@@ -600,6 +637,15 @@ function getWorkerQualityIssues(worker) {
   if (!String(worker.email || "").trim()) issues.push("Missing email");
   if (!formatWorkerAddress(worker)) issues.push("Missing address");
   if (!String(worker.public_profile_slug || "").trim()) issues.push("No profile link");
+
+  const documentBadgeCutoff = new Date("2026-07-27T00:00:00-04:00").getTime();
+  const registeredAt = new Date(worker.created_at || 0).getTime();
+  if (registeredAt >= documentBadgeCutoff) {
+    const documents = worker.worker_documents || [];
+    const hasRequiredId = getWorkerDocumentStatus(documents, "state_id_or_driver_license").complete;
+    const hasSocialSecurity = getWorkerDocumentStatus(documents, "social_security_card").complete;
+    if (!hasRequiredId || !hasSocialSecurity) issues.push("Missing documents");
+  }
 
   return issues;
 }
@@ -1078,25 +1124,279 @@ function WorkerEditModal({ worker, trades, locations, onClose, onSaved }) {
   );
 }
 
-function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
-  const [selectedFiles, setSelectedFiles] = useState([]);
+const bioInputStyle = {
+  width: "100%",
+  minHeight: 44,
+  border: "1px solid #cbd5e1",
+  borderRadius: 12,
+  padding: "10px 12px",
+  background: "#ffffff",
+  color: "#0f172a",
+};
+
+function CtsBioModal({ worker, onClose, onSaved }) {
+  const [bio, setBio] = useState(() => createInitialCtsBio(worker));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const update = (field, value) => setBio((previous) => ({ ...previous, [field]: value }));
+
+  const saveBio = async () => {
+    if (!bio.name.trim()) {
+      setError("Candidate name is required.");
+      return;
+    }
+    const experiencePercentageTotal = [bio.commercialExperience, bio.industrialExperience, bio.residentialExperience]
+      .reduce((sum, value) => sum + Number(value || 0), 0);
+    if (experiencePercentageTotal !== 100) {
+      setError(`Commercial, industrial, and residential experience must add up to 100%. Current total: ${experiencePercentageTotal}%.`);
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    let uploadedPath = "";
+    let insertedId = "";
+
+    try {
+      const blob = await buildCtsBioBlob(bio);
+      const fileName = sanitizeBioFileName(bio.name);
+      const path = `${worker.id}/${crypto.randomUUID()}_bio_${fileName}`;
+      const existingBios = (worker.worker_documents || []).filter(
+        (document) => getWorkerDocumentCategoryKey(document.document_type)
+          === getWorkerDocumentCategoryKey(CTS_BIO_DOCUMENT_LABEL)
+      );
+
+      const { error: uploadError } = await supabase.storage
+        .from("worker-documents")
+        .upload(path, blob, {
+          cacheControl: "3600",
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          upsert: false,
+        });
+      if (uploadError) throw uploadError;
+      uploadedPath = path;
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("worker_documents")
+        .insert({
+          worker_id: worker.id,
+          file_name: fileName,
+          file_path: path,
+          file_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          file_size: blob.size,
+          document_type: CTS_BIO_DOCUMENT_LABEL,
+        })
+        .select("id")
+        .single();
+      if (insertError) throw insertError;
+      insertedId = inserted.id;
+
+      if (existingBios.length) {
+        const { error: deleteRowsError } = await supabase
+          .from("worker_documents")
+          .delete()
+          .eq("worker_id", worker.id)
+          .in("id", existingBios.map((document) => document.id));
+        if (deleteRowsError) throw deleteRowsError;
+        const { error: removeFilesError } = await supabase.storage
+          .from("worker-documents")
+          .remove(existingBios.map((document) => document.file_path));
+        if (removeFilesError) console.error("The previous BIO file could not be removed.", removeFilesError);
+      }
+
+      await onSaved();
+      onClose();
+    } catch (saveError) {
+      if (insertedId) {
+        await supabase.from("worker_documents").delete().eq("id", insertedId);
+      }
+      if (uploadedPath) {
+        await supabase.storage.from("worker-documents").remove([uploadedPath]);
+      }
+      setError(saveError.message || "Could not generate the CTS BIO.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fields = [
+    ["name", "Name"], ["phone", "Phone"], ["email", "Email"], ["location", "Location"],
+    ["trade", "Trade"], ["totalExperience", "Total experience in trade (years)"],
+    ["commercialExperience", "Commercial experience (%)"],
+    ["industrialExperience", "Industrial experience (%)"],
+    ["residentialExperience", "Residential experience (%)"],
+  ];
+  const percentageTotal = [bio.commercialExperience, bio.industrialExperience, bio.residentialExperience]
+    .reduce((sum, value) => sum + Number(value || 0), 0);
+
+  return (
+    <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(15,23,42,.55)", display: "grid", placeItems: "center", padding: 16 }}>
+      <div style={{ width: "min(920px, 100%)", maxHeight: "94dvh", overflow: "auto", background: "white", borderRadius: 22, padding: 22, boxShadow: "0 28px 90px rgba(15,23,42,.28)", display: "grid", gap: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "start" }}>
+          <div>
+            <div style={{ color: "#2563eb", fontSize: 12, fontWeight: 900, letterSpacing: ".1em" }}>CTS CANDIDATE BIO</div>
+            <h2 style={{ margin: "6px 0 5px", fontSize: 27 }}>Review before generating</h2>
+            <div style={{ color: "#64748b", lineHeight: 1.5 }}>This is an independent copy. Changes here will not modify the candidate profile.</div>
+          </div>
+          <IconButton icon={X} onClick={onClose} title="Close" aria-label="Close BIO editor" />
+        </div>
+
+        <div className="filters-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 13 }}>
+          {fields.map(([fieldName, label]) => (
+            <Field key={fieldName} label={label}>
+              <input
+                type={fieldName.includes("Experience") ? "number" : "text"}
+                min={fieldName.includes("Experience") ? "0" : undefined}
+                max={fieldName !== "totalExperience" && fieldName.includes("Experience") ? "100" : undefined}
+                value={bio[fieldName]}
+                onChange={(event) => update(fieldName, event.target.value)}
+                style={bioInputStyle}
+              />
+            </Field>
+          ))}
+        </div>
+        <div style={{ color: percentageTotal === 100 ? "#166534" : "#b45309", background: percentageTotal === 100 ? "#f0fdf4" : "#fffbeb", border: `1px solid ${percentageTotal === 100 ? "#bbf7d0" : "#fde68a"}`, borderRadius: 12, padding: "10px 12px", fontWeight: 800 }}>
+          Experience distribution: {percentageTotal}% {percentageTotal === 100 ? "✓" : "— must total 100%"}
+        </div>
+
+        <div style={{ display: "grid", gap: 13 }}>
+          <Field label="Project history — one project per line">
+            <textarea value={bio.projects} onChange={(event) => update("projects", event.target.value)} style={{ ...bioInputStyle, minHeight: 105, resize: "vertical" }} />
+          </Field>
+          <Field label="Strengths — one strength per line">
+            <textarea value={bio.strengths} onChange={(event) => update("strengths", event.target.value)} style={{ ...bioInputStyle, minHeight: 130, resize: "vertical" }} />
+          </Field>
+          <Field label="Certifications">
+            <textarea value={bio.certifications} onChange={(event) => update("certifications", event.target.value)} style={{ ...bioInputStyle, minHeight: 76, resize: "vertical" }} />
+          </Field>
+          <Field label="Languages">
+            <input value={bio.languages} onChange={(event) => update("languages", event.target.value)} style={bioInputStyle} />
+          </Field>
+          <Field label="Closing note">
+            <textarea value={bio.notes} onChange={(event) => update("notes", event.target.value)} style={{ ...bioInputStyle, minHeight: 76, resize: "vertical" }} />
+          </Field>
+        </div>
+
+        {error ? <div style={{ padding: "11px 13px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontWeight: 800 }}>{error}</div> : null}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
+          <Button onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={saveBio} disabled={saving} tone="dark" icon={saving ? Loader2 : FileText} iconClassName={saving ? "spin" : undefined}>
+            {saving ? "Generating BIO..." : "Generate and save BIO"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openReminderRequestId = 0 }) {
+  const workerId = worker.id;
+  const lastReminderRequestRef = useRef(0);
+  const [selectedFiles, setSelectedFiles] = useState({ single: null, front: null, back: null });
   const [documentType, setDocumentType] = useState("resume");
+  const [otherDescription, setOtherDescription] = useState("");
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [downloadingId, setDownloadingId] = useState("");
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const [reminderTypes, setReminderTypes] = useState([]);
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [reminderError, setReminderError] = useState("");
+  const [reminderSuccess, setReminderSuccess] = useState("");
+  const requiresBothSides = TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType);
+  const hasRequiredFiles = requiresBothSides
+    ? Boolean(selectedFiles.front && selectedFiles.back)
+    : Boolean(selectedFiles.single);
+
+  const resetSelectedFiles = () => {
+    setSelectedFiles({ single: null, front: null, back: null });
+    setFileInputKey((value) => value + 1);
+  };
+
+  const selectFile = (side, file) => {
+    setSelectedFiles((previous) => ({ ...previous, [side]: file || null }));
+    setError("");
+    setSuccess("");
+  };
+
+  const openReminder = () => {
+    setReminderTypes(
+      REMINDER_WORKER_DOCUMENT_TYPES
+        .filter((type) => type.required && !getWorkerDocumentStatus(documents, type.value).complete)
+        .map((type) => type.value)
+    );
+    setReminderError("");
+    setReminderSuccess("");
+    setReminderOpen(true);
+  };
+
+  useEffect(() => {
+    if (!openReminderRequestId || openReminderRequestId === lastReminderRequestRef.current) return;
+    lastReminderRequestRef.current = openReminderRequestId;
+    setReminderTypes(
+      REMINDER_WORKER_DOCUMENT_TYPES
+        .filter((type) => type.required && !getWorkerDocumentStatus(documents, type.value).complete)
+        .map((type) => type.value)
+    );
+    setReminderError("");
+    setReminderSuccess("");
+    setReminderOpen(true);
+  }, [documents, openReminderRequestId]);
+
+  const toggleReminderType = (type) => {
+    setReminderTypes((previous) => previous.includes(type)
+      ? previous.filter((value) => value !== type)
+      : [...previous, type]);
+  };
+
+  const sendDocumentReminder = async () => {
+    if (!reminderTypes.length) return;
+    setSendingReminder(true);
+    setReminderError("");
+    const { data, error: invokeError } = await supabase.functions.invoke("send-document-reminder", {
+      body: { mode: "manual", workerId, documentTypes: reminderTypes },
+    });
+    setSendingReminder(false);
+    if (invokeError || data?.error) {
+      setReminderError(data?.error || invokeError?.message || "Could not send the reminder.");
+      return;
+    }
+    setReminderOpen(false);
+    setReminderSuccess(`Reminder sent to ${worker.email}.`);
+  };
 
   const handleUpload = async () => {
-    if (!selectedFiles.length) return;
+    if (!hasRequiredFiles) return;
+    const trimmedOtherDescription = otherDescription.trim();
+    if (documentType === "other" && !trimmedOtherDescription) {
+      setError("Describe the document when selecting Other.");
+      return;
+    }
 
     setUploading(true);
     setError("");
+    setSuccess("");
+    const uploadedPaths = [];
+    let insertedDocumentIds = [];
 
     try {
       const uploadedRows = [];
+      const baseDocumentLabel = documentType === "other"
+        ? `Other: ${trimmedOtherDescription}`
+        : getWorkerDocumentLabel(documentType);
+      const filesToUpload = requiresBothSides
+        ? [["front", selectedFiles.front], ["back", selectedFiles.back]]
+        : [["document", selectedFiles.single]];
+      const existingDocuments = documents.filter(
+        (document) => getWorkerDocumentCategoryKey(document.document_type)
+          === getWorkerDocumentCategoryKey(baseDocumentLabel)
+      );
 
-      for (const file of selectedFiles) {
-        const safeName = file.name.replace(/\s+/g, "_");
-        const path = `${workerId}/${Date.now()}_${safeName}`;
+      for (const [side, file] of filesToUpload) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `${workerId}/${crypto.randomUUID()}_${side}_${safeName}`;
 
         const { error: uploadError } = await supabase.storage
           .from("worker-documents")
@@ -1107,6 +1407,7 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
           });
 
         if (uploadError) throw uploadError;
+        uploadedPaths.push(path);
 
         uploadedRows.push({
           worker_id: workerId,
@@ -1114,19 +1415,53 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
           file_path: path,
           file_type: file.type || null,
           file_size: file.size || null,
-          document_type: documentType,
+          document_type: requiresBothSides
+            ? `${baseDocumentLabel} - ${side === "front" ? "Front" : "Back"}`
+            : baseDocumentLabel,
         });
       }
 
-      const { error: insertError } = await supabase
+      const { data: insertedDocuments, error: insertError } = await supabase
         .from("worker_documents")
-        .insert(uploadedRows);
+        .insert(uploadedRows)
+        .select("id");
 
       if (insertError) throw insertError;
+      insertedDocumentIds = (insertedDocuments || []).map((document) => document.id);
 
-      setSelectedFiles([]);
-      onDocumentsChanged();
+      if (existingDocuments.length) {
+        const { error: deleteOldRowsError } = await supabase
+          .from("worker_documents")
+          .delete()
+          .eq("worker_id", workerId)
+          .in("id", existingDocuments.map((document) => document.id));
+        if (deleteOldRowsError) throw deleteOldRowsError;
+
+        const { error: deleteOldFilesError } = await supabase.storage
+          .from("worker-documents")
+          .remove(existingDocuments.map((document) => document.file_path));
+        if (deleteOldFilesError) {
+          console.error("Old document files could not be removed after replacement.", deleteOldFilesError);
+        }
+      }
+
+      resetSelectedFiles();
+      if (documentType === "other") setOtherDescription("");
+      await onDocumentsChanged();
+      setSuccess(existingDocuments.length
+        ? `${baseDocumentLabel} replaced successfully.`
+        : `${baseDocumentLabel} uploaded successfully.`);
     } catch (err) {
+      if (insertedDocumentIds.length) {
+        await supabase
+          .from("worker_documents")
+          .delete()
+          .eq("worker_id", workerId)
+          .in("id", insertedDocumentIds);
+      }
+      if (uploadedPaths.length) {
+        await supabase.storage.from("worker-documents").remove(uploadedPaths);
+      }
       setError(err.message || "Could not upload files.");
     } finally {
       setUploading(false);
@@ -1196,54 +1531,118 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
         gap: 14,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "#0f172a" }}>
-        <Paperclip size={16} />
-        <span>Documents</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", fontWeight: 800, color: "#0f172a" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Paperclip size={16} /> Documents</span>
+        <button
+          type="button"
+          onClick={openReminder}
+          disabled={!worker.email}
+          title={worker.email ? "Choose documents and send a reminder" : "This candidate has no email address"}
+          style={{ border: "1px solid #bfdbfe", background: "#eff6ff", color: "#1d4ed8", borderRadius: 12, padding: "9px 12px", fontWeight: 850, cursor: worker.email ? "pointer" : "not-allowed", display: "inline-flex", alignItems: "center", gap: 7, opacity: worker.email ? 1 : .55 }}
+        >
+          <Mail size={15} /> Remind documents
+        </button>
       </div>
+
+      {reminderOpen ? (
+        <div style={{ padding: 16, borderRadius: 16, border: "1px solid #bfdbfe", background: "#ffffff", display: "grid", gap: 13 }}>
+          <div>
+            <div style={{ fontWeight: 900, color: "#0f172a" }}>Send document reminder</div>
+            <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>Choose what {worker.name || "this candidate"} should upload. Missing required documents are selected automatically.</div>
+          </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {REMINDER_WORKER_DOCUMENT_TYPES.map((type) => {
+              const status = getWorkerDocumentStatus(documents, type.value);
+              return (
+                <label key={type.value} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: 12, cursor: "pointer" }}>
+                  <input type="checkbox" checked={reminderTypes.includes(type.value)} onChange={() => toggleReminderType(type.value)} />
+                  <span style={{ flex: 1, fontWeight: 800 }}>{type.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 850, color: type.required ? "#9a3412" : "#64748b" }}>{type.required ? "REQUIRED" : "OPTIONAL"}</span>
+                  <span style={{ fontSize: 11, fontWeight: 850, color: status.complete ? "#166534" : "#b91c1c" }}>{status.complete ? "UPLOADED" : "MISSING"}</span>
+                </label>
+              );
+            })}
+          </div>
+          {reminderError ? <div style={{ color: "#b91c1c", fontWeight: 750, fontSize: 13 }}>{reminderError}</div> : null}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, flexWrap: "wrap" }}>
+            <button type="button" onClick={() => setReminderOpen(false)} disabled={sendingReminder} style={{ border: "1px solid #cbd5e1", background: "#fff", borderRadius: 12, padding: "10px 13px", fontWeight: 800, cursor: "pointer" }}>Cancel</button>
+            <button type="button" onClick={sendDocumentReminder} disabled={sendingReminder || !reminderTypes.length} style={{ border: 0, background: sendingReminder || !reminderTypes.length ? "#94a3b8" : "#1f2c40", color: "#fff", borderRadius: 12, padding: "10px 14px", fontWeight: 850, cursor: sendingReminder || !reminderTypes.length ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 7 }}>
+              {sendingReminder ? <Loader2 size={15} className="spin" /> : <Mail size={15} />} {sendingReminder ? "Sending..." : "Send reminder"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {reminderSuccess ? <div style={{ padding: "11px 13px", borderRadius: 13, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontWeight: 750 }}>{reminderSuccess}</div> : null}
 
       <div
         className="document-upload-grid"
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 220px auto",
+          gridTemplateColumns: "minmax(220px, .8fr) minmax(0, 1.2fr)",
           gap: 12,
         }}
       >
-        <input
-          type="file"
-          multiple
-          onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
-          style={inputStyle}
-        />
-
         <select
           value={documentType}
-          onChange={(e) => setDocumentType(e.target.value)}
+          onChange={(e) => {
+            setDocumentType(e.target.value);
+            resetSelectedFiles();
+            setError("");
+            setSuccess("");
+          }}
           style={inputStyle}
         >
-          <option value="resume">Resume</option>
-          <option value="osha">OSHA Card</option>
-          <option value="certification">Certification</option>
-          <option value="license">License</option>
-          <option value="id">ID</option>
-          <option value="other">Other</option>
+          {WORKER_DOCUMENT_TYPES.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
         </select>
+
+        {documentType === "other" ? (
+          <input
+            value={otherDescription}
+            maxLength={120}
+            placeholder="Document description, e.g. Fall Protection"
+            onChange={(e) => setOtherDescription(e.target.value)}
+            style={inputStyle}
+          />
+        ) : <div />}
+
+        {requiresBothSides ? (
+          <>
+            <label style={{ display: "grid", gap: 6, color: "#475569", fontSize: 12, fontWeight: 800 }}>
+              FRONT (REQUIRED)
+              <input key={`front-${fileInputKey}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => selectFile("front", e.target.files?.[0])} style={inputStyle} />
+            </label>
+            <label style={{ display: "grid", gap: 6, color: "#475569", fontSize: 12, fontWeight: 800 }}>
+              BACK (REQUIRED)
+              <input key={`back-${fileInputKey}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => selectFile("back", e.target.files?.[0])} style={inputStyle} />
+            </label>
+          </>
+        ) : (
+          <label style={{ display: "grid", gap: 6, color: "#475569", fontSize: 12, fontWeight: 800, gridColumn: "1 / -1" }}>
+            DOCUMENT (REQUIRED)
+            <input key={`single-${fileInputKey}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => selectFile("single", e.target.files?.[0])} style={inputStyle} />
+          </label>
+        )}
 
         <button
           type="button"
           onClick={handleUpload}
-          disabled={uploading || selectedFiles.length === 0}
+          disabled={uploading || !hasRequiredFiles || (documentType === "other" && !otherDescription.trim())}
           style={{
             border: "none",
-            background: uploading || selectedFiles.length === 0 ? "#94a3b8" : "#0f172a",
+            background: uploading || !hasRequiredFiles ? "#94a3b8" : "#0f172a",
             color: "#ffffff",
             borderRadius: 14,
             padding: "12px 16px",
             fontWeight: 800,
-            cursor: uploading || selectedFiles.length === 0 ? "not-allowed" : "pointer",
+            cursor: uploading || !hasRequiredFiles ? "not-allowed" : "pointer",
             display: "inline-flex",
             alignItems: "center",
             gap: 8,
+            gridColumn: "1 / -1",
+            justifyContent: "center",
           }}
         >
           <Upload size={16} />
@@ -1251,11 +1650,11 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
         </button>
       </div>
 
-      {selectedFiles.length > 0 ? (
-        <div style={{ color: "#475569", fontSize: 14 }}>
-          {selectedFiles.length} file(s) selected
-        </div>
-      ) : null}
+      <div style={{ color: "#64748b", fontSize: 13 }}>
+        {requiresBothSides
+          ? "Both front and back are required for this document type."
+          : "Upload one file for this document type."} A new upload replaces the existing document in the same category.
+      </div>
 
       {error ? (
         <div
@@ -1270,6 +1669,12 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
           }}
         >
           {error}
+        </div>
+      ) : null}
+
+      {success ? (
+        <div style={{ padding: "12px 14px", borderRadius: 14, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontWeight: 700 }}>
+          {success}
         </div>
       ) : null}
 
@@ -1294,7 +1699,7 @@ function WorkerDocumentsPanel({ workerId, documents, onDocumentsChanged }) {
               <div style={{ display: "grid", gap: 4 }}>
                 <div style={{ fontWeight: 800, color: "#0f172a" }}>{doc.file_name}</div>
                 <div style={{ color: "#64748b", fontSize: 13 }}>
-                  Type: {doc.document_type || "other"} • Uploaded: {formatDate(doc.uploaded_at)}
+                  Type: {getWorkerDocumentLabel(doc.document_type)} • Uploaded: {formatDate(doc.uploaded_at)}
                 </div>
               </div>
 
@@ -1362,12 +1767,16 @@ function WorkerCard({
   onDocumentsChanged,
   onWorkerReviewed,
 }) {
+  const navigate = useNavigate();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [copiedProfile, setCopiedProfile] = useState(false);
   const [copiedHoursLink, setCopiedHoursLink] = useState(false);
   const [copyingHoursLink, setCopyingHoursLink] = useState(false);
+  const [reminderRequestId, setReminderRequestId] = useState(0);
+  const [bioOpen, setBioOpen] = useState(false);
+  const [actionMenuOpen, setActionMenuOpen] = useState(false);
 
   const [recruiterUserId, setRecruiterUserId] = useState(worker.recruiter_user_id || "");
   const [savingRecruiter, setSavingRecruiter] = useState(false);
@@ -1653,23 +2062,76 @@ function WorkerCard({
               }}
             />
 
-            {canEditWorkers ? (
-              <IconButton
-                icon={Pencil}
-                title="Edit worker"
-                aria-label="Edit worker"
-                onClick={() => setEditOpen(true)}
-              />
-            ) : null}
+            <div className="worker-desktop-actions" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {canEditWorkers ? (
+                <>
+                <IconButton
+                  icon={UserRound}
+                  title="Manage candidate profile"
+                  aria-label="Manage candidate profile"
+                  onClick={() => navigate(`/admin/workers/${worker.id}/profile`)}
+                />
+                <IconButton
+                  icon={FileText}
+                  title="Generate CTS BIO"
+                  aria-label="Generate CTS BIO"
+                  onClick={() => setBioOpen(true)}
+                />
+                <IconButton
+                  icon={Mail}
+                  title={worker.email ? "Remind candidate to upload documents" : "Candidate has no email address"}
+                  aria-label="Remind candidate to upload documents"
+                  disabled={!worker.email}
+                  onClick={() => {
+                    setDetailsOpen(true);
+                    setReminderRequestId((value) => value + 1);
+                  }}
+                />
+                <IconButton
+                  icon={Pencil}
+                  title="Quick edit worker"
+                  aria-label="Quick edit worker"
+                  onClick={() => setEditOpen(true)}
+                />
+                </>
+              ) : null}
 
-            {canDeleteWorkers ? (
-              <IconButton
-                icon={Trash2}
-                tone="danger"
-                title="Delete worker"
-                aria-label="Delete worker"
-                onClick={() => onWorkerDeleted(worker)}
-              />
+              {canDeleteWorkers ? (
+                <IconButton
+                  icon={Trash2}
+                  tone="danger"
+                  title="Delete worker"
+                  aria-label="Delete worker"
+                  onClick={() => onWorkerDeleted(worker)}
+                />
+              ) : null}
+            </div>
+
+            {(canEditWorkers || canDeleteWorkers) ? (
+              <div className="worker-mobile-action-menu" style={{ position: "relative" }}>
+                <IconButton
+                  icon={MoreVertical}
+                  title="Candidate actions"
+                  aria-label="Candidate actions"
+                  aria-expanded={actionMenuOpen}
+                  onClick={() => setActionMenuOpen((open) => !open)}
+                />
+                {actionMenuOpen ? (
+                  <div style={{ position: "absolute", top: 42, right: 0, zIndex: 20, width: 230, padding: 7, display: "grid", gap: 3, border: "1px solid #dbeafe", borderRadius: 14, background: "#ffffff", boxShadow: "0 18px 45px rgba(15,23,42,.2)" }}>
+                    {canEditWorkers ? (
+                      <>
+                        <button type="button" onClick={() => { setActionMenuOpen(false); navigate(`/admin/workers/${worker.id}/profile`); }} style={mobileActionMenuItemStyle()}><UserRound size={16} /> Manage candidate profile</button>
+                        <button type="button" onClick={() => { setActionMenuOpen(false); setBioOpen(true); }} style={mobileActionMenuItemStyle()}><FileText size={16} /> Generate CTS BIO</button>
+                        <button type="button" disabled={!worker.email} onClick={() => { setActionMenuOpen(false); setDetailsOpen(true); setReminderRequestId((value) => value + 1); }} style={mobileActionMenuItemStyle(!worker.email)}><Mail size={16} /> Remind documents</button>
+                        <button type="button" onClick={() => { setActionMenuOpen(false); setEditOpen(true); }} style={mobileActionMenuItemStyle()}><Pencil size={16} /> Quick edit worker</button>
+                      </>
+                    ) : null}
+                    {canDeleteWorkers ? (
+                      <button type="button" onClick={() => { setActionMenuOpen(false); onWorkerDeleted(worker); }} style={mobileActionMenuItemStyle(false, true)}><Trash2 size={16} /> Delete worker</button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             </div>
           </div>
@@ -2065,9 +2527,10 @@ function WorkerCard({
           </div>
 
           <WorkerDocumentsPanel
-            workerId={worker.id}
+            worker={worker}
             documents={worker.worker_documents || []}
             onDocumentsChanged={onDocumentsChanged}
+            openReminderRequestId={reminderRequestId}
           />
 
           <div style={{ display: "grid", gap: 16 }}>
@@ -2212,6 +2675,14 @@ function WorkerCard({
         </>
       ) : null}
 
+      {bioOpen ? (
+        <CtsBioModal
+          worker={worker}
+          onClose={() => setBioOpen(false)}
+          onSaved={onDocumentsChanged}
+        />
+      ) : null}
+
       {editOpen ? (
         <WorkerEditModal
           worker={worker}
@@ -2252,7 +2723,9 @@ export default function AdminPage() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const query = params.get("q");
-    if (query) setSearch(query);
+    if (query) {
+      void Promise.resolve().then(() => setSearch(query));
+    }
   }, [location.search]);
 
   useEffect(() => {

@@ -3,12 +3,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   UserPlus,
-  History,
   LogOut,
   Briefcase,
   Clock3,
   Bell,
   FileText,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
@@ -23,10 +23,10 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     isAdmin: location.pathname === "/admin",
     isAdminArea: location.pathname.startsWith("/admin"),
     isRegister: location.pathname.startsWith("/register"),
-    isInterviews: location.pathname.startsWith("/interviews"),
     isCtsJobs: location.pathname.startsWith("/cts-jobs"),
     isHours: location.pathname.startsWith("/hours"),
     isInvoice: location.pathname.startsWith("/invoice"),
+    isBreakdown: location.pathname.startsWith("/breakdown"),
   };
   const [notificationCount, setNotificationCount] = useState(0);
 
@@ -67,13 +67,6 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       openInNewTab: true,
     },
     {
-      label: "Interviews",
-      path: "/interviews",
-      icon: History,
-      match: (pathname) => pathname === "/interviews",
-    },
-    
-    {
       label: "Jobs",
       path: "/cts-jobs",
       icon: Briefcase,
@@ -90,6 +83,12 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       path: "/invoice",
       icon: FileText,
       match: (pathname) => pathname.startsWith("/invoice"),
+    },
+    {
+      label: "Breakdown",
+      path: "/breakdown",
+      icon: ChartNoAxesCombined,
+      match: (pathname) => pathname.startsWith("/breakdown"),
     },
   ];
 
@@ -110,10 +109,19 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   return (
     <>
       <style>{`
+        html,
+        body,
+        #root {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+        }
+
         .uts-topbar {
           position: sticky;
           top: 0;
           z-index: 40;
+          width: 100%;
           background: linear-gradient(180deg, #1f2c40 0%, #1b2738 100%);
           border-bottom: 1px solid rgba(255,255,255,0.06);
           box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
@@ -308,7 +316,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
             grid-column: 1 / -1;
             grid-row: 2;
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(6, minmax(0, 1fr));
             gap: 6px;
             overflow: visible;
           }

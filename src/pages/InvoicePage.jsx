@@ -504,6 +504,28 @@ function InvoiceStyles() {
         line-height: 1.35;
       }
 
+      .contact-line { display: block; }
+
+      .invoice-section-row td {
+        padding: 9px 10px;
+        border-top: 1px solid #dbeafe;
+        border-bottom: 1px solid #dbeafe;
+        background: #eff6ff;
+        color: #1e3a8a;
+        font-size: 11px;
+        font-weight: 850;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .section-row-meta {
+        float: right;
+        color: #64748b;
+        font-weight: 750;
+        letter-spacing: 0;
+        text-transform: none;
+      }
+
       .print-service-name,
       .print-rate-value,
       .print-manual-value {
@@ -849,7 +871,7 @@ function InvoiceStyles() {
         .invoice-doc-title { font-size: 25px; }
         .invoice-doc-meta { font-size: 10px; gap: 3px; }
         .invoice-logo { width: 88px; }
-        .invoice-bill-grid { padding: 11px 0; gap: 12px; }
+        .invoice-bill-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 11px 0; gap: 12px; }
         .bill-main { font-size: 13px; }
         .bill-heading { font-size: 9px; }
         .invoice-muted { font-size: 9.5px; line-height: 1.3; }
@@ -857,9 +879,12 @@ function InvoiceStyles() {
         .invoice-table { min-width: 0; width: 100%; table-layout: fixed; font-size: 9px; }
         .invoice-table th, .invoice-table td { padding: 5px 4px; overflow-wrap: anywhere; }
         .invoice-table th { font-size: 8px; letter-spacing: 0.035em; }
+        .invoice-table thead { display: table-header-group; }
         .invoice-table tr { break-inside: avoid; page-break-inside: avoid; }
+        .invoice-section-row td { padding: 5px 4px; font-size: 8px; }
         .line-primary { font-size: 9px; }
         .line-secondary { font-size: 8px; line-height: 1.25; }
+        .screen-service-value, .screen-rate-value { display: none !important; }
         .invoice-total-panel { padding: 10px 0 0; }
         .total-box { min-width: 230px; gap: 5px; }
         .total-row { font-size: 10px; }
@@ -901,6 +926,16 @@ function formatCurrency(value) {
     currency: "USD",
     minimumFractionDigits: 2,
   });
+}
+
+function parseSavedCtsHours(details) {
+  const match = String(details || "").match(/CTS hours:\s*REG\s*([\d.]+)\s*·\s*OT\s*([\d.]+)\s*·\s*DT\s*([\d.]+)/i);
+  if (!match) return null;
+  return {
+    regular: Number(match[1] || 0),
+    overtime: Number(match[2] || 0),
+    doubleTime: Number(match[3] || 0),
+  };
 }
 
 function formatHours(value) {
@@ -948,6 +983,14 @@ const DEFAULT_PRODUCT_SERVICES = [
   { id: "hourly-fee", name: "Hourly Fee", rate: 1 },
   { id: "placement-fee", name: "Placement Fee", rate: 0 },
 ];
+
+const DEFAULT_CTS_CLIENT = {
+  name: "CTS",
+  address: "3924 Pendleton Way, Indianapolis, IN 46226",
+  contact: "Jerry Rasberry",
+  phone: "(317) 377-1988",
+  email: "",
+};
 
 
 function loadStoredProductServices() {
@@ -998,6 +1041,7 @@ export default function InvoicePage() {
   const [candidates, setCandidates] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [hoursEntries, setHoursEntries] = useState([]);
+  const [ctsImportedHours, setCtsImportedHours] = useState([]);
   const [weeklyReviews, setWeeklyReviews] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
@@ -1022,14 +1066,14 @@ export default function InvoicePage() {
   const [lineRates, setLineRates] = useState({});
   const [manualInvoiceRows, setManualInvoiceRows] = useState([]);
   const [serviceModal, setServiceModal] = useState({ open: false, rowKey: "", name: "", rate: "0" });
-  const [clientModal, setClientModal] = useState({ open: false, name: "", address: "", phone: "", email: "" });
+  const [clientModal, setClientModal] = useState({ open: false, name: "", address: "", contact: "", phone: "", email: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
     setFeedback({ error: "", success: "" });
 
     const reviewStart = toDateInputValue(startOfWeek(new Date(`${dateFrom}T00:00:00`)));
-    const [jobsRes, candidatesRes, workersRes, hoursRes, reviewsRes, invoicesRes] = await Promise.all([
+    const [jobsRes, candidatesRes, workersRes, hoursRes, importedHoursRes, reviewsRes, invoicesRes] = await Promise.all([
       supabase.from("cts_jobs").select("*").order("created_at", { ascending: false }),
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }),
       supabase.from("workers").select("id, name, phone, email"),
@@ -1039,6 +1083,11 @@ export default function InvoicePage() {
         .eq("source", "admin")
         .gte("work_date", dateFrom)
         .lte("work_date", dateTo),
+      supabase
+        .from("cts_hours_import_rows")
+        .select("*")
+        .gte("week_ending_date", dateFrom)
+        .lte("week_ending_date", dateTo),
       supabase
         .from("weekly_hours_reviews")
         .select("*")
@@ -1052,13 +1101,14 @@ export default function InvoicePage() {
         .limit(30),
     ]);
 
-    if (jobsRes.error || candidatesRes.error || workersRes.error || hoursRes.error || reviewsRes.error || invoicesRes.error) {
+    if (jobsRes.error || candidatesRes.error || workersRes.error || hoursRes.error || importedHoursRes.error || reviewsRes.error || invoicesRes.error) {
       setFeedback({
         error:
           jobsRes.error?.message ||
           candidatesRes.error?.message ||
           workersRes.error?.message ||
           hoursRes.error?.message ||
+          importedHoursRes.error?.message ||
           reviewsRes.error?.message ||
           invoicesRes.error?.message ||
           "Could not load invoice data.",
@@ -1068,6 +1118,7 @@ export default function InvoicePage() {
       setCandidates([]);
       setWorkers([]);
       setHoursEntries([]);
+      setCtsImportedHours([]);
       setWeeklyReviews([]);
       setInvoices([]);
       setLoading(false);
@@ -1078,10 +1129,11 @@ export default function InvoicePage() {
     setCandidates(candidatesRes.data || []);
     setWorkers(workersRes.data || []);
     setHoursEntries(hoursRes.data || []);
+    setCtsImportedHours(importedHoursRes.data || []);
     setWeeklyReviews(reviewsRes.data || []);
     setInvoices(invoicesRes.data || []);
     setLoading(false);
-  }, [dateFrom, dateTo, setCandidates, setFeedback, setHoursEntries, setInvoices, setJobs, setLoading, setWeeklyReviews, setWorkers]);
+  }, [dateFrom, dateTo, setCandidates, setCtsImportedHours, setFeedback, setHoursEntries, setInvoices, setJobs, setLoading, setWeeklyReviews, setWorkers]);
 
   useEffect(() => {
     void Promise.resolve().then(() => load());
@@ -1109,9 +1161,13 @@ export default function InvoicePage() {
       if (!jobId) return;
       approvedHoursByJobId.set(jobId, (approvedHoursByJobId.get(jobId) || 0) + Number(entry.regular_hours || 0));
     });
+    ctsImportedHours.forEach((entry) => {
+      if (!entry.cts_job_id) return;
+      approvedHoursByJobId.set(entry.cts_job_id, (approvedHoursByJobId.get(entry.cts_job_id) || 0) + Number(entry.total_hours || 0));
+    });
 
     return jobs
-      .filter((job) => countsByJobId.has(job.id))
+      .filter((job) => countsByJobId.has(job.id) || approvedHoursByJobId.has(job.id))
       .map((job) => ({
         ...job,
         placedCount: countsByJobId.get(job.id) || 0,
@@ -1120,7 +1176,7 @@ export default function InvoicePage() {
         projectLocation: [job.city, job.state].filter(Boolean).join(", "),
       }))
       .sort((a, b) => a.projectName.localeCompare(b.projectName));
-  }, [approvedReviewKeys, candidates, candidatesById, hoursEntries, jobs]);
+  }, [approvedReviewKeys, candidates, candidatesById, ctsImportedHours, hoursEntries, jobs]);
 
   const effectiveSelectedProjectIds = selectedProjectIds ?? projectOptions.map((project) => project.id);
   const selectedProjectIdSet = useMemo(() => new Set(effectiveSelectedProjectIds), [effectiveSelectedProjectIds]);
@@ -1135,7 +1191,14 @@ export default function InvoicePage() {
       const id = `project-${slugifyId(name)}`;
       if (seen.has(id)) return clients;
       seen.add(id);
-      clients.push({ id, name, address: "", phone: "", email: "" });
+      clients.push({
+        id,
+        name,
+        address: name.toUpperCase() === "CTS" ? DEFAULT_CTS_CLIENT.address : "",
+        contact: name.toUpperCase() === "CTS" ? DEFAULT_CTS_CLIENT.contact : "",
+        phone: name.toUpperCase() === "CTS" ? DEFAULT_CTS_CLIENT.phone : "",
+        email: name.toUpperCase() === "CTS" ? DEFAULT_CTS_CLIENT.email : "",
+      });
       return clients;
     }, []);
   }, [selectedProjects]);
@@ -1174,14 +1237,14 @@ export default function InvoicePage() {
 
   const handleClientChange = (value) => {
     if (value === "__new__") {
-      setClientModal({ open: true, name: "", address: "", phone: "", email: "" });
+      setClientModal({ open: true, name: "", address: "", contact: "", phone: "", email: "" });
       return;
     }
     setSelectedClientId(value);
   };
 
   const closeClientModal = () => {
-    setClientModal({ open: false, name: "", address: "", phone: "", email: "" });
+    setClientModal({ open: false, name: "", address: "", contact: "", phone: "", email: "" });
   };
 
   const createInvoiceClient = () => {
@@ -1195,6 +1258,7 @@ export default function InvoicePage() {
       id: `custom-${Date.now()}`,
       name,
       address: clientModal.address.trim(),
+      contact: clientModal.contact.trim(),
       phone: clientModal.phone.trim(),
       email: clientModal.email.trim(),
     };
@@ -1211,16 +1275,68 @@ export default function InvoicePage() {
   const invoiceRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     const grouped = new Map();
+    const importedCandidateWeeks = new Set(ctsImportedHours.map((entry) => `${entry.cts_job_candidate_id}|${entry.week_start_date}`));
+
+    ctsImportedHours.forEach((entry) => {
+      const hours = Number(entry.total_hours || 0);
+      if (!hours) return;
+      const candidate = candidatesById.get(entry.cts_job_candidate_id);
+      if (!candidate) return;
+      const job = jobsById.get(entry.cts_job_id || candidate.cts_job_id);
+      if (!job || !selectedProjectIdSet.has(job.id)) return;
+      const worker = workersById.get(entry.worker_id || candidate.worker_id) || {};
+      const candidateName = candidate.name_snapshot || worker.name || entry.source_employee_name || "Unnamed worker";
+      const projectName = job.level_type || "Untitled project";
+      const projectLocation = [job.city, job.state].filter(Boolean).join(", ");
+      const searchable = [candidateName, projectName, projectLocation, entry.source_memo, entry.source_invoice_number]
+        .filter(Boolean).join(" ").toLowerCase();
+      if (query && !searchable.includes(query)) return;
+
+      const key = `${candidate.id}|${job.id}`;
+      const existing = grouped.get(key) || {
+        key,
+        candidateId: candidate.id,
+        jobId: job.id,
+        candidateName,
+        workerEmail: worker.email || "",
+        workerPhone: candidate.phone_snapshot || worker.phone || "",
+        projectName,
+        projectLocation,
+        jobCode: job.job_code || "",
+        clientName: (job.client_name || "CTS").trim() || "CTS",
+        lineType: "hours",
+        workerId: entry.worker_id || candidate.worker_id || null,
+        hours: 0,
+        qty: 0,
+        firstDate: entry.week_start_date,
+        lastDate: entry.week_ending_date,
+        serviceName: DEFAULT_PRODUCT_SERVICES[0].name,
+        defaultServiceId: DEFAULT_PRODUCT_SERVICES[0].id,
+        defaultRate: 1,
+        ctsRegularHours: 0,
+        ctsOvertimeHours: 0,
+        ctsDoubleTimeHours: 0,
+        ctsSource: true,
+      };
+      existing.hours += hours;
+      existing.qty += hours;
+      existing.ctsRegularHours += Number(entry.regular_hours || 0);
+      existing.ctsOvertimeHours += Number(entry.overtime_hours || 0);
+      existing.ctsDoubleTimeHours += Number(entry.double_time_hours || 0);
+      if (entry.week_start_date < existing.firstDate) existing.firstDate = entry.week_start_date;
+      if (entry.week_ending_date > existing.lastDate) existing.lastDate = entry.week_ending_date;
+      grouped.set(key, existing);
+    });
 
     hoursEntries.forEach((entry) => {
       if (entry.source !== "admin") return;
       if (!approvedReviewKeys.has(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)) return;
+      if (importedCandidateWeeks.has(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)) return;
       const hours = Number(entry.regular_hours || 0);
       if (!hours) return;
 
       const candidate = candidatesById.get(entry.cts_job_candidate_id);
       if (!candidate) return;
-      if (String(candidate.candidate_status || "").toLowerCase() !== "placed") return;
       const job = jobsById.get(entry.cts_job_id || candidate.cts_job_id);
       if (!job) return;
       if (!selectedProjectIdSet.has(job.id)) return;
@@ -1318,13 +1434,13 @@ export default function InvoicePage() {
       if (projectCompare !== 0) return projectCompare;
       return a.candidateName.localeCompare(b.candidateName);
     });
-  }, [approvedReviewKeys, candidates, candidatesById, dateFrom, dateTo, hoursEntries, jobsById, search, selectedProjectIdSet, workersById]);
+  }, [approvedReviewKeys, candidates, candidatesById, ctsImportedHours, dateFrom, dateTo, hoursEntries, jobsById, search, selectedProjectIdSet, workersById]);
 
   const rowsWithTotals = useMemo(
     () => invoiceRows.map((row) => {
       const serviceId = lineServiceIds[row.key] || row.defaultServiceId || DEFAULT_PRODUCT_SERVICES[0].id;
       const service = servicesById.get(serviceId) || servicesById.get(row.defaultServiceId) || DEFAULT_PRODUCT_SERVICES[0];
-      const rate = Number(lineRates[row.key] ?? row.defaultRate ?? service.rate ?? 0);
+      const rate = row.ctsSource ? 1 : Number(lineRates[row.key] ?? row.defaultRate ?? service.rate ?? 0);
       return {
         ...row,
         serviceId,
@@ -1342,7 +1458,7 @@ export default function InvoicePage() {
     () => [...(loadedInvoiceRows || rowsWithTotals), ...manualInvoiceRows].map((row) => {
       const serviceId = lineServiceIds[row.key] || row.serviceId || row.defaultServiceId || DEFAULT_PRODUCT_SERVICES[0].id;
       const service = servicesById.get(serviceId) || servicesById.get(row.defaultServiceId) || { id: serviceId, name: row.serviceName, rate: row.rate || 0 };
-      const rate = Number(lineRates[row.key] ?? row.rate ?? row.defaultRate ?? service.rate ?? 0);
+      const rate = row.ctsSource ? 1 : Number(lineRates[row.key] ?? row.rate ?? row.defaultRate ?? service.rate ?? 0);
       const qty = Number(row.qty ?? row.hours ?? 0);
       return {
         ...row,
@@ -1359,15 +1475,33 @@ export default function InvoicePage() {
   const summary = useMemo(() => {
     const totalHours = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "hours" ? row.hours : 0), 0);
     const totalPlacements = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "placement_fee" ? Number(row.qty || 0) : 0), 0);
+    const importedHours = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "hours" && row.ctsSource ? Number(row.hours || 0) : 0), 0);
+    const manualHours = Math.max(0, totalHours - importedHours);
+    const regularHours = activeRowsWithTotals.reduce((total, row) => total + Number(row.ctsRegularHours || 0), 0);
+    const overtimeHours = activeRowsWithTotals.reduce((total, row) => total + Number(row.ctsOvertimeHours || 0), 0);
+    const doubleTimeHours = activeRowsWithTotals.reduce((total, row) => total + Number(row.ctsDoubleTimeHours || 0), 0);
+    const hourlySubtotal = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "hours" ? row.amount : 0), 0);
+    const placementSubtotal = activeRowsWithTotals.reduce((total, row) => total + (row.lineType === "placement_fee" ? row.amount : 0), 0);
     const subtotal = activeRowsWithTotals.reduce((total, row) => total + row.amount, 0);
     return {
       totalHours,
       totalPlacements,
+      importedHours,
+      manualHours,
+      regularHours,
+      overtimeHours,
+      doubleTimeHours,
+      hourlySubtotal,
+      placementSubtotal,
       subtotal,
       total: subtotal,
       lineCount: activeRowsWithTotals.length,
     };
   }, [activeRowsWithTotals]);
+
+  const invoiceProjectSummary = selectedProjects.length === 1
+    ? selectedProjects[0].projectName
+    : `${selectedProjects.length} selected CTS project${selectedProjects.length === 1 ? "" : "s"}`;
 
   const refreshData = async () => {
     await load();
@@ -1465,6 +1599,7 @@ export default function InvoicePage() {
     status,
     client_name: selectedClientName,
     client_address: selectedClient?.address || "",
+    client_contact_name: selectedClient?.contact || "",
     client_phone: selectedClient?.phone || "",
     client_email: selectedClient?.email || "",
     date_from: dateFrom,
@@ -1600,7 +1735,9 @@ export default function InvoicePage() {
 
 
 
-  const mapInvoiceLineToRow = (line) => ({
+  const mapInvoiceLineToRow = (line) => {
+    const savedCtsHours = parseSavedCtsHours(line.details);
+    return {
     key: `saved-${line.id}`,
     lineType: line.line_type || "hours",
     candidateId: line.cts_job_candidate_id || null,
@@ -1612,6 +1749,7 @@ export default function InvoicePage() {
     projectName: line.line_type === "manual" ? (line.details || line.project_name || "") : (line.project_name || "Untitled project"),
     projectLocation: "",
     jobCode: "",
+    savedDetails: line.details || "",
     clientName: selectedClientName,
     hours: line.line_type === "hours" ? Number(line.qty || 0) : 0,
     qty: Number(line.qty || 0),
@@ -1623,6 +1761,10 @@ export default function InvoicePage() {
     defaultRate: Number(line.rate || 0),
     rate: Number(line.rate || 0),
     amount: Number(line.amount || 0),
+    ctsSource: !!savedCtsHours,
+    ctsRegularHours: savedCtsHours?.regular || 0,
+    ctsOvertimeHours: savedCtsHours?.overtime || 0,
+    ctsDoubleTimeHours: savedCtsHours?.doubleTime || 0,
     savedLineId: line.id,
     placedAt: candidatesById.get(line.cts_job_candidate_id)?.placed_at || null,
   });
@@ -1641,6 +1783,7 @@ export default function InvoicePage() {
       id: clientId,
       name: invoice.client_name || "Saved client",
       address: invoice.client_address || "",
+      contact: invoice.client_contact_name || "",
       phone: invoice.client_phone || "",
       email: invoice.client_email || "",
     };
@@ -2042,7 +2185,7 @@ export default function InvoicePage() {
                     <div className="invoice-title-meta">
                       <div className="bill-heading">Service Period</div>
                       <div className="bill-main">{formatDate(dateFrom)} – {formatDate(dateTo)}</div>
-                      <div className="invoice-muted">All active projects</div>
+                      <div className="invoice-muted">{invoiceProjectSummary}</div>
                     </div>
                   </div>
                   <div className="invoice-doc-meta">
@@ -2060,6 +2203,7 @@ export default function InvoicePage() {
                     <div className="bill-heading">Bill To</div>
                     <div className="bill-main">{selectedClientName}</div>
                     {selectedClient?.address ? <div className="invoice-muted">{selectedClient.address}</div> : null}
+                    {selectedClient?.contact ? <div className="invoice-muted"><strong>Attn:</strong> {selectedClient.contact}</div> : null}
                     {selectedClient?.phone ? <div className="invoice-muted">{selectedClient.phone}</div> : null}
                     {selectedClient?.email ? <div className="invoice-muted">{selectedClient.email}</div> : null}
                   </div>
@@ -2090,11 +2234,21 @@ export default function InvoicePage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {activeRowsWithTotals.map((row, index) => (
-                            <tr key={row.key}>
+                          {activeRowsWithTotals.map((row, index) => {
+                            const startsSection = index === 0 || activeRowsWithTotals[index - 1]?.lineType !== row.lineType;
+                            const sectionLabel = row.lineType === "placement_fee" ? "Placement fees" : "Approved hours";
+                            const sectionAmount = row.lineType === "placement_fee" ? summary.placementSubtotal : summary.hourlySubtotal;
+                            return (
+                            <React.Fragment key={row.key}>
+                              {startsSection ? (
+                                <tr className="invoice-section-row">
+                                  <td colSpan={7}>{sectionLabel}<span className="section-row-meta">Subtotal {formatCurrency(sectionAmount)}</span></td>
+                                </tr>
+                              ) : null}
+                            <tr>
                               <td style={{ textAlign: "right" }}>{index + 1}</td>
                               <td>
-                                {invoiceReadOnly ? <span>{row.serviceName}</span> : (
+                                {invoiceReadOnly ? <span className="screen-service-value">{row.serviceName}</span> : (
                                   <select
                                     className="service-select"
                                     value={row.serviceId}
@@ -2178,7 +2332,7 @@ export default function InvoicePage() {
                                 {row.lineType === "manual" && !invoiceReadOnly ? <span className="print-manual-value">{formatHours(row.qty)}</span> : null}
                               </td>
                               <td style={{ textAlign: "right" }}>
-                                {invoiceReadOnly ? <span>{formatCurrency(row.rate)}</span> : (
+                                {invoiceReadOnly || row.ctsSource ? <span className="screen-rate-value">{formatCurrency(row.rate)}</span> : (
                                   <input
                                     className="rate-input"
                                     type="number"
@@ -2193,15 +2347,21 @@ export default function InvoicePage() {
                               </td>
                               <td style={{ textAlign: "right", fontWeight: 750 }}>{formatCurrency(row.amount)}</td>
                             </tr>
-                          ))}
+                            </React.Fragment>
+                          );})}
                         </tbody>
                       </table>
                     </div>
 
                     <div className="invoice-total-panel">
                       <div className="total-box">
+                        {summary.importedHours > 0 ? <div className="total-row"><span>CTS Imported Hours</span><strong>{formatHours(summary.importedHours)}</strong></div> : null}
+                        {summary.importedHours > 0 ? <div className="total-row"><span>REG / OT / DT</span><strong>{formatHours(summary.regularHours)} / {formatHours(summary.overtimeHours)} / {formatHours(summary.doubleTimeHours)}</strong></div> : null}
+                        {summary.manualHours > 0 ? <div className="total-row"><span>Manually Entered Hours</span><strong>{formatHours(summary.manualHours)}</strong></div> : null}
                         <div className="total-row"><span>Total Hours</span><strong>{formatHours(summary.totalHours)}</strong></div>
+                        <div className="total-row"><span>Hourly Fees</span><strong>{formatCurrency(summary.hourlySubtotal)}</strong></div>
                         <div className="total-row"><span>Total Placements</span><strong>{formatCount(summary.totalPlacements)}</strong></div>
+                        <div className="total-row"><span>Placement Fees</span><strong>{formatCurrency(summary.placementSubtotal)}</strong></div>
                         <div className="total-row grand"><span>Total Due</span><span>{formatCurrency(summary.total)}</span></div>
                       </div>
                     </div>
@@ -2263,6 +2423,16 @@ export default function InvoicePage() {
                 value={clientModal.address}
                 onChange={(event) => setClientModal((prev) => ({ ...prev, address: event.target.value }))}
                 placeholder="Billing address"
+              />
+            </div>
+
+            <div className="invoice-field">
+              <label className="invoice-label">Contact Person</label>
+              <input
+                className="invoice-input"
+                value={clientModal.contact}
+                onChange={(event) => setClientModal((prev) => ({ ...prev, contact: event.target.value }))}
+                placeholder="Contact person"
               />
             </div>
 

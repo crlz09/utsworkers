@@ -366,7 +366,7 @@ export default function AdminNotificationsPage() {
   };
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(() => load());
   }, []);
 
   const notifications = useMemo(
