@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, FileText, Loader2, Pencil, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
+import { Download, FileText, Loader2, Pencil, Plus, Printer, RefreshCw, Search, Trash2, X } from "lucide-react";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { supabase } from "../lib/supabase";
@@ -505,7 +505,8 @@ function InvoiceStyles() {
       }
 
       .print-service-name,
-      .print-rate-value {
+      .print-rate-value,
+      .print-manual-value {
         display: none;
       }
 
@@ -516,7 +517,8 @@ function InvoiceStyles() {
       }
 
       .rate-input,
-      .service-select {
+      .service-select,
+      .line-input {
         min-height: 38px;
         border: 1px solid #cbd5e1;
         border-radius: 12px;
@@ -525,6 +527,47 @@ function InvoiceStyles() {
         padding: 8px 10px;
         outline: none;
         font-size: 13px;
+      }
+
+      .line-input {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #0f172a;
+        padding: 8px 9px;
+        font-size: 12px;
+        outline: none;
+      }
+
+      .line-input:focus {
+        border-color: #0f172a;
+        box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+      }
+
+      .line-input.qty-input {
+        text-align: right;
+      }
+
+      .manual-line-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 6px;
+      }
+
+      .remove-line-btn {
+        border: 0;
+        background: transparent;
+        color: #b91c1c;
+        padding: 3px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 6px;
+      }
+
+      .remove-line-btn:hover {
+        background: #fee2e2;
       }
 
       .rate-input {
@@ -794,8 +837,8 @@ function InvoiceStyles() {
           print-color-adjust: exact !important;
         }
         html, body { background: #ffffff !important; overflow: visible !important; }
-        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .invoice-dashboard, .rate-input, .service-select, .row-action-btn, .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
-        .print-service-name, .print-rate-value { display: inline !important; }
+        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .invoice-dashboard, .rate-input, .service-select, .line-input, .row-action-btn, .remove-line-btn, .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
+        .print-service-name, .print-rate-value, .print-manual-value { display: inline !important; }
         .invoice-shell { width: 100%; max-width: none; padding: 0; gap: 0; }
         .invoice-grid { display: block; }
         .invoice-preview { display: block; }
@@ -875,7 +918,8 @@ function formatCount(value) {
 
 function formatDate(value) {
   if (!value) return "—";
-  const date = new Date(`${value}T00:00:00`);
+  const text = String(value);
+  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(text) ? `${text}T00:00:00` : text);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
@@ -976,6 +1020,7 @@ export default function InvoicePage() {
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [lineServiceIds, setLineServiceIds] = useState({});
   const [lineRates, setLineRates] = useState({});
+  const [manualInvoiceRows, setManualInvoiceRows] = useState([]);
   const [serviceModal, setServiceModal] = useState({ open: false, rowKey: "", name: "", rate: "0" });
   const [clientModal, setClientModal] = useState({ open: false, name: "", address: "", phone: "", email: "" });
 
@@ -1262,6 +1307,7 @@ export default function InvoicePage() {
         serviceName: "Placement Fee",
         defaultServiceId: "placement-fee",
         defaultRate: placementRate,
+        placedAt: candidate.placed_at || null,
       });
     });
 
@@ -1293,7 +1339,7 @@ export default function InvoicePage() {
 
 
   const activeRowsWithTotals = useMemo(
-    () => (loadedInvoiceRows || rowsWithTotals).map((row) => {
+    () => [...(loadedInvoiceRows || rowsWithTotals), ...manualInvoiceRows].map((row) => {
       const serviceId = lineServiceIds[row.key] || row.serviceId || row.defaultServiceId || DEFAULT_PRODUCT_SERVICES[0].id;
       const service = servicesById.get(serviceId) || servicesById.get(row.defaultServiceId) || { id: serviceId, name: row.serviceName, rate: row.rate || 0 };
       const rate = Number(lineRates[row.key] ?? row.rate ?? row.defaultRate ?? service.rate ?? 0);
@@ -1307,7 +1353,7 @@ export default function InvoicePage() {
         amount: qty * rate,
       };
     }),
-    [lineRates, lineServiceIds, loadedInvoiceRows, rowsWithTotals, servicesById]
+    [lineRates, lineServiceIds, loadedInvoiceRows, manualInvoiceRows, rowsWithTotals, servicesById]
   );
 
   const summary = useMemo(() => {
@@ -1366,6 +1412,52 @@ export default function InvoicePage() {
     closeServiceModal();
   };
 
+  const addInvoiceLine = () => {
+    const key = `manual-${Date.now()}`;
+    setManualInvoiceRows((prev) => [
+      ...prev,
+      {
+        key,
+        lineType: "manual",
+        candidateId: null,
+        jobId: null,
+        workerId: null,
+        candidateName: "",
+        projectName: "",
+        projectLocation: "",
+        jobCode: "",
+        hours: 0,
+        qty: 1,
+        serviceName: DEFAULT_PRODUCT_SERVICES[0].name,
+        serviceId: DEFAULT_PRODUCT_SERVICES[0].id,
+        defaultServiceId: DEFAULT_PRODUCT_SERVICES[0].id,
+        defaultRate: DEFAULT_PRODUCT_SERVICES[0].rate,
+        rate: DEFAULT_PRODUCT_SERVICES[0].rate,
+      },
+    ]);
+    setLineRates((prev) => ({ ...prev, [key]: DEFAULT_PRODUCT_SERVICES[0].rate }));
+  };
+
+  const updateManualInvoiceLine = (rowKey, changes) => {
+    setManualInvoiceRows((prev) => prev.map((row) => row.key === rowKey ? { ...row, ...changes } : row));
+    setLoadedInvoiceRows((prev) => prev ? prev.map((row) => row.key === rowKey ? { ...row, ...changes } : row) : prev);
+  };
+
+  const removeManualInvoiceLine = (rowKey) => {
+    setManualInvoiceRows((prev) => prev.filter((row) => row.key !== rowKey));
+    setLoadedInvoiceRows((prev) => prev ? prev.filter((row) => row.key !== rowKey) : prev);
+    setLineRates((prev) => {
+      const next = { ...prev };
+      delete next[rowKey];
+      return next;
+    });
+    setLineServiceIds((prev) => {
+      const next = { ...prev };
+      delete next[rowKey];
+      return next;
+    });
+  };
+
 
 
   const buildInvoicePayload = (status, resolvedInvoiceNumber = invoiceNumber) => ({
@@ -1417,7 +1509,15 @@ export default function InvoicePage() {
     product_service_name: row.serviceName,
     worker_name: row.candidateName,
     project_name: row.projectName,
-    details: [row.projectLocation, row.firstDate && row.lastDate ? `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}` : "", row.jobCode ? `Code: ${row.jobCode}` : ""].filter(Boolean).join(" · "),
+    details: row.lineType === "manual"
+      ? row.projectName
+      : [
+          row.projectLocation,
+          row.lineType === "placement_fee"
+            ? `Placed: ${formatDate(row.placedAt)}`
+            : row.firstDate && row.lastDate ? `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}` : "",
+          row.jobCode ? `Code: ${row.jobCode}` : "",
+        ].filter(Boolean).join(" · "),
     qty: Number((row.qty ?? row.hours ?? 0).toFixed(2)),
     rate: Number(row.rate.toFixed(2)),
     amount: Number(row.amount.toFixed(2)),
@@ -1509,7 +1609,7 @@ export default function InvoicePage() {
     candidateName: line.worker_name || "Unnamed worker",
     workerEmail: "",
     workerPhone: "",
-    projectName: line.project_name || "Untitled project",
+    projectName: line.line_type === "manual" ? (line.details || line.project_name || "") : (line.project_name || "Untitled project"),
     projectLocation: "",
     jobCode: "",
     clientName: selectedClientName,
@@ -1524,6 +1624,7 @@ export default function InvoicePage() {
     rate: Number(line.rate || 0),
     amount: Number(line.amount || 0),
     savedLineId: line.id,
+    placedAt: candidatesById.get(line.cts_job_candidate_id)?.placed_at || null,
   });
 
   const loadInvoiceIntoView = (invoice, readOnly = true) => {
@@ -1553,6 +1654,7 @@ export default function InvoicePage() {
       return a.candidateName.localeCompare(b.candidateName);
     });
     setLoadedInvoiceRows(mappedRows);
+    setManualInvoiceRows([]);
     setLineRates(Object.fromEntries(mappedRows.map((row) => [row.key, row.rate])));
     setLineServiceIds(Object.fromEntries(mappedRows.map((row) => [row.key, row.serviceId])));
     setBuilderOpen(false);
@@ -1608,6 +1710,7 @@ export default function InvoicePage() {
 
     setCurrentInvoiceId(null);
     setLoadedInvoiceRows(null);
+    setManualInvoiceRows([]);
     setInvoiceReadOnly(false);
     setLineRates({});
     setLineServiceIds({});
@@ -1670,7 +1773,9 @@ export default function InvoicePage() {
       index + 1,
       row.serviceName,
       row.candidateName,
-      [row.projectName, row.projectLocation].filter(Boolean).join(" · "),
+      row.lineType === "placement_fee"
+        ? [row.projectName, row.projectLocation, `Placed: ${formatDate(row.placedAt)}`].filter(Boolean).join(" · ")
+        : [row.projectName, row.projectLocation].filter(Boolean).join(" · "),
       formatHours(row.qty ?? row.hours),
       row.rate.toFixed(2),
       row.amount.toFixed(2),
@@ -1891,6 +1996,10 @@ export default function InvoicePage() {
                     Load Invoice Lines
                   </button>
 
+                  <button className="invoice-btn" type="button" onClick={addInvoiceLine} disabled={invoiceReadOnly}>
+                    <Plus size={15} /> Add Lines +
+                  </button>
+
                   <div className="invoice-date-grid">
                     <div className="invoice-field">
                       <label className="invoice-label">Invoice #</label>
@@ -2001,17 +2110,73 @@ export default function InvoicePage() {
                                 <span className="print-service-name">{row.serviceName}</span>
                               </td>
                               <td>
-                                <div className="line-primary">{row.candidateName}</div>
-                                <div className="line-secondary">{[row.workerPhone, row.workerEmail].filter(Boolean).join(" · ") || "No contact"}</div>
+                                {row.lineType === "manual" && !invoiceReadOnly ? (
+                                  <input
+                                    className="line-input"
+                                    value={row.candidateName}
+                                    onChange={(event) => updateManualInvoiceLine(row.key, { candidateName: event.target.value })}
+                                    placeholder="Item description"
+                                    aria-label={`Description for item ${index + 1}`}
+                                  />
+                                ) : (
+                                  <>
+                                    <div className="line-primary">{row.candidateName || "Additional item"}</div>
+                                    {row.lineType !== "manual" ? <div className="line-secondary">{[row.workerPhone, row.workerEmail].filter(Boolean).join(" · ") || "No contact"}</div> : null}
+                                  </>
+                                )}
+                                {row.lineType === "manual" && !invoiceReadOnly ? <span className="print-manual-value line-primary">{row.candidateName || "Additional item"}</span> : null}
                               </td>
                               <td>
-                                <div className="line-primary">{row.projectName}</div>
-                                <div className="line-secondary">{[row.projectLocation, `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}`, row.jobCode ? `Code: ${row.jobCode}` : ""].filter(Boolean).join(" · ") || "No location"}</div>
+                                {row.lineType === "manual" && !invoiceReadOnly ? (
+                                  <>
+                                    <input
+                                      className="line-input"
+                                      value={row.projectName}
+                                      onChange={(event) => updateManualInvoiceLine(row.key, { projectName: event.target.value })}
+                                      placeholder="Details"
+                                      aria-label={`Details for item ${index + 1}`}
+                                    />
+                                    <div className="manual-line-actions">
+                                      <button className="remove-line-btn" type="button" onClick={() => removeManualInvoiceLine(row.key)} aria-label={`Remove item ${index + 1}`} title="Remove line">
+                                        <X size={15} />
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="line-primary">{row.projectName}</div>
+                                    {row.lineType !== "manual" ? (
+                                      <div className="line-secondary">
+                                        {[
+                                          row.projectLocation,
+                                          row.lineType === "placement_fee"
+                                            ? `Placed: ${formatDate(row.placedAt)}`
+                                            : row.firstDate && row.lastDate ? `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}` : "",
+                                          row.jobCode ? `Code: ${row.jobCode}` : "",
+                                        ].filter(Boolean).join(" · ") || "No location"}
+                                      </div>
+                                    ) : null}
+                                  </>
+                                )}
+                                {row.lineType === "manual" && !invoiceReadOnly ? <span className="print-manual-value">{row.projectName || "—"}</span> : null}
                                 {row.lineType === "placement_fee" && !invoiceReadOnly ? (
                                   <button className="row-action-btn" type="button" onClick={() => markPlacementFeePaid(row)}>Mark Placement Paid</button>
                                 ) : null}
                               </td>
-                              <td style={{ textAlign: "right" }}>{formatHours(row.qty ?? row.hours)}</td>
+                              <td style={{ textAlign: "right" }}>
+                                {row.lineType === "manual" && !invoiceReadOnly ? (
+                                  <input
+                                    className="line-input qty-input"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={row.qty}
+                                    onChange={(event) => updateManualInvoiceLine(row.key, { qty: event.target.value })}
+                                    aria-label={`Quantity for item ${index + 1}`}
+                                  />
+                                ) : formatHours(row.qty ?? row.hours)}
+                                {row.lineType === "manual" && !invoiceReadOnly ? <span className="print-manual-value">{formatHours(row.qty)}</span> : null}
+                              </td>
                               <td style={{ textAlign: "right" }}>
                                 {invoiceReadOnly ? <span>{formatCurrency(row.rate)}</span> : (
                                   <input
