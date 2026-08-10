@@ -20,6 +20,8 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { motion as Motion } from "framer-motion";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -35,7 +37,7 @@ const experienceFields = [
 ];
 const registrationStepFields = [
   {
-    fields: ["first_name", "last_name", "phone", "email", "address", "zip_code", "city", "state"],
+    fields: ["first_name", "last_name", "date_of_birth", "phone", "email", "address", "zip_code", "city", "state"],
   },
   {
     fields: [
@@ -75,6 +77,7 @@ const copy = {
     labels: {
       firstName: "First Name",
       lastName: "Last Name",
+      dateOfBirth: "Date of Birth (DOB)",
       phone: "Phone",
       email: "Email",
       address: "Street Address",
@@ -107,6 +110,7 @@ const copy = {
     placeholders: {
       firstName: "Enter first name",
       lastName: "Enter last name",
+      dateOfBirth: "MM/DD/YYYY",
       phone: "Enter phone number",
       email: "Enter email address",
       address: "Street address",
@@ -144,6 +148,7 @@ const copy = {
       fieldErrors: {
         first_name: "Enter your first name.",
         last_name: "Enter your last name.",
+        date_of_birth: "Enter a valid date of birth in MM/DD/YYYY format.",
         phoneRequired: "Enter your phone number.",
         phoneInvalid: "Enter a valid 10-digit US phone number.",
         emailRequired: "Enter your email address.",
@@ -192,6 +197,7 @@ const copy = {
     labels: {
       firstName: "Nombre",
       lastName: "Apellido",
+      dateOfBirth: "Fecha de Nacimiento (DOB)",
       phone: "Teléfono",
       email: "Correo",
       address: "Dirección",
@@ -224,6 +230,7 @@ const copy = {
     placeholders: {
       firstName: "Ingresa tu nombre",
       lastName: "Ingresa tu apellido",
+      dateOfBirth: "MM/DD/AAAA",
       phone: "Ingresa tu teléfono",
       email: "Ingresa tu correo",
       address: "Dirección completa",
@@ -261,6 +268,7 @@ const copy = {
       fieldErrors: {
         first_name: "Ingresa tu nombre.",
         last_name: "Ingresa tu apellido.",
+        date_of_birth: "Ingresa una fecha de nacimiento válida en formato MM/DD/AAAA.",
         phoneRequired: "Ingresa tu número de teléfono.",
         phoneInvalid: "Ingresa un teléfono válido de 10 dígitos.",
         emailRequired: "Ingresa tu correo.",
@@ -291,6 +299,7 @@ const copy = {
 const initialForm = {
   first_name: "",
   last_name: "",
+  date_of_birth: "",
   phone: "",
   email: "",
   address: "",
@@ -463,6 +472,11 @@ function PageStyles() {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 18px 22px;
         align-items: start;
+      }
+
+      .date-picker-full-width,
+      .date-picker-full-width .react-datepicker-wrapper {
+        width: 100%;
       }
 
       .experience-top-grid {
@@ -648,6 +662,44 @@ function formatPhoneInput(value) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
+function parseDateOfBirth(value) {
+  const match = String(value || "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+
+  const [, monthText, dayText, yearText] = match;
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const year = Number(yearText);
+  const date = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date > today ||
+    year < 1900
+  ) return null;
+
+  return date;
+}
+
+function formatDateOfBirth(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  return [
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+    date.getFullYear(),
+  ].join("/");
+}
+
+function toIsoDate(value) {
+  const date = parseDateOfBirth(value);
+  if (!date) return null;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function getRegistrationFieldErrors(form, text = copy.en) {
   const errors = {};
   const fieldText = text.messages.fieldErrors;
@@ -657,6 +709,7 @@ function getRegistrationFieldErrors(form, text = copy.en) {
 
   if (!form.first_name.trim()) errors.first_name = fieldText.first_name;
   if (!form.last_name.trim()) errors.last_name = fieldText.last_name;
+  if (!parseDateOfBirth(form.date_of_birth)) errors.date_of_birth = fieldText.date_of_birth;
 
   if (!form.phone.trim()) {
     errors.phone = fieldText.phoneRequired;
@@ -1509,6 +1562,7 @@ export default function RegisterPage() {
           },
           body: JSON.stringify({
             ...form,
+            date_of_birth: toIsoDate(form.date_of_birth),
             name: fullName,
             languages,
             languageProficiencies: languages.includes("English")
@@ -1750,6 +1804,27 @@ export default function RegisterPage() {
                       style={inputStyle()}
                     />
                     <FieldError>{fieldErrors.last_name}</FieldError>
+                  </Field>
+
+                  <Field label={text.labels.dateOfBirth} required>
+                    <DatePicker
+                      required
+                      selected={parseDateOfBirth(form.date_of_birth)}
+                      onChange={(date) => handleChange("date_of_birth", formatDateOfBirth(date))}
+                      onChangeRaw={(event) => handleChange("date_of_birth", event?.target?.value || "")}
+                      dateFormat="MM/dd/yyyy"
+                      placeholderText={text.placeholders.dateOfBirth}
+                      maxDate={new Date()}
+                      minDate={new Date(1900, 0, 1)}
+                      showMonthDropdown
+                      showYearDropdown
+                      dropdownMode="select"
+                      autoComplete="bday"
+                      aria-label={text.labels.dateOfBirth}
+                      wrapperClassName="date-picker-full-width"
+                      customInput={<input style={inputStyle()} inputMode="numeric" />}
+                    />
+                    <FieldError>{fieldErrors.date_of_birth}</FieldError>
                   </Field>
 
                   <Field label={text.labels.phone} required>

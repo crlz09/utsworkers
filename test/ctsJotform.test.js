@@ -11,6 +11,7 @@ test("builds the CTS form URL using its exact Jotform question names", () => {
     worker_city: "Indianapolis",
     worker_state: "IN",
     worker_zip_code: "46201",
+    worker_date_of_birth: "1990-04-23",
     class_snapshot: "Electrician",
     worker_total_experience_years: 8,
     english_snapshot: "Bilingual",
@@ -32,6 +33,7 @@ test("builds the CTS form URL using its exact Jotform question names", () => {
   assert.equal(url.searchParams.get("typeA44"), "Indianapolis");
   assert.equal(url.searchParams.get("state"), "IN");
   assert.equal(url.searchParams.get("typeA46"), "46201");
+  assert.equal(url.searchParams.get("dob"), "04/23/1990");
   assert.equal(url.searchParams.get("phoneNumber5[full]"), "(317) 555-0100");
   assert.equal(url.searchParams.get("email6"), "ana@example.com");
   assert.equal(url.searchParams.get("trade"), "Electrician");

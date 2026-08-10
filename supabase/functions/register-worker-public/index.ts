@@ -43,6 +43,27 @@ const normalizePhone = (value: unknown) => {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
 }
 
+const normalizeDateOfBirth = (value: unknown) => {
+  const raw = String(value ?? "").trim()
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(Date.UTC(year, month - 1, day))
+  const today = new Date()
+  if (
+    year < 1900 ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day ||
+    date.getTime() > today.getTime()
+  ) return null
+
+  return raw
+}
+
 const buildFullName = (firstName: unknown, lastName: unknown) =>
   [toRequiredString(firstName), toRequiredString(lastName)]
     .filter(Boolean)
@@ -536,6 +557,7 @@ Deno.serve(async (req) => {
     }
 
     const submittedName = toRequiredString(payload.name) || buildFullName(payload.first_name, payload.last_name)
+    const dateOfBirth = normalizeDateOfBirth(payload.date_of_birth)
 
     const rpcPayload = {
       p_name: submittedName,
@@ -564,6 +586,7 @@ Deno.serve(async (req) => {
 
     if (
       !rpcPayload.p_name ||
+      !dateOfBirth ||
       !rpcPayload.p_phone ||
       !rpcPayload.p_email ||
       !rpcPayload.p_address ||
@@ -579,7 +602,7 @@ Deno.serve(async (req) => {
         payloadSummary,
       })
       return respond(400, {
-        error: "Please complete Name, Phone, Email, Address, ZIP Code, Trade, and Location.",
+        error: "Please complete Name, Date of Birth, Phone, Email, Address, ZIP Code, Trade, and Location.",
       })
     }
 
@@ -650,6 +673,17 @@ Deno.serve(async (req) => {
           : error.message || "Something went wrong while saving the worker profile.",
         field: duplicateField,
       })
+    }
+
+    const { error: dateOfBirthError } = await supabaseAdmin
+      .from("workers")
+      .update({ date_of_birth: dateOfBirth })
+      .eq("id", data)
+
+    if (dateOfBirthError) {
+      console.error("Could not store worker date of birth", dateOfBirthError)
+      await supabaseAdmin.from("workers").delete().eq("id", data)
+      return respond(500, { error: "Could not save the worker date of birth. Please try again." })
     }
 
     await logAttempt(supabaseAdmin, {
