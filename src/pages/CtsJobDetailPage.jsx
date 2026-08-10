@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { useNavigate, useParams } from "react-router-dom";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
+import { buildCtsJotformPrefillUrl } from "../lib/ctsJotform";
 import {
   ArrowLeft,
   Loader2,
@@ -410,7 +411,7 @@ export default function CtsJobDetailPage() {
     if (workerIds.length > 0) {
       const { data: workerRows, error: workersError } = await supabase
         .from("workers")
-        .select("id, public_profile_slug")
+        .select("id, name, phone, email, address, zip_code, city, state, total_experience_years, public_profile_slug, worker_certifications(certifications(name))")
         .in("id", workerIds);
 
       if (!workersError) {
@@ -423,6 +424,15 @@ export default function CtsJobDetailPage() {
       candidateRows.map((candidate) => ({
         ...candidate,
         public_profile_slug: workersById.get(candidate.worker_id)?.public_profile_slug || "",
+        worker_name: workersById.get(candidate.worker_id)?.name || "",
+        worker_phone: workersById.get(candidate.worker_id)?.phone || "",
+        worker_email: workersById.get(candidate.worker_id)?.email || "",
+        worker_address: workersById.get(candidate.worker_id)?.address || "",
+        worker_zip_code: workersById.get(candidate.worker_id)?.zip_code || "",
+        worker_city: workersById.get(candidate.worker_id)?.city || "",
+        worker_state: workersById.get(candidate.worker_id)?.state || "",
+        worker_total_experience_years: workersById.get(candidate.worker_id)?.total_experience_years ?? "",
+        worker_certifications: workersById.get(candidate.worker_id)?.worker_certifications || [],
       }))
     );
     setLoading(false);
@@ -444,6 +454,11 @@ export default function CtsJobDetailPage() {
     setPickerSession((prev) => prev + 1);
     setPickerOpen(true);
     if (!workers.length) await loadWorkers();
+  };
+
+  const openPrefilledCtsForm = (candidate) => {
+    const prefilledUrl = buildCtsJotformPrefillUrl(candidate, job);
+    window.open(prefilledUrl, "_blank", "noopener,noreferrer");
   };
 
   const assignedWorkerIds = useMemo(() => new Set(jobCandidates.map((item) => item.worker_id).filter(Boolean)), [jobCandidates]);
@@ -758,6 +773,7 @@ export default function CtsJobDetailPage() {
                         <td className="notes-cell"><InlineEditableField row={row} field="notes" value={row.notes} type="textarea" placeholder="CTS submission notes..." editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:notes`]} /></td>
                         <td className="actions-cell">
                           <div className="row-actions">
+                            <button className="icon-btn" type="button" onClick={() => openPrefilledCtsForm(row)} title="Open the CTS form with available candidate details prefilled"><ExternalLink size={14} />CTS Form</button>
                             <button className="icon-btn" type="button" onClick={() => removeCandidate(row)} disabled={!!deleteIds[row.id]}>{deleteIds[row.id] ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />}Remove</button>
                           </div>
                         </td>
