@@ -11,6 +11,11 @@ function setIfPresent(params, key, value) {
   if (normalizedValue) params.set(key, normalizedValue);
 }
 
+function formatDateOfBirth(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[2]}/${match[3]}/${match[1]}` : value;
+}
+
 export function buildCtsJotformPrefillUrl(candidate, job) {
   const params = new URLSearchParams();
   const name = String(candidate?.name_snapshot || candidate?.worker_name || "").trim();
@@ -19,6 +24,7 @@ export function buildCtsJotformPrefillUrl(candidate, job) {
   setIfPresent(params, "recruiterCompany", "Universal Talent Source");
   setIfPresent(params, "fullName3[first]", first);
   setIfPresent(params, "fullName3[last]", last);
+  setIfPresent(params, "dob", formatDateOfBirth(candidate?.worker_date_of_birth));
 
   // Questions 42 and 43 share the same Jotform unique name. We send the
   // candidate's primary address once and leave Address 2 for manual review.
