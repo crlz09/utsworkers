@@ -50,10 +50,11 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     if (isRegister) return undefined;
     document.body.classList.add("uts-operations-shell");
     document.body.classList.toggle("uts-operations-shell-collapsed", collapsed);
+    document.body.classList.toggle("uts-operations-shell-no-header", !showWorkspaceHeader);
     return () => {
-      document.body.classList.remove("uts-operations-shell", "uts-operations-shell-collapsed");
+      document.body.classList.remove("uts-operations-shell", "uts-operations-shell-collapsed", "uts-operations-shell-no-header");
     };
-  }, [collapsed, isRegister]);
+  }, [collapsed, isRegister, showWorkspaceHeader]);
 
   useEffect(() => {
     mobileOpenRef.current = mobileOpen;
@@ -185,8 +186,19 @@ export default function UtsTopNavBar({ rightSlot = null }) {
 
   if (isRegister) {
     return (
-      <header className="uts-public-header">
-        <img src={utsLogo} alt="Universal Talent Source" />
+      <header
+        className="uts-public-header"
+        style={{
+          minHeight: "calc(70px + env(safe-area-inset-top, 0px))",
+          padding: "calc(10px + env(safe-area-inset-top, 0px)) 24px 10px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+          background: "#182433",
+        }}
+      >
+        <img src={utsLogo} alt="Universal Talent Source" style={{ width: 86, height: 48, objectFit: "contain", flex: "0 0 auto" }} />
         <div className="uts-public-actions">{rightSlot}</div>
       </header>
     );
@@ -237,6 +249,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         @media (max-width: 820px) {
           :root { --uts-rail: 264px; }
           body.uts-operations-shell, body.uts-operations-shell-collapsed { padding-left: 0; }
+          body.uts-operations-shell-no-header { padding-top: var(--uts-safe-top); }
           .uts-ops-sidebar { transform: translateX(-105%); width: 264px; box-shadow: 18px 0 48px rgba(15,23,42,.22); }
           .uts-ops-sidebar.mobile-open { transform: translateX(0); }
           .uts-ops-sidebar.mobile-open .uts-ops-brand-copy,
