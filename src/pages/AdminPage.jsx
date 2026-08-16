@@ -3165,53 +3165,6 @@ export default function AdminPage() {
               ))}
             </div>
 
-            <div style={{ position: "relative", width: "100%" }}>
-              <input
-                placeholder="Search by name, email, phone or notes"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    e.preventDefault();
-                    setSearch("");
-                    e.currentTarget.blur();
-                  }
-                }}
-                style={{
-                  ...inputStyle,
-                  height: 50,
-                  paddingRight: search ? 46 : 14,
-                }}
-              />
-
-              {search ? (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  aria-label="Clear search"
-                  title="Clear search"
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    width: 30,
-                    height: 30,
-                    borderRadius: 999,
-                    border: "none",
-                    background: "#f1f5f9",
-                    color: "#334155",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              ) : null}
-            </div>
-
             <div
               className="filters-card"
               style={{
