@@ -47,6 +47,11 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   const [globalSearch, setGlobalSearch] = useState(() => new URLSearchParams(location.search).get("q") || "");
 
   useEffect(() => {
+    const query = new URLSearchParams(location.search).get("q") || "";
+    void Promise.resolve().then(() => setGlobalSearch(query));
+  }, [location.search]);
+
+  useEffect(() => {
     if (isRegister) return undefined;
     document.body.classList.add("uts-operations-shell");
     document.body.classList.toggle("uts-operations-shell-collapsed", collapsed);

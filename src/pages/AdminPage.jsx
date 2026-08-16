@@ -2749,10 +2749,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const query = params.get("q");
-    if (query) {
-      void Promise.resolve().then(() => setSearch(query));
-    }
+    const query = params.get("q") || "";
+    void Promise.resolve().then(() => setSearch(query));
     if (params.get("view") === "candidates") {
       window.requestAnimationFrame(() => document.getElementById("candidate-workspace")?.scrollIntoView({ block: "start" }));
     }
