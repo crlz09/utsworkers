@@ -56,7 +56,7 @@ export default function CandidateWorkspaceTabs() {
         .candidate-workspace-tab { position: relative; min-height: 48px; padding: 0 2px; border: 0; background: transparent; color: #69798d; display: inline-flex; align-items: center; gap: 8px; font-weight: 800; white-space: nowrap; cursor: pointer; }
         .candidate-workspace-tab.active { color: #225fce; }
         .candidate-workspace-tab.active::after { content: ""; position: absolute; height: 3px; left: 0; right: 0; bottom: 0; border-radius: 3px 3px 0 0; background: #2f6fed; }
-        @media(max-width:820px) { .candidate-workspace-head { top: 68px; } .candidate-workspace-head-inner { width: min(100% - 24px, 1380px); } .candidate-workspace-title { min-height: 50px; } .candidate-workspace-tabs { gap: 18px; } }
+        @media(max-width:820px) { .candidate-workspace-head { top: var(--uts-header-total, calc(68px + env(safe-area-inset-top, 0px))); } .candidate-workspace-head-inner { width: min(100% - 24px, 1380px); } .candidate-workspace-title { min-height: 50px; } .candidate-workspace-tabs { gap: 18px; } }
       `}</style>
       <section className="candidate-workspace-head">
         <div className="candidate-workspace-head-inner">

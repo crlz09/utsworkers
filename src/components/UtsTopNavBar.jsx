@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -43,6 +43,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileOpenRef = useRef(false);
   const [globalSearch, setGlobalSearch] = useState(() => new URLSearchParams(location.search).get("q") || "");
 
   useEffect(() => {
@@ -53,6 +54,67 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       document.body.classList.remove("uts-operations-shell", "uts-operations-shell-collapsed");
     };
   }, [collapsed, isRegister]);
+
+  useEffect(() => {
+    mobileOpenRef.current = mobileOpen;
+    if (isRegister) return undefined;
+    document.body.classList.toggle("uts-mobile-nav-open", mobileOpen);
+    return () => document.body.classList.remove("uts-mobile-nav-open");
+  }, [isRegister, mobileOpen]);
+
+  useEffect(() => {
+    if (isRegister) return undefined;
+    let tracking = false;
+    let startX = 0;
+    let startY = 0;
+    let currentX = 0;
+    let currentY = 0;
+
+    const handleTouchStart = (event) => {
+      if (window.innerWidth > 820 || event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      const canStart = mobileOpenRef.current || touch.clientX <= 28;
+      if (!canStart) return;
+      tracking = true;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      currentX = startX;
+      currentY = startY;
+    };
+
+    const handleTouchMove = (event) => {
+      if (!tracking || event.touches.length !== 1) return;
+      currentX = event.touches[0].clientX;
+      currentY = event.touches[0].clientY;
+      const deltaX = currentX - startX;
+      const deltaY = currentY - startY;
+      if (Math.abs(deltaX) > 12 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+        event.preventDefault();
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (!tracking) return;
+      const deltaX = currentX - startX;
+      const deltaY = currentY - startY;
+      if (Math.abs(deltaX) >= 56 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+        if (!mobileOpenRef.current && deltaX > 0) setMobileOpen(true);
+        if (mobileOpenRef.current && deltaX < 0) setMobileOpen(false);
+      }
+      tracking = false;
+    };
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("touchcancel", handleTouchEnd);
+    };
+  }, [isRegister]);
 
   useEffect(() => {
     if (isRegister) return undefined;
@@ -133,12 +195,12 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   return (
     <>
       <style>{`
-        :root { --uts-rail: 244px; --uts-header: 68px; }
+        :root { --uts-rail: 244px; --uts-header: 68px; --uts-safe-top: env(safe-area-inset-top, 0px); --uts-header-total: calc(var(--uts-header) + var(--uts-safe-top)); }
         * { box-sizing: border-box; }
         body.uts-operations-shell { padding-left: var(--uts-rail); background: #f4f6f8 !important; transition: padding-left .2s ease; }
         body.uts-operations-shell-collapsed { --uts-rail: 82px; }
         .uts-ops-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 90; width: var(--uts-rail); display: flex; flex-direction: column; color: #e8edf3; background: #182433; border-right: 1px solid #26384c; transition: width .2s ease, transform .2s ease; }
-        .uts-ops-brand { height: var(--uts-header); padding: 10px 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,.08); cursor: pointer; overflow: hidden; }
+        .uts-ops-brand { min-height: var(--uts-header-total); padding: calc(10px + var(--uts-safe-top)) 18px 10px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,.08); cursor: pointer; overflow: hidden; }
         .uts-ops-brand img { width: 48px; height: 44px; object-fit: contain; flex: 0 0 auto; }
         .uts-ops-brand-copy { min-width: 0; white-space: nowrap; }
         .uts-ops-brand-copy strong { display: block; color: white; font-size: 13px; letter-spacing: .04em; }
@@ -151,9 +213,9 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         .uts-ops-nav-btn.active { color: white; background: #2f6fed; box-shadow: 0 6px 18px rgba(16,77,199,.28); }
         .uts-ops-new { width: calc(100% - 24px); margin: 0 12px 14px; color: #182433; background: white; justify-content: center; }
         .uts-ops-new:hover { color: #182433; background: #edf4ff; }
-        .uts-ops-sidebar-foot { padding: 12px; border-top: 1px solid rgba(255,255,255,.08); display: grid; gap: 5px; }
+        .uts-ops-sidebar-foot { padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid rgba(255,255,255,.08); display: grid; gap: 5px; }
         .uts-ops-collapse { position: absolute; right: -13px; top: 84px; width: 26px; height: 26px; border: 1px solid #d6dde6; border-radius: 50%; background: white; color: #334155; display: grid; place-items: center; cursor: pointer; box-shadow: 0 4px 10px rgba(15,23,42,.12); }
-        .uts-ops-topbar { position: sticky; top: 0; z-index: 70; height: var(--uts-header); padding: 0 28px; display: flex; align-items: center; gap: 20px; background: rgba(255,255,255,.96); border-bottom: 1px solid #dfe4ea; backdrop-filter: blur(12px); }
+        .uts-ops-topbar { position: sticky; top: 0; z-index: 70; min-height: var(--uts-header-total); padding: var(--uts-safe-top) 28px 0; display: flex; align-items: center; gap: 20px; background: rgba(255,255,255,.96); border-bottom: 1px solid #dfe4ea; backdrop-filter: blur(12px); }
         .uts-global-search { width: min(560px, 52vw); position: relative; }
         .uts-global-search > svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #78889a; }
         .uts-global-search input { width: 100%; height: 42px; padding: 0 42px; border: 1px solid #d6dde6; border-radius: 8px; background: #f7f8fa; color: #172033; outline: none; }
@@ -164,6 +226,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         .uts-ops-icon-btn { position: relative; width: 40px; height: 40px; border: 1px solid #d6dde6; border-radius: 8px; background: white; color: #425267; display: grid; place-items: center; cursor: pointer; }
         .uts-ops-mobile-menu { display: none; }
         .uts-ops-floating-menu { display: none; }
+        .uts-ops-mobile-backdrop { display: none; }
         .uts-ops-badge { position: absolute; top: -6px; right: -6px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px; display: grid; place-items: center; background: #dc2626; color: white; font-size: 10px; font-weight: 900; box-shadow: 0 0 0 2px white; }
         .uts-public-header { min-height: 70px; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; background: #182433; }
         .uts-public-header img { height: 48px; }
@@ -181,12 +244,23 @@ export default function UtsTopNavBar({ rightSlot = null }) {
           .uts-ops-sidebar.mobile-open .uts-ops-section-label { display: block; }
           .uts-ops-sidebar.mobile-open .uts-ops-nav-btn { justify-content: flex-start; }
           .uts-ops-collapse { display: none; }
-          .uts-ops-topbar { padding: 0 14px; gap: 10px; }
+          body.uts-mobile-nav-open { overflow: hidden; touch-action: none; }
+          .uts-ops-topbar { padding: var(--uts-safe-top) 14px 0; gap: 10px; }
           .uts-ops-mobile-menu { display: grid; }
-          .uts-ops-floating-menu { position: fixed; top: 14px; left: 14px; z-index: 75; display: grid; }
+          .uts-ops-floating-menu { position: fixed; top: calc(14px + var(--uts-safe-top)); left: 14px; z-index: 75; display: grid; }
+          .uts-ops-mobile-backdrop { position: fixed; inset: 0; z-index: 80; display: block; border: 0; background: rgba(15,23,42,.38); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+          .uts-ops-mobile-backdrop.visible { opacity: 1; pointer-events: auto; }
           .uts-ops-candidate-home { display: none; }
           .uts-global-search { width: auto; flex: 1; }
           .uts-global-search input { min-width: 0; }
+          .uts-ops-icon-btn { width: 44px; height: 44px; flex: 0 0 44px; }
+          .uts-global-search input { height: 44px; font-size: 16px; }
+          .uts-ops-top-actions { flex: 0 0 auto; }
+        }
+        @media (max-width: 430px) {
+          .uts-ops-topbar { padding-inline: 10px; gap: 7px; }
+          .uts-global-search input { padding-left: 38px; padding-right: 36px; }
+          .uts-global-search > svg { left: 12px; }
         }
       `}</style>
 
@@ -223,6 +297,14 @@ export default function UtsTopNavBar({ rightSlot = null }) {
           <button className="uts-ops-nav-btn" type="button" onClick={handleLogout}><LogOut size={18} /><span>Sign out</span></button>
         </div>
       </aside>
+
+      <button
+        className={`uts-ops-mobile-backdrop${mobileOpen ? " visible" : ""}`}
+        type="button"
+        onClick={() => setMobileOpen(false)}
+        aria-label="Close navigation"
+        tabIndex={mobileOpen ? 0 : -1}
+      />
 
       {!showWorkspaceHeader ? (
         <button className="uts-ops-icon-btn uts-ops-floating-menu" type="button" onClick={() => setMobileOpen((value) => !value)} aria-label="Open navigation">
