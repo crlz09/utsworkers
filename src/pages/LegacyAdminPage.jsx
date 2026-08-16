@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import UtsTopNavBar from "../components/UtsTopNavBar";
+import UtsLegacyTopNavBar from "../components/UtsLegacyTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import {
   getWorkerDocumentCategoryKey,
@@ -14,7 +14,6 @@ import {
 } from "../lib/workerDocuments";
 import { buildCtsBioBlob, createInitialCtsBio, sanitizeBioFileName } from "../lib/ctsBio";
 import { buildCtsJotformPrefillUrl } from "../lib/ctsJotform";
-import { matchesSearchQuery } from "../lib/search";
 import {
   findLocationIdByState,
   lookupUsZipCode,
@@ -348,7 +347,6 @@ function PageStyles() {
     `}</style>
   );
 }
-
 const inputStyle = {
   width: "100%",
   padding: "13px 14px",
@@ -1187,7 +1185,6 @@ function CtsBioModal({ worker, onClose, onSaved }) {
           file_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           file_size: blob.size,
           document_type: CTS_BIO_DOCUMENT_LABEL,
-          bio_data: bio,
         })
         .select("id")
         .single();
@@ -1758,7 +1755,6 @@ function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openRemin
 
 function openWorkerCtsForm(worker) {
   const url = buildCtsJotformPrefillUrl({
-    worker_id: worker.id,
     worker_name: worker.name,
     worker_phone: worker.phone,
     worker_email: worker.email,
@@ -2044,9 +2040,9 @@ function WorkerCard({
             }}
           >
             <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => navigate(`/admin/workers/${worker.id}/profile`)} title="Open candidate workspace" style={{ border: 0, padding: 0, background: "transparent", font: "inherit", fontSize: 24, lineHeight: 1.15, fontWeight: 900, color: "#0f172a", cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontSize: 24, lineHeight: 1.15, fontWeight: 900, color: "#0f172a" }}>
                 {worker.name}
-              </button>
+              </span>
               {isUnreviewed ? (
                 <span
                   style={{
@@ -2723,7 +2719,7 @@ function WorkerCard({
 }
 
 
-export default function AdminPage() {
+export default function LegacyAdminPage() {
   const location = useLocation();
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2733,7 +2729,6 @@ export default function AdminPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [reviewFilter, setReviewFilter] = useState("");
   const [contactIssueFilter, setContactIssueFilter] = useState(false);
-  const [documentIssueFilter, setDocumentIssueFilter] = useState(false);
   const [selectedSkillIds, setSelectedSkillIds] = useState([]);
   const [sortBy, setSortBy] = useState("newest_registered");
   const [trades, setTrades] = useState([]);
@@ -2752,9 +2747,6 @@ export default function AdminPage() {
     const query = params.get("q");
     if (query) {
       void Promise.resolve().then(() => setSearch(query));
-    }
-    if (params.get("view") === "candidates") {
-      window.requestAnimationFrame(() => document.getElementById("candidate-workspace")?.scrollIntoView({ block: "start" }));
     }
   }, [location.search]);
 
@@ -2981,11 +2973,14 @@ export default function AdminPage() {
 
   const filtered = useMemo(() => {
     const base = workers.filter((w) => {
-      const matchSearch = matchesSearchQuery(
-        search,
-        [w.name, w.email, w.phone, w.recruiter_notes],
-        [w.phone]
-      );
+      const term = search.toLowerCase().trim();
+
+      const matchSearch =
+        !term ||
+        w.name?.toLowerCase().includes(term) ||
+        w.email?.toLowerCase().includes(term) ||
+        w.phone?.toLowerCase().includes(term) ||
+        w.recruiter_notes?.toLowerCase().includes(term);
 
       const matchTrade = !tradeFilter || w.trade_id === tradeFilter;
       const matchLocation = !locationFilter || w.location_id === locationFilter;
@@ -2995,8 +2990,6 @@ export default function AdminPage() {
         !contactIssueFilter ||
         !String(w.phone || "").trim() ||
         !String(w.email || "").trim();
-      const matchDocumentIssue =
-        !documentIssueFilter || getWorkerQualityIssues(w).includes("Missing documents");
       const matchRecruiter =
         !recruiterFilter ||
         (recruiterFilter === "unassigned"
@@ -3017,7 +3010,6 @@ export default function AdminPage() {
         matchStatus &&
         matchReview &&
         matchContactIssue &&
-        matchDocumentIssue &&
         matchRecruiter &&
         matchSkills
       );
@@ -3047,7 +3039,6 @@ export default function AdminPage() {
     statusFilter,
     reviewFilter,
     contactIssueFilter,
-    documentIssueFilter,
     recruiterFilter,
     selectedSkillIds,
     sortBy,
@@ -3061,9 +3052,6 @@ export default function AdminPage() {
   const missingPhoneEmailCount = workers.filter(
     (w) => !String(w.phone || "").trim() || !String(w.email || "").trim()
   ).length;
-  const missingDocumentsCount = workers.filter((worker) =>
-    getWorkerQualityIssues(worker).includes("Missing documents")
-  ).length;
   const workflowStatusBadges = [
     { value: "completed", label: "Available", count: completedCount },
     { value: "rejected", label: "Rejected", count: rejectedCount },
@@ -3076,7 +3064,6 @@ export default function AdminPage() {
     !!statusFilter ||
     !!reviewFilter ||
     contactIssueFilter ||
-    documentIssueFilter ||
     !!recruiterFilter ||
     selectedSkillIds.length > 0 ||
     sortBy !== "newest_registered";
@@ -3087,7 +3074,6 @@ export default function AdminPage() {
     setStatusFilter("");
     setReviewFilter("");
     setContactIssueFilter(false);
-    setDocumentIssueFilter(false);
     setRecruiterFilter("");
     setSelectedSkillIds([]);
     setSortBy("newest_registered");
@@ -3096,73 +3082,165 @@ export default function AdminPage() {
   return (
     <>
       <PageStyles />
-      <UtsTopNavBar />
+<UtsLegacyTopNavBar />
       <div
         className="admin-shell"
         style={{
           minHeight: "100vh",
           padding: 24,
-          background: "#f4f6f8",
+          background: "linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%)",
         }}
       >
-        <div className="admin-dashboard" style={{ maxWidth: 1380, margin: "0 auto", display: "grid", gap: 20 }}>
+        <div className="admin-dashboard" style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gap: 24 }}>
           <div
-            id="candidate-workspace"
             className="admin-panel"
             style={{
               background: "#ffffff",
-              borderRadius: 12,
-              padding: 24,
-              boxShadow: "0 4px 18px rgba(15, 23, 42, 0.05)",
-              border: "1px solid #dfe4ea",
+              borderRadius: 20,
+              padding: 32,
+              boxShadow: "0 20px 60px rgba(15, 23, 42, 0.08)",
+              border: "1px solid #dbeafe",
               display: "grid",
               gap: 24,
             }}
           >
-            <div style={{ display: "grid", gap: 6 }}>
+            <div
+              className="admin-kicker"
+              style={{
+                display: "inline-flex",
+                width: "fit-content",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 16px",
+                borderRadius: 999,
+                background: "#0f172a",
+                color: "#ffffff",
+                fontWeight: 800,
+                fontSize: 15,
+              }}
+            >
+              Universal Talent Source
+            </div>
+
+            <div style={{ display: "grid", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <h1
                   style={{
                     margin: 0,
-                    fontSize: "clamp(26px, 4vw, 34px)",
-                    lineHeight: 1.15,
-                    letterSpacing: "-.025em",
+                    fontSize: "clamp(34px, 5vw, 42px)",
+                    lineHeight: 1.08,
+                    letterSpacing: 0,
                   }}
                   className="admin-heading"
                 >
-                  Operations overview
+                  Admin Panel
                 </h1>
-                <button type="button" onClick={() => window.open("/register", "_blank", "noopener,noreferrer")} style={{ border: 0, borderRadius: 8, padding: "11px 16px", background: "#2f6fed", color: "white", fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <UserRound size={17} /> Add candidate
-                </button>
+
               </div>
 
-              <p className="admin-subtitle" style={{ margin: 0, color: "#65758b", fontSize: 15, lineHeight: 1.6 }}>
-                Review what needs attention and move candidates through the workflow.
+              <p className="admin-subtitle" style={{ margin: 0, color: "#475569", fontSize: 18, lineHeight: 1.7 }}>
+                Review, search, filter, sort, and manage workers by workflow status.
               </p>
             </div>
 
-            <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
-              {[
-                { label: "New to review", value: unreviewedCount, color: "#2f6fed", action: () => setReviewFilter("unreviewed") },
-                { label: "Missing documents", value: missingDocumentsCount, color: "#d97706", action: () => { setReviewFilter(""); setStatusFilter(""); setDocumentIssueFilter(true); } },
-                { label: "Missing contact", value: missingPhoneEmailCount, color: "#dc2626", action: () => setContactIssueFilter(true) },
-                { label: "Currently working", value: workingCount, color: "#16805b", action: () => setStatusFilter("working") },
-              ].map((metric) => (
-                <button key={metric.label} type="button" onClick={metric.action} style={{ minHeight: 108, padding: 16, border: "1px solid #dfe4ea", borderRadius: 10, background: "#fff", textAlign: "left", cursor: "pointer", boxShadow: "0 2px 8px rgba(15,23,42,.035)" }}>
-                  <span style={{ display: "block", color: "#66768a", fontSize: 13, fontWeight: 750 }}>{metric.label}</span>
-                  <strong style={{ display: "block", marginTop: 9, color: metric.color, fontSize: 30, lineHeight: 1 }}>{metric.value}</strong>
-                  <span style={{ display: "block", marginTop: 8, color: "#8996a7", fontSize: 12 }}>Open view →</span>
-                </button>
-              ))}
-            </div>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 20 }}>Workflow Status</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() => setReviewFilter((prev) => (prev === "unreviewed" ? "" : "unreviewed"))}
+                    aria-pressed={reviewFilter === "unreviewed"}
+                    title="Filter unreviewed workers"
+                    style={{
+                      ...pillStyle(),
+                      border: reviewFilter === "unreviewed" ? "1px solid #0f172a" : "1px solid #86efac",
+                      background: reviewFilter === "unreviewed" ? "#0f172a" : "#dcfce7",
+                      color: reviewFilter === "unreviewed" ? "#ffffff" : "#166534",
+                      cursor: "pointer",
+                      boxShadow: reviewFilter === "unreviewed" ? "0 10px 24px rgba(15, 23, 42, 0.2)" : "none",
+                    }}
+                  >
+                    New / Unreviewed: {unreviewedCount}
+                  </button>
+                  {missingPhoneEmailCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setContactIssueFilter((prev) => !prev)}
+                      aria-pressed={contactIssueFilter}
+                      title="Filter workers missing phone or email"
+                      style={{
+                        ...pillStyle(),
+                        border: contactIssueFilter ? "1px solid #0f172a" : "1px solid #fdba74",
+                        background: contactIssueFilter ? "#0f172a" : "#ffedd5",
+                        color: contactIssueFilter ? "#ffffff" : "#9a3412",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 7,
+                        cursor: "pointer",
+                        boxShadow: contactIssueFilter ? "0 10px 24px rgba(15, 23, 42, 0.2)" : "none",
+                        transition: "background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease",
+                      }}
+                    >
+                      <AlertTriangle size={15} strokeWidth={2.7} />
+                      Missing Phone/Email: {missingPhoneEmailCount}
+                    </button>
+                  ) : null}
+                  <span style={{ ...pillStyle(true), fontSize: 14 }}>
+                    Total Workers: {workers.length}
+                  </span>
+                </div>
+              </div>
+              <div className="admin-pill-strip" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                {statusFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("")}
+                    title="Clear workflow status filter"
+                    aria-label="Clear workflow status filter"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 999,
+                      border: "1px solid #cbd5e1",
+                      background: "#ffffff",
+                      color: "#0f172a",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      boxShadow: "0 8px 20px rgba(15, 23, 42, 0.08)",
+                    }}
+                  >
+                    <X size={17} strokeWidth={2.6} />
+                  </button>
+                )}
+                {workflowStatusBadges.map((badge) => {
+                  const statusStyle = getStatusStyle(badge.value);
+                  const isSelected = statusFilter === badge.value;
 
-            <div style={{ borderBottom: "1px solid #dfe4ea", display: "flex", gap: 4, overflowX: "auto" }} aria-label="Candidate views">
-              <button type="button" onClick={() => { setStatusFilter(""); setReviewFilter(""); setContactIssueFilter(false); setDocumentIssueFilter(false); }} style={{ padding: "12px 15px", border: 0, borderBottom: !statusFilter && !reviewFilter && !contactIssueFilter && !documentIssueFilter ? "3px solid #2f6fed" : "3px solid transparent", background: "transparent", color: "#26364b", fontWeight: 800, whiteSpace: "nowrap", cursor: "pointer" }}>All candidates <span style={{ color: "#8592a3" }}>{workers.length}</span></button>
-              <button type="button" onClick={() => setReviewFilter("unreviewed")} style={{ padding: "12px 15px", border: 0, borderBottom: reviewFilter === "unreviewed" ? "3px solid #2f6fed" : "3px solid transparent", background: "transparent", color: "#26364b", fontWeight: 800, whiteSpace: "nowrap", cursor: "pointer" }}>New <span style={{ color: "#8592a3" }}>{unreviewedCount}</span></button>
-              {workflowStatusBadges.map((badge) => (
-                <button key={badge.value} type="button" onClick={() => { setReviewFilter(""); setStatusFilter(badge.value); }} style={{ padding: "12px 15px", border: 0, borderBottom: statusFilter === badge.value ? "3px solid #2f6fed" : "3px solid transparent", background: "transparent", color: "#26364b", fontWeight: 800, whiteSpace: "nowrap", cursor: "pointer" }}>{badge.label} <span style={{ color: "#8592a3" }}>{badge.count}</span></button>
-              ))}
+                  return (
+                    <button
+                      key={badge.value}
+                      type="button"
+                      onClick={() => setStatusFilter(badge.value)}
+                      aria-pressed={isSelected}
+                      style={{
+                        ...pillStyle(),
+                        ...statusStyle,
+                        border: isSelected ? "1px solid #0f172a" : statusStyle.border,
+                        background: isSelected ? "#0f172a" : statusStyle.background,
+                        color: isSelected ? "#ffffff" : statusStyle.color,
+                        cursor: "pointer",
+                        boxShadow: isSelected ? "0 10px 24px rgba(15, 23, 42, 0.2)" : "none",
+                        transition: "background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease",
+                      }}
+                    >
+                      {badge.label}: {badge.count}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={{ position: "relative", width: "100%" }}>

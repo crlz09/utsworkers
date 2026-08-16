@@ -18,6 +18,7 @@ import UtsTopNavBar from "../components/UtsTopNavBar";
 import UtsClientTopBar from "../components/UtsClientTopBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { supabase } from "../lib/supabase";
+import { matchesSearchQuery } from "../lib/search";
 
 const EMPTY_JOB_FORM = {
   qty: 1,
@@ -43,6 +44,8 @@ const CANDIDATE_STATUS_OPTIONS = [
   "rejected",
   "on_hold",
 ];
+
+const CANDIDATE_NAV_STATUSES = ["sourced", "placed"];
 
 function PageStyles() {
   return (
@@ -1812,7 +1815,7 @@ export default function JobsPageTest({ mode = "admin" }) {
   const [search, setSearch] = useState("");
   const [candidateStatusFilter, setCandidateStatusFilter] = useState("");
   const [candidateSort, setCandidateSort] = useState({ key: "last_modified", direction: "desc" });
-  const [activeView, setActiveView] = useState({ type: "candidate", status: "placed" });
+  const [activeView, setActiveView] = useState({ type: "candidate", status: "all" });
   const [jobsListOpen, setJobsListOpen] = useState(true);
   const [jobModalOpen, setJobModalOpen] = useState(false);
   const [jobForm, setJobForm] = useState(EMPTY_JOB_FORM);
@@ -2197,8 +2200,6 @@ export default function JobsPageTest({ mode = "admin" }) {
   };
 
   const viewCandidates = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
     return sortedCandidates.filter((candidate) => {
       if (activeView.type === "job" && candidate.cts_job_id !== activeView.jobId) return false;
       if (!filterCandidateByView(candidate, activeView)) return false;
@@ -2210,19 +2211,23 @@ export default function JobsPageTest({ mode = "admin" }) {
       const job = candidate.job || {};
       const worker = candidate.worker || {};
       const projectLabel = [job.level_type, job.city, job.state].filter(Boolean).join(" ");
-      const matchesSearch = !q || [
-        candidate.name_snapshot,
-        candidate.phone_snapshot,
-        candidate.candidate_status,
-        worker.name,
-        worker.phone,
-        worker.email,
-        projectLabel,
-        job.level_type,
-        job.city,
-        job.state,
-        job.job_code,
-      ].filter(Boolean).some((value) => String(value).toLowerCase().includes(q));
+      const matchesSearch = matchesSearchQuery(
+        search,
+        [
+          candidate.name_snapshot,
+          candidate.phone_snapshot,
+          candidate.candidate_status,
+          worker.name,
+          worker.phone,
+          worker.email,
+          projectLabel,
+          job.level_type,
+          job.city,
+          job.state,
+          job.job_code,
+        ],
+        [candidate.phone_snapshot, worker.phone]
+      );
 
       return matchesSearch;
     });
@@ -2273,6 +2278,15 @@ export default function JobsPageTest({ mode = "admin" }) {
     return { totalJobs: jobs.length, totalCandidates: jobCandidates.length, placed };
   }, [jobCandidates, jobs.length]);
 
+  const candidateStageCounts = useMemo(() => {
+    const counts = Object.fromEntries(CANDIDATE_STATUS_OPTIONS.map((status) => [status, 0]));
+    jobCandidates.forEach((candidate) => {
+      const status = String(candidate.candidate_status || "sourced").toLowerCase();
+      counts[status] = (counts[status] || 0) + 1;
+    });
+    return counts;
+  }, [jobCandidates]);
+
   const distinctCandidateStatuses = useMemo(
     () => [...new Set(jobCandidates.map((candidate) => String(candidate.candidate_status || "sourced").toLowerCase()))].sort(),
     [jobCandidates]
@@ -2280,8 +2294,8 @@ export default function JobsPageTest({ mode = "admin" }) {
 
   const activeTitle = useMemo(() => {
     if (activeView.type === "candidate") {
-      if (activeView.status === "placed") return "Placed Candidates";
-      return "All Candidates";
+      if (activeView.status === "all") return "All Candidates";
+      return `${formatStatus(activeView.status)} Candidates`;
     }
     if (activeView.type === "jobs") return "CTS Jobs List";
     return selectedJob?.level_type || "CTS Job Detail";
@@ -2354,8 +2368,12 @@ export default function JobsPageTest({ mode = "admin" }) {
             <div className="side-section">
               <div className="side-section-title">Candidates</div>
               {[
-                { key: "placed", label: "Placed", count: summary.placed },
                 { key: "all", label: "All", count: summary.totalCandidates },
+                ...CANDIDATE_NAV_STATUSES.map((status) => ({
+                  key: status,
+                  label: formatStatus(status),
+                  count: candidateStageCounts[status] || 0,
+                })),
               ].map((item) => {
                 const active = activeView.type === "candidate" && activeView.status === item.key;
                 return (

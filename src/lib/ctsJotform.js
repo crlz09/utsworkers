@@ -22,6 +22,7 @@ export function buildCtsJotformPrefillUrl(candidate, job) {
   const { first, last } = splitName(name);
 
   setIfPresent(params, "recruiterCompany", "Universal Talent Source");
+  setIfPresent(params, "utsWorkerId", candidate?.worker_id || candidate?.id);
   setIfPresent(params, "fullName3[first]", first);
   setIfPresent(params, "fullName3[last]", last);
   setIfPresent(params, "dob", formatDateOfBirth(candidate?.worker_date_of_birth));

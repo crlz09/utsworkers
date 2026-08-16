@@ -17,6 +17,8 @@ import {
   X,
 } from "lucide-react";
 import CandidateTopBar from "../components/CandidateTopBar";
+import CandidateWorkspaceTabs from "../components/CandidateWorkspaceTabs";
+import UtsTopNavBar from "../components/UtsTopNavBar";
 import { supabase } from "../lib/supabase";
 import { findLocationIdByState, lookupUsZipCode, normalizeZipCode } from "../lib/addressLookup";
 import { useParams } from "react-router-dom";
@@ -199,7 +201,7 @@ export default function CandidateProfilePage({ adminMode = false }) {
   const selectedSkillIds = form.skills.map((item) => item.id);
   const selectedCertificationIds = form.certifications.map((item) => item.id);
 
-  return <div className="candidate-profile-page"><Styles /><CandidateTopBar workerName={form.name} adminWorkerId={adminWorkerId} />
+  return <div className="candidate-profile-page"><Styles />{adminMode ? <><UtsTopNavBar /><CandidateWorkspaceTabs /></> : <CandidateTopBar workerName={form.name} adminWorkerId={adminWorkerId} />}
     <main className="candidate-profile-shell">
       <section className="candidate-profile-hero">
         <div><div style={{ color: "#2563eb", fontSize: 11, fontWeight: 850, letterSpacing: ".1em" }}>{adminMode ? "ADMIN · CANDIDATE PROFILE" : "MY UTS PROFILE"}</div><h1 style={{ margin: "7px 0", fontSize: "clamp(30px,5vw,42px)", letterSpacing: "-.04em" }}>Personal and professional details</h1><p style={{ color: "#64748b", lineHeight: 1.6, marginBottom: 0 }}>{adminMode ? "Review and update this candidate's information and work history." : "Review your information safely. Select Edit only when you need to make changes."}</p></div>

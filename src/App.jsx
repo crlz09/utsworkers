@@ -16,6 +16,12 @@ const WorkerHoursPage = lazy(() => import("./pages/WorkerHoursPage"));
 const BreakdownPage = lazy(() => import("./pages/BreakdownPage"));
 const WorkerDocumentsPage = lazy(() => import("./pages/WorkerDocumentsPage"));
 const CandidateProfilePage = lazy(() => import("./pages/CandidateProfilePage"));
+const CandidatePublicProfilePage = lazy(() => import("./pages/CandidatePublicProfilePage"));
+const CandidateCtsFormPage = lazy(() => import("./pages/CandidateCtsFormPage"));
+const CandidatesHomePage = lazy(() => import("./pages/CandidatesHomePage"));
+const CandidateBioPage = lazy(() => import("./pages/CandidateBioPage"));
+const CandidateDetailsPage = lazy(() => import("./pages/CandidateDetailsPage"));
+const LegacyAdminPage = lazy(() => import("./pages/LegacyAdminPage"));
 
 function RouteFallback() {
   return (
@@ -145,6 +151,30 @@ export default function App() {
           }
         />
         <Route
+          path="/admin/candidates"
+          element={
+            <AdminRoute>
+              <CandidatesHomePage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/legacy"
+          element={
+            <AdminRoute>
+              <LegacyAdminPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/workers/:workerId/details"
+          element={
+            <AdminRoute>
+              <CandidateDetailsPage />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="/admin/workers/:workerId/profile"
           element={
             <AdminRoute>
@@ -157,6 +187,30 @@ export default function App() {
           element={
             <AdminRoute>
               <WorkerDocumentsPage adminMode />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/workers/:workerId/bio"
+          element={
+            <AdminRoute>
+              <CandidateBioPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/workers/:workerId/public-profile"
+          element={
+            <AdminRoute>
+              <CandidatePublicProfilePage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/workers/:workerId/cts-form"
+          element={
+            <AdminRoute>
+              <CandidateCtsFormPage />
             </AdminRoute>
           }
         />

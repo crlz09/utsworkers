@@ -3,25 +3,35 @@ import {
   Document,
   Packer,
   Paragraph,
+  PageOrientation,
   TextRun,
 } from "docx";
 
 const FONT = "Arial";
-const BODY_SIZE = 20;
+const BODY_SIZE = 27;
+const LABEL_SIZE = 27;
+const TITLE_SIZE = 64;
 
 const cleanLines = (value) => String(value || "")
   .split(/\r?\n|\s*;\s*/)
   .map((item) => item.trim().replace(/^[•*-]\s*/, ""))
   .filter(Boolean);
 
-const percentage = (value, total) => total > 0 ? Math.round((Number(value || 0) / total) * 100) : 0;
+const experienceDistribution = (worker) => {
+  const values = [
+    Number(worker.commercial_experience_years || 0),
+    Number(worker.industrial_experience_years || 0),
+    Number(worker.residential_experience_years || 0),
+  ];
+  const total = values.reduce((sum, value) => sum + value, 0);
+  if (!total) return [0, 0, 0];
+  const commercial = Math.round((values[0] / total) * 100);
+  const industrial = Math.round((values[1] / total) * 100);
+  return [commercial, industrial, 100 - commercial - industrial];
+};
 
 export function createInitialCtsBio(worker) {
-  const categoryTotal = [
-    worker.commercial_experience_years,
-    worker.industrial_experience_years,
-    worker.residential_experience_years,
-  ].reduce((sum, value) => sum + Number(value || 0), 0);
+  const [commercialExperience, industrialExperience, residentialExperience] = experienceDistribution(worker);
   const projects = [...(worker.worker_projects || [])]
     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
     .map((project) => [project.project_name, project.project_location].filter(Boolean).join(", "))
@@ -44,9 +54,9 @@ export function createInitialCtsBio(worker) {
     location: [worker.city, worker.state].filter(Boolean).join(", ") || worker.locations?.name || "",
     trade: worker.trades?.name || "",
     totalExperience: String(worker.total_experience_years ?? ""),
-    commercialExperience: String(percentage(worker.commercial_experience_years, categoryTotal)),
-    industrialExperience: String(percentage(worker.industrial_experience_years, categoryTotal)),
-    residentialExperience: String(percentage(worker.residential_experience_years, categoryTotal)),
+    commercialExperience: String(commercialExperience),
+    industrialExperience: String(industrialExperience),
+    residentialExperience: String(residentialExperience),
     projects: projects.join("\n"),
     strengths: cleanLines(worker.strengths).join("\n"),
     certifications: certifications.join(", "),
@@ -63,22 +73,22 @@ const run = (text, options = {}) => new TextRun({
 });
 
 const field = (label, value, suffix = "") => new Paragraph({
-  spacing: { after: 150 },
+  spacing: { after: 235, line: 340 },
   children: [
-    run(`${label}: `, { bold: true }),
+    run(`${label}: `, { bold: true, size: LABEL_SIZE }),
     run(`${value || ""}${suffix}`),
   ],
 });
 
 const heading = (text) => new Paragraph({
-  spacing: { before: 80, after: 100 },
-  children: [run(`${text}:`, { bold: true })],
+  spacing: { before: 130, after: 135, line: 340 },
+  children: [run(`${text}:`, { bold: true, size: LABEL_SIZE })],
 });
 
 const bullets = (values) => values.map((value) => new Paragraph({
   bullet: { level: 0 },
-  spacing: { after: 70 },
-  indent: { left: 360, hanging: 180 },
+  spacing: { after: 125, line: 330 },
+  indent: { left: 430, hanging: 210 },
   children: [run(value)],
 }));
 
@@ -92,10 +102,16 @@ export async function buildCtsBioBlob(bio) {
     sections: [{
       properties: {
         page: {
+          size: { width: 11906, height: 16838, orientation: PageOrientation.PORTRAIT },
           margin: { top: 720, right: 900, bottom: 720, left: 900 },
         },
       },
       children: [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 920, line: 520 },
+          children: [run("CANDIDATE BIO", { bold: true, size: TITLE_SIZE })],
+        }),
         field("Name", bio.name),
         field("Phone", bio.phone),
         field("Email", bio.email),
@@ -113,8 +129,8 @@ export async function buildCtsBioBlob(bio) {
         field("Language", bio.languages),
         new Paragraph({
           alignment: AlignmentType.LEFT,
-          spacing: { before: 180 },
-          children: [run(bio.notes)],
+          spacing: { before: 220, line: 340 },
+          children: [run(bio.notes, { bold: true })],
         }),
       ],
     }],

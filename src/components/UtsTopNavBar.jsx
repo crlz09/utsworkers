@@ -1,40 +1,63 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard,
-  UserPlus,
-  LogOut,
-  Briefcase,
-  Clock3,
   Bell,
-  FileText,
+  BriefcaseBusiness,
   ChartNoAxesCombined,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  Home,
+  Menu,
+  Search,
+  UserPlus,
+  UsersRound,
+  X,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import utsLogo from "../assets/uts-logo.png";
-import PwaInstallButton from "./PwaInstallButton";
 import { loadAdminNotificationCount } from "../lib/adminNotifications";
+import utsLogo from "../assets/uts-logo.png";
+
+const NAV_ITEMS = [
+  { label: "Overview", path: "/admin", icon: LayoutDashboard, section: "overview" },
+  { label: "Candidates", path: "/admin/candidates", icon: UsersRound, section: "candidates" },
+  { label: "Projects", path: "/cts-jobs", icon: BriefcaseBusiness },
+  { label: "Hours", path: "/hours", icon: Clock3 },
+  { label: "Billing", path: "/invoice", icon: FileText },
+  { label: "Reports", path: "/breakdown", icon: ChartNoAxesCombined },
+];
 
 export default function UtsTopNavBar({ rightSlot = null }) {
   const navigate = useNavigate();
   const location = useLocation();
-
-  const routeFlags = {
-    isAdmin: location.pathname === "/admin",
-    isAdminArea: location.pathname.startsWith("/admin"),
-    isRegister: location.pathname.startsWith("/register"),
-    isCtsJobs: location.pathname.startsWith("/cts-jobs"),
-    isHours: location.pathname.startsWith("/hours"),
-    isInvoice: location.pathname.startsWith("/invoice"),
-    isBreakdown: location.pathname.startsWith("/breakdown"),
-  };
+  const isRegister = location.pathname.startsWith("/register");
+  const isAdminArea = location.pathname.startsWith("/admin");
+  const isCandidateWorkspace = location.pathname === "/admin/candidates"
+    || location.pathname.startsWith("/admin/workers/");
+  const showWorkspaceHeader = location.pathname === "/admin"
+    || location.pathname === "/admin/candidates"
+    || location.pathname.startsWith("/admin/workers/");
   const [notificationCount, setNotificationCount] = useState(0);
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState(() => new URLSearchParams(location.search).get("q") || "");
 
   useEffect(() => {
-    let active = true;
+    if (isRegister) return undefined;
+    document.body.classList.add("uts-operations-shell");
+    document.body.classList.toggle("uts-operations-shell-collapsed", collapsed);
+    return () => {
+      document.body.classList.remove("uts-operations-shell", "uts-operations-shell-collapsed");
+    };
+  }, [collapsed, isRegister]);
 
+  useEffect(() => {
+    if (isRegister) return undefined;
+    let active = true;
     const loadCount = async () => {
-      if (routeFlags.isRegister) return;
       try {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
@@ -44,403 +67,191 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         if (active) setNotificationCount(0);
       }
     };
-
     void loadCount();
+    return () => { active = false; };
+  }, [isRegister, location.pathname]);
 
-    return () => {
-      active = false;
-    };
-  }, [location.pathname, routeFlags.isRegister]);
+  const handleSearch = (event) => {
+    event.preventDefault();
+    const query = globalSearch.trim();
+    setMobileOpen(false);
+    const candidateSearch = location.pathname === "/admin/candidates" || location.pathname.startsWith("/admin/workers/");
+    const basePath = candidateSearch ? "/admin/candidates" : "/admin";
+    navigate(query ? `${basePath}?q=${encodeURIComponent(query)}` : basePath);
+  };
 
-  const navItems = [
-    {
-      label: "Admin",
-      path: "/admin",
-      icon: LayoutDashboard,
-      match: (pathname) => pathname === "/admin",
-    },
-    {
-      label: "Register",
-      path: "/register",
-      icon: UserPlus,
-      match: (pathname) => pathname.startsWith("/register"),
-      openInNewTab: true,
-    },
-    {
-      label: "Jobs",
-      path: "/cts-jobs",
-      icon: Briefcase,
-      match: (pathname) => pathname.startsWith("/cts-jobs"),
-    },
-    {
-      label: "Hours",
-      path: "/hours",
-      icon: Clock3,
-      match: (pathname) => pathname.startsWith("/hours"),
-    },
-    {
-      label: "Invoice",
-      path: "/invoice",
-      icon: FileText,
-      match: (pathname) => pathname.startsWith("/invoice"),
-    },
-    {
-      label: "Breakdown",
-      path: "/breakdown",
-      icon: ChartNoAxesCombined,
-      match: (pathname) => pathname.startsWith("/breakdown"),
-    },
-  ];
+  const handleGlobalSearchChange = (event) => {
+    const value = event.target.value;
+    setGlobalSearch(value);
+    const candidateSearch = location.pathname === "/admin/candidates" || location.pathname.startsWith("/admin/workers/");
+    if (candidateSearch) {
+      const query = value.trim();
+      const params = new URLSearchParams(location.pathname === "/admin/candidates" ? location.search : "");
+      if (query) params.set("q", query);
+      else params.delete("q");
+      const nextSearch = params.toString();
+      navigate(nextSearch ? `/admin/candidates?${nextSearch}` : "/admin/candidates", { replace: true });
+    } else if (location.pathname === "/admin") {
+      const query = value.trim();
+      const params = new URLSearchParams(location.search);
+      if (query) params.set("q", query);
+      else params.delete("q");
+      const nextSearch = params.toString();
+      navigate(nextSearch ? `/admin?${nextSearch}` : "/admin", { replace: true });
+    }
+  };
+
+  const clearGlobalSearch = () => {
+    setGlobalSearch("");
+    const basePath = isCandidateWorkspace ? "/admin/candidates" : "/admin";
+    const params = new URLSearchParams(location.pathname === basePath ? location.search : "");
+    params.delete("q");
+    const nextSearch = params.toString();
+    navigate(nextSearch ? `${basePath}?${nextSearch}` : basePath, { replace: true });
+  };
+
+  const goTo = (path) => {
+    setMobileOpen(false);
+    if (path === "/admin/candidates") setGlobalSearch("");
+    navigate(path);
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = "/login";
   };
 
-  const handleNavClick = (item) => {
-    if (item.openInNewTab) {
-      window.open(item.path, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    navigate(item.path);
-  };
+  if (isRegister) {
+    return (
+      <header className="uts-public-header">
+        <img src={utsLogo} alt="Universal Talent Source" />
+        <div className="uts-public-actions">{rightSlot}</div>
+      </header>
+    );
+  }
 
   return (
     <>
       <style>{`
-        html,
-        body,
-        #root {
-          width: 100%;
-          margin: 0;
-          padding: 0;
-        }
-
-        .uts-topbar {
-          position: sticky;
-          top: 0;
-          z-index: 40;
-          width: 100%;
-          background: linear-gradient(180deg, #1f2c40 0%, #1b2738 100%);
-          border-bottom: 1px solid rgba(255,255,255,0.06);
-          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
-          padding-top: env(safe-area-inset-top);
-        }
-
-        .uts-topbar-inner {
-          max-width: 1280px;
-          margin: 0 auto;
-          min-height: 74px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 20px;
-          padding: 0 24px;
-        }
-
-        .uts-brand {
-          display: inline-flex;
-          align-items: center;
-          gap: 14px;
-          flex-shrink: 0;
-          cursor: pointer;
-        }
-
-        .uts-brand img {
-          height: 56px;
-          width: auto;
-          object-fit: contain;
-          display: block;
-        }
-
-        .uts-nav {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-          justify-content: center;
-          flex: 1;
-          min-width: 0;
-        }
-
-        .uts-nav-btn {
-          position: relative;
-          border: none;
-          background: transparent;
-          color: rgba(255,255,255,0.82);
-          padding: 12px 14px;
-          border-radius: 10px;
-          font-weight: 800;
-          font-size: 15px;
-          cursor: pointer;
-          transition: 0.18s ease;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .uts-nav-btn:hover {
-          background: rgba(255,255,255,0.08);
-          color: #ffffff;
-        }
-
-        .uts-nav-btn.active {
-          background: rgba(255,255,255,0.12);
-          color: #ffffff;
-        }
-
-        .uts-nav-badge {
-          min-width: 20px;
-          height: 20px;
-          pointer-events: none;
-          border-radius: 999px;
-          padding: 0 6px;
-          background: #ef4444;
-          color: #ffffff;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 11px;
-          font-weight: 950;
-          line-height: 1;
-        }
-
-        .uts-topbar-right {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        .uts-alert-btn {
-          position: relative;
-          min-width: 46px;
-          justify-content: center;
-          padding: 11px 13px;
-        }
-
-        .uts-alert-btn .uts-nav-badge {
-          position: absolute;
-          top: -7px;
-          right: -7px;
-          box-shadow: 0 0 0 2px #1f2c40;
-        }
-
-        .uts-logout-btn,
-        .uts-install-btn,
-        .uts-topbar-action {
-          border: 1px solid rgba(255,255,255,0.18);
-          background: rgba(255,255,255,0.04);
-          color: #ffffff;
-          border-radius: 10px;
-          padding: 11px 15px;
-          font-weight: 800;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          transition: 0.18s ease;
-        }
-
-        .uts-logout-btn:hover {
-          background: rgba(255,255,255,0.1);
-        }
-
-        .uts-install-btn {
-          background: rgba(255,255,255,0.12);
-        }
-
-        .uts-topbar.register-topbar .uts-topbar-inner {
-          flex-direction: row;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .uts-topbar.register-topbar .uts-topbar-right {
-          width: auto;
-          margin-left: auto;
-          justify-content: flex-end;
-        }
-
-        @media (max-width: 1100px) {
-          .uts-topbar-inner {
-            align-items: flex-start;
-            flex-direction: column;
-            padding-top: 12px;
-            padding-bottom: 12px;
-          }
-
-          .uts-nav {
-            width: 100%;
-            justify-content: flex-start;
-            flex-wrap: wrap;
-          }
-
-          .uts-topbar-right {
-            width: 100%;
-            justify-content: flex-end;
-          }
-
-          .uts-topbar.register-topbar .uts-topbar-inner {
-            align-items: center;
-            flex-direction: row;
-          }
-
-          .uts-topbar.register-topbar .uts-topbar-right {
-            width: auto;
-            margin-left: auto;
-            justify-content: flex-end;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .uts-topbar {
-            position: sticky;
-          }
-
-          .uts-topbar-inner {
-            display: grid;
-            grid-template-columns: auto 1fr;
-            align-items: center;
-            gap: 10px 12px;
-            min-height: auto;
-            padding: 10px 12px;
-          }
-
-          .uts-brand img {
-            height: 38px;
-          }
-
-          .uts-nav {
-            grid-column: 1 / -1;
-            grid-row: 2;
-            display: grid;
-            grid-template-columns: repeat(6, minmax(0, 1fr));
-            gap: 6px;
-            overflow: visible;
-          }
-
-          .uts-topbar-right {
-            grid-column: 2;
-            grid-row: 1;
-            width: auto;
-            justify-content: flex-end;
-            justify-self: end;
-            align-self: center;
-            gap: 6px;
-          }
-
-          .uts-nav-btn,
-          .uts-logout-btn,
-          .uts-install-btn,
-          .uts-topbar-action {
-            min-height: 40px;
-            font-size: 12px;
-            white-space: nowrap;
-            padding: 9px 8px;
-            justify-content: center;
-            border-radius: 10px;
-          }
-
-          .uts-nav-btn {
-            width: 100%;
-            flex-direction: column;
-            gap: 4px;
-            line-height: 1.05;
-          }
-
-          .uts-nav-badge {
-            position: absolute;
-            top: 4px;
-            right: 6px;
-            min-width: 17px;
-            height: 17px;
-            font-size: 10px;
-            padding: 0 5px;
-          }
-
-          .uts-logout-btn span,
-          .uts-install-btn span,
-          .uts-topbar-action span {
-            display: none;
-          }
-
-          .uts-alert-btn .uts-nav-badge {
-            display: inline-flex;
-            top: -5px;
-            right: -5px;
-          }
-
-          .uts-topbar-action.register-language-btn span {
-            display: inline;
-          }
+        :root { --uts-rail: 244px; --uts-header: 68px; }
+        * { box-sizing: border-box; }
+        body.uts-operations-shell { padding-left: var(--uts-rail); background: #f4f6f8 !important; transition: padding-left .2s ease; }
+        body.uts-operations-shell-collapsed { --uts-rail: 82px; }
+        .uts-ops-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 90; width: var(--uts-rail); display: flex; flex-direction: column; color: #e8edf3; background: #182433; border-right: 1px solid #26384c; transition: width .2s ease, transform .2s ease; }
+        .uts-ops-brand { height: var(--uts-header); padding: 10px 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,.08); cursor: pointer; overflow: hidden; }
+        .uts-ops-brand img { width: 48px; height: 44px; object-fit: contain; flex: 0 0 auto; }
+        .uts-ops-brand-copy { min-width: 0; white-space: nowrap; }
+        .uts-ops-brand-copy strong { display: block; color: white; font-size: 13px; letter-spacing: .04em; }
+        .uts-ops-brand-copy span { color: #91a3b8; font-size: 11px; }
+        .uts-ops-nav { flex: 1; padding: 18px 12px; display: grid; align-content: start; gap: 5px; overflow: auto; }
+        .uts-ops-section-label { padding: 9px 11px 5px; color: #71869c; font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
+        .uts-ops-nav-btn { width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 8px; display: flex; align-items: center; gap: 12px; color: #bac7d5; background: transparent; cursor: pointer; font-weight: 700; text-align: left; white-space: nowrap; overflow: hidden; transition: .15s ease; }
+        .uts-ops-nav-btn svg { flex: 0 0 auto; }
+        .uts-ops-nav-btn:hover { color: white; background: rgba(255,255,255,.07); }
+        .uts-ops-nav-btn.active { color: white; background: #2f6fed; box-shadow: 0 6px 18px rgba(16,77,199,.28); }
+        .uts-ops-new { width: calc(100% - 24px); margin: 0 12px 14px; color: #182433; background: white; justify-content: center; }
+        .uts-ops-new:hover { color: #182433; background: #edf4ff; }
+        .uts-ops-sidebar-foot { padding: 12px; border-top: 1px solid rgba(255,255,255,.08); display: grid; gap: 5px; }
+        .uts-ops-collapse { position: absolute; right: -13px; top: 84px; width: 26px; height: 26px; border: 1px solid #d6dde6; border-radius: 50%; background: white; color: #334155; display: grid; place-items: center; cursor: pointer; box-shadow: 0 4px 10px rgba(15,23,42,.12); }
+        .uts-ops-topbar { position: sticky; top: 0; z-index: 70; height: var(--uts-header); padding: 0 28px; display: flex; align-items: center; gap: 20px; background: rgba(255,255,255,.96); border-bottom: 1px solid #dfe4ea; backdrop-filter: blur(12px); }
+        .uts-global-search { width: min(560px, 52vw); position: relative; }
+        .uts-global-search > svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #78889a; }
+        .uts-global-search input { width: 100%; height: 42px; padding: 0 42px; border: 1px solid #d6dde6; border-radius: 8px; background: #f7f8fa; color: #172033; outline: none; }
+        .uts-global-search input:focus { border-color: #2f6fed; box-shadow: 0 0 0 3px rgba(47,111,237,.12); background: white; }
+        .uts-search-clear { position: absolute; right: 8px; top: 50%; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; transform: translateY(-50%); display: grid; place-items: center; background: #e9edf2; color: #526276; cursor: pointer; }
+        .uts-search-clear:hover { background: #dce3ea; color: #172033; }
+        .uts-ops-top-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+        .uts-ops-icon-btn { position: relative; width: 40px; height: 40px; border: 1px solid #d6dde6; border-radius: 8px; background: white; color: #425267; display: grid; place-items: center; cursor: pointer; }
+        .uts-ops-mobile-menu { display: none; }
+        .uts-ops-floating-menu { display: none; }
+        .uts-ops-badge { position: absolute; top: -6px; right: -6px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px; display: grid; place-items: center; background: #dc2626; color: white; font-size: 10px; font-weight: 900; box-shadow: 0 0 0 2px white; }
+        .uts-public-header { min-height: 70px; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; background: #182433; }
+        .uts-public-header img { height: 48px; }
+        body.uts-operations-shell-collapsed .uts-ops-brand-copy,
+        body.uts-operations-shell-collapsed .uts-ops-nav-btn span,
+        body.uts-operations-shell-collapsed .uts-ops-section-label { display: none; }
+        body.uts-operations-shell-collapsed .uts-ops-nav-btn { justify-content: center; }
+        @media (max-width: 820px) {
+          :root { --uts-rail: 264px; }
+          body.uts-operations-shell, body.uts-operations-shell-collapsed { padding-left: 0; }
+          .uts-ops-sidebar { transform: translateX(-105%); width: 264px; box-shadow: 18px 0 48px rgba(15,23,42,.22); }
+          .uts-ops-sidebar.mobile-open { transform: translateX(0); }
+          .uts-ops-sidebar.mobile-open .uts-ops-brand-copy,
+          .uts-ops-sidebar.mobile-open .uts-ops-nav-btn span,
+          .uts-ops-sidebar.mobile-open .uts-ops-section-label { display: block; }
+          .uts-ops-sidebar.mobile-open .uts-ops-nav-btn { justify-content: flex-start; }
+          .uts-ops-collapse { display: none; }
+          .uts-ops-topbar { padding: 0 14px; gap: 10px; }
+          .uts-ops-mobile-menu { display: grid; }
+          .uts-ops-floating-menu { position: fixed; top: 14px; left: 14px; z-index: 75; display: grid; }
+          .uts-ops-candidate-home { display: none; }
+          .uts-global-search { width: auto; flex: 1; }
+          .uts-global-search input { min-width: 0; }
         }
       `}</style>
 
-      <div className={`uts-topbar ${routeFlags.isRegister ? "register-topbar" : ""}`}>
-        <div className="uts-topbar-inner">
-          <div className="uts-brand" onClick={() => navigate("/admin")}>
-            <img src={utsLogo} alt="UTS" />
-          </div>
-
-          {!routeFlags.isRegister && (
-            <div className="uts-nav">
-              {navItems
-                .filter((item) => !item.visibleWhen || item.visibleWhen())
-                .map((item) => {
-                  const Icon = item.icon;
-                  const active = item.match(location.pathname);
-
-                  return (
-                    <button
-                      key={item.path}
-                      type="button"
-                      className={`uts-nav-btn ${active ? "active" : ""}`}
-                      onClick={() => handleNavClick(item)}
-                    >
-                      <Icon size={16} />
-                      {item.label}
-                    </button>
-                  );
-                })}
-            </div>
-          )}
-
-          <div className="uts-topbar-right">
-            {rightSlot}
-            <PwaInstallButton />
-
-            {routeFlags.isAdminArea ? (
-              <>
-                <button
-                  type="button"
-                  className="uts-logout-btn uts-alert-btn"
-                  onClick={() => navigate("/admin/notifications")}
-                  title="Notifications"
-                  aria-label={`Notifications${notificationCount > 0 ? `, ${notificationCount} pending` : ""}`}
-                >
-                  <Bell size={16} />
-                  {notificationCount > 0 ? (
-                    <span className="uts-nav-badge">
-                      {notificationCount > 99 ? "99+" : notificationCount}
-                    </span>
-                  ) : null}
-                </button>
-
-                <button
-                  type="button"
-                  className="uts-logout-btn"
-                  onClick={handleLogout}
-                >
-                  <LogOut size={16} />
-                  <span>Logout</span>
-                </button>
-              </>
-            ) : null}
-          </div>
+      <aside className={`uts-ops-sidebar ${mobileOpen ? "mobile-open" : ""}`} aria-label="Main navigation">
+        <div className="uts-ops-brand" onClick={() => goTo("/admin")}>
+          <img src={utsLogo} alt="UTS" />
+          <div className="uts-ops-brand-copy"><strong>UNIVERSAL TALENT</strong><span>Operations workspace</span></div>
         </div>
-      </div>
+        <button className="uts-ops-collapse" type="button" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>
+          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
+        <nav className="uts-ops-nav">
+          <div className="uts-ops-section-label">Workspace</div>
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const adminQuery = new URLSearchParams(location.search);
+            const active = item.section === "overview"
+              ? location.pathname === "/admin" && adminQuery.get("view") !== "candidates"
+              : item.section === "candidates"
+                ? location.pathname === "/admin/candidates" || location.pathname.startsWith("/admin/workers/")
+                : location.pathname.startsWith(item.path);
+            return (
+              <button key={`${item.label}-${item.path}`} type="button" className={`uts-ops-nav-btn ${active ? "active" : ""}`} onClick={() => goTo(item.path)}>
+                <Icon size={19} /><span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <button className="uts-ops-nav-btn uts-ops-new" type="button" onClick={() => window.open("/register", "_blank", "noopener,noreferrer")}>
+          <UserPlus size={18} /><span>New candidate</span>
+        </button>
+        <div className="uts-ops-sidebar-foot">
+          <button className="uts-ops-nav-btn" type="button" onClick={() => goTo("/admin/legacy")}><LayoutDashboard size={18} /><span>Legacy dashboard</span></button>
+          <button className="uts-ops-nav-btn" type="button" onClick={handleLogout}><LogOut size={18} /><span>Sign out</span></button>
+        </div>
+      </aside>
+
+      {!showWorkspaceHeader ? (
+        <button className="uts-ops-icon-btn uts-ops-floating-menu" type="button" onClick={() => setMobileOpen((value) => !value)} aria-label="Open navigation">
+          {mobileOpen ? <X size={19} /> : <Menu size={19} />}
+        </button>
+      ) : null}
+
+      {showWorkspaceHeader ? <header className="uts-ops-topbar">
+        {isCandidateWorkspace ? <button className="uts-ops-icon-btn uts-ops-candidate-home" type="button" onClick={() => goTo("/admin/candidates")} aria-label="Candidate Home" title="Candidate Home">
+          <Home size={19} />
+        </button> : null}
+        <button className="uts-ops-icon-btn uts-ops-mobile-menu" type="button" onClick={() => setMobileOpen((value) => !value)} aria-label="Open navigation">
+          {mobileOpen ? <X size={19} /> : <Menu size={19} />}
+        </button>
+        <form className="uts-global-search" onSubmit={handleSearch} role="search">
+          <Search size={18} />
+          <input value={globalSearch} onChange={handleGlobalSearchChange} placeholder="Search candidates by name, email or phone..." aria-label="Search candidates" />
+          {globalSearch ? <button className="uts-search-clear" type="button" onClick={clearGlobalSearch} aria-label="Clear search" title="Clear search"><X size={15} /></button> : null}
+        </form>
+        <div className="uts-ops-top-actions">
+          {rightSlot}
+          {isAdminArea ? (
+            <button className="uts-ops-icon-btn" type="button" onClick={() => goTo("/admin/notifications")} aria-label={`Notifications${notificationCount ? `, ${notificationCount} pending` : ""}`}>
+              <Bell size={18} />
+              {notificationCount ? <span className="uts-ops-badge">{notificationCount > 99 ? "99+" : notificationCount}</span> : null}
+            </button>
+          ) : null}
+        </div>
+      </header> : null}
     </>
   );
 }

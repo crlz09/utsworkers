@@ -4,6 +4,7 @@ import { buildCtsJotformPrefillUrl } from "../src/lib/ctsJotform.js";
 
 test("builds the CTS form URL using its exact Jotform question names", () => {
   const url = new URL(buildCtsJotformPrefillUrl({
+    worker_id: "c27a18e7-5e2b-4f79-89c3-4077c53fd291",
     name_snapshot: "Ana Pérez",
     phone_snapshot: "(317) 555-0100",
     worker_email: "ana@example.com",
@@ -27,6 +28,7 @@ test("builds the CTS form URL using its exact Jotform question names", () => {
 
   assert.equal(url.origin + url.pathname, "https://form.jotform.com/261095938583167");
   assert.equal(url.searchParams.get("recruiterCompany"), "Universal Talent Source");
+  assert.equal(url.searchParams.get("utsWorkerId"), "c27a18e7-5e2b-4f79-89c3-4077c53fd291");
   assert.equal(url.searchParams.get("fullName3[first]"), "Ana");
   assert.equal(url.searchParams.get("fullName3[last]"), "Pérez");
   assert.equal(url.searchParams.get("typeA"), "10 Main St");
