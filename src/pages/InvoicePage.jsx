@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, FileText, Loader2, Pencil, Plus, Printer, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { Download, FileText, Loader2, Plus, Printer, RefreshCw, Search, Trash2, X } from "lucide-react";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { supabase } from "../lib/supabase";
@@ -129,6 +129,14 @@ function InvoiceStyles() {
         grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
         gap: 18px;
         align-items: start;
+      }
+
+      .invoice-grid.read-only {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .invoice-grid.read-only .invoice-controls {
+        display: none;
       }
 
       .invoice-panel-title {
@@ -1053,6 +1061,7 @@ export default function InvoicePage() {
   const [invoices, setInvoices] = useState([]);
   const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
   const [loadedInvoiceRows, setLoadedInvoiceRows] = useState(null);
+  const [loadedInvoiceSnapshot, setLoadedInvoiceSnapshot] = useState(null);
   const [invoiceReadOnly, setInvoiceReadOnly] = useState(false);
   const [savingInvoice, setSavingInvoice] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1636,7 +1645,7 @@ export default function InvoicePage() {
       if (!existingNumbers.has(candidate.toUpperCase())) return candidate;
     }
 
-    return `${root}${Date.now()}`;
+    throw new Error(`No available invoice number remains for ${root}.`);
   };
 
   const buildLineItemPayload = (invoiceId) => activeRowsWithTotals.map((row) => ({
@@ -1647,6 +1656,8 @@ export default function InvoicePage() {
     worker_id: row.workerId || null,
     product_service_name: row.serviceName,
     worker_name: row.candidateName,
+    worker_email: row.workerEmail || null,
+    worker_phone: row.workerPhone || null,
     project_name: row.projectName,
     details: row.lineType === "manual"
       ? row.projectName
@@ -1688,31 +1699,23 @@ export default function InvoicePage() {
     const payload = buildInvoicePayload(status, resolvedInvoiceNumber);
 
     if (invoiceId) {
-      const { error } = await supabase.from("invoices").update(payload).eq("id", invoiceId);
-      if (error) {
-        setSavingInvoice(false);
-        setFeedback({ error: error.message, success: "" });
-        return null;
-      }
-      await supabase.from("invoice_line_items").delete().eq("invoice_id", invoiceId);
-    } else {
-      const { data, error } = await supabase.from("invoices").insert(payload).select("id").single();
-      if (error) {
-        setSavingInvoice(false);
-        setFeedback({ error: error.message, success: "" });
-        return null;
-      }
-      invoiceId = data.id;
-      setCurrentInvoiceId(invoiceId);
+      setSavingInvoice(false);
+      setFeedback({ error: "Finalized invoices are read-only. Start a new invoice instead.", success: "" });
+      return null;
     }
 
     const lineItems = buildLineItemPayload(invoiceId);
-    const { error: lineError } = await supabase.from("invoice_line_items").insert(lineItems);
-    if (lineError) {
+    const { data, error } = await supabase.rpc("create_invoice_snapshot", {
+      p_invoice: payload,
+      p_line_items: lineItems,
+    });
+    if (error) {
       setSavingInvoice(false);
-      setFeedback({ error: lineError.message, success: "" });
+      setFeedback({ error: error.message, success: "" });
       return null;
     }
+    invoiceId = data;
+    setCurrentInvoiceId(invoiceId);
 
     setSavingInvoice(false);
     setFeedback({ error: "", success: `Invoice ${payload.invoice_number} saved as ${status}.` });
@@ -1748,17 +1751,17 @@ export default function InvoicePage() {
       jobId: line.cts_job_id || null,
       workerId: line.worker_id || null,
       candidateName: line.worker_name || "Unnamed worker",
-      workerEmail: "",
-      workerPhone: "",
+      workerEmail: line.worker_email || "",
+      workerPhone: line.worker_phone || "",
       projectName: line.line_type === "manual" ? (line.details || line.project_name || "") : (line.project_name || "Untitled project"),
-      projectLocation: "",
+      projectLocation: line.details || "",
       jobCode: "",
       savedDetails: line.details || "",
       clientName: selectedClientName,
       hours: line.line_type === "hours" ? Number(line.qty || 0) : 0,
       qty: Number(line.qty || 0),
-      firstDate: dateFrom,
-      lastDate: dateTo,
+      firstDate: null,
+      lastDate: null,
       serviceName: line.product_service_name || DEFAULT_PRODUCT_SERVICES[0].name,
       serviceId: productServices.find((service) => service.name === line.product_service_name)?.id || DEFAULT_PRODUCT_SERVICES[0].id,
       defaultServiceId: productServices.find((service) => service.name === line.product_service_name)?.id || DEFAULT_PRODUCT_SERVICES[0].id,
@@ -1776,6 +1779,7 @@ export default function InvoicePage() {
 
   const loadInvoiceIntoView = (invoice, readOnly = true) => {
     setCurrentInvoiceId(invoice.id);
+    setLoadedInvoiceSnapshot(invoice);
     setInvoiceReadOnly(readOnly);
     setInvoiceNumber(invoice.invoice_number || "");
     setInvoiceDate(invoice.invoice_date || toDateInputValue(today));
@@ -1858,6 +1862,7 @@ export default function InvoicePage() {
 
     setCurrentInvoiceId(null);
     setLoadedInvoiceRows(null);
+    setLoadedInvoiceSnapshot(null);
     setManualInvoiceRows([]);
     setInvoiceReadOnly(false);
     setLineRates({});
@@ -1979,7 +1984,7 @@ export default function InvoicePage() {
           <div className="invoice-dashboard-head">
             <div>
               <h2 className="invoice-panel-title">Invoice Dashboard</h2>
-              <p className="invoice-muted">Click any invoice to load it in read-only view. Edit or delete it from the icon actions.</p>
+              <p className="invoice-muted">Click any invoice to load its final saved values in a read-only view.</p>
             </div>
             <button className="invoice-btn" type="button" onClick={refreshData} disabled={loading}>Refresh Dashboard</button>
           </div>
@@ -2012,18 +2017,6 @@ export default function InvoicePage() {
                       {formatDate(invoice.date_from)} – {formatDate(invoice.date_to)} · {formatCurrency(invoice.total)} · {invoice.invoice_line_items?.length || 0} lines
                     </div>
                     <div className="invoice-history-actions">
-                      <button
-                        className="mini-btn icon-btn"
-                        type="button"
-                        title="Edit invoice"
-                        aria-label={`Edit ${invoice.invoice_number}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          loadInvoiceIntoView(invoice, false);
-                        }}
-                      >
-                        <Pencil size={15} />
-                      </button>
                       <button
                         className="mini-btn danger icon-btn"
                         type="button"
@@ -2059,7 +2052,7 @@ export default function InvoicePage() {
           )}
         </section>
 
-        <section className="invoice-grid">
+        <section className={`invoice-grid${invoiceReadOnly ? " read-only" : ""}`}>
           <aside className="invoice-card invoice-controls">
             <div className="invoice-builder-head">
               <div>
@@ -2371,6 +2364,18 @@ export default function InvoicePage() {
                       </div>
                     </div>
                   </>
+                ) : invoiceReadOnly && loadedInvoiceSnapshot ? (
+                  <div style={{ padding: 24 }}>
+                    <div className="empty-state">
+                      This saved invoice does not contain historical line-item detail. Its final header fields and stored total remain available below.
+                    </div>
+                    <div className="invoice-total-panel">
+                      <div className="total-box">
+                        <div className="total-row"><span>Stored subtotal</span><strong>{formatCurrency(loadedInvoiceSnapshot.subtotal)}</strong></div>
+                        <div className="total-row grand"><span>Total Due</span><span>{formatCurrency(loadedInvoiceSnapshot.total)}</span></div>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div style={{ padding: 24 }}>
                     <div className="empty-state">No confirmed HoursTracker hours found for the selected projects and date range.</div>
