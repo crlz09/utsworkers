@@ -22,7 +22,7 @@ export default function CandidatePublicProfilePage() {
 
   const publicUrl = candidate?.public_profile_slug ? `/profile/${candidate.public_profile_slug}` : "";
   return (
-    <div style={{ minHeight: "100vh", background: "#f4f6f8" }}>
+    <div style={{ minHeight: "100vh", background: "#f4f6f8", fontFamily: "var(--uts-font-family)" }}>
       <UtsTopNavBar />
       <CandidateWorkspaceTabs />
       <main style={{ width: "min(100% - 40px, 1380px)", margin: "0 auto", padding: "22px 0 42px" }}>

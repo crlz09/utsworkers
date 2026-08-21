@@ -5,6 +5,7 @@ import { AdminRoute, ClientRoute, WorkerRoute } from "./components/AccessRoute";
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AdminNotificationsPage = lazy(() => import("./pages/AdminNotificationsPage"));
+const ActivityLogPage = lazy(() => import("./pages/ActivityLogPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const WorkerProfilePage = lazy(() => import("./pages/WorkerProfilePage"));
 const JobsPageTest = lazy(() => import("./pages/JobsPageTest"));
@@ -219,6 +220,14 @@ export default function App() {
           element={
             <AdminRoute>
               <AdminNotificationsPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/activity"
+          element={
+            <AdminRoute>
+              <ActivityLogPage />
             </AdminRoute>
           }
         />

@@ -28,7 +28,7 @@ const emptyForm = {
   trade_id: "", location_id: "", total_experience_years: 0,
   commercial_experience_years: 0, industrial_experience_years: 0,
   residential_experience_years: 0, strengths: "", needs_improvement: "",
-  available_from: "", willing_to_travel: false, skills: [], certifications: [],
+  date_of_birth: "", available_from: "", willing_to_travel: false, skills: [], certifications: [],
   languages: [], projects: [],
 };
 
@@ -130,7 +130,7 @@ export default function CandidateProfilePage({ adminMode = false }) {
       if (profileResult.error || !profileResult.data) {
         setError(profileResult.error?.message || "Could not load your profile.");
       } else {
-        const next = { ...emptyForm, ...profileResult.data, available_from: profileResult.data.available_from || "", skills: profileResult.data.skills || [], certifications: profileResult.data.certifications || [], languages: profileResult.data.languages || [], projects: profileResult.data.projects || [] };
+        const next = { ...emptyForm, ...profileResult.data, date_of_birth: profileResult.data.date_of_birth || "", available_from: profileResult.data.available_from || "", skills: profileResult.data.skills || [], certifications: profileResult.data.certifications || [], languages: profileResult.data.languages || [], projects: profileResult.data.projects || [] };
         setForm(next); setSavedForm(cloneProfile(next));
       }
       setTrades(tradesResult.data || []); setLocations(locationsResult.data || []);
@@ -178,7 +178,7 @@ export default function CandidateProfilePage({ adminMode = false }) {
     event.preventDefault(); setError(""); setSuccess("");
     if (!form.name.trim() || !form.trade_id || !form.location_id) { setError("Name, trade, and location are required."); return; }
     setSaving(true);
-    const { data, error: saveError } = await supabase.rpc(adminMode ? "update_admin_worker_portal_profile" : "update_current_worker_portal_profile", {
+    const { data, error: saveError } = await supabase.rpc(adminMode ? "update_admin_worker_portal_profile_with_dob" : "update_current_worker_portal_profile_with_dob", {
       ...(adminMode ? { p_worker_id: adminWorkerId } : {}),
       p_name: form.name, p_phone: form.phone, p_address: form.address, p_zip_code: form.zip_code,
       p_city: form.city, p_state: form.state, p_trade_id: form.trade_id, p_location_id: form.location_id,
@@ -187,13 +187,14 @@ export default function CandidateProfilePage({ adminMode = false }) {
       p_industrial_experience_years: Number(form.industrial_experience_years || 0),
       p_residential_experience_years: Number(form.residential_experience_years || 0),
       p_strengths: form.strengths, p_needs_improvement: form.needs_improvement,
+      p_date_of_birth: form.date_of_birth || null,
       p_available_from: form.available_from || null, p_willing_to_travel: form.willing_to_travel,
       p_languages: form.languages, p_skill_ids: form.skills.map((item) => item.id),
       p_certification_ids: form.certifications.map((item) => item.id), p_projects: form.projects,
     });
     setSaving(false);
     if (saveError) { setError(saveError.message || `Could not update ${adminMode ? "this" : "your"} profile.`); return; }
-    const next = { ...emptyForm, ...data, available_from: data.available_from || "", skills: data.skills || [], certifications: data.certifications || [], languages: data.languages || [], projects: data.projects || [] };
+    const next = { ...emptyForm, ...data, date_of_birth: data.date_of_birth || "", available_from: data.available_from || "", skills: data.skills || [], certifications: data.certifications || [], languages: data.languages || [], projects: data.projects || [] };
     setForm(next); setSavedForm(cloneProfile(next)); setEditing(false); setSuccess(adminMode ? "The candidate profile was updated successfully." : "Your profile was updated successfully.");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -215,7 +216,7 @@ export default function CandidateProfilePage({ adminMode = false }) {
             <label className="candidate-field"><span className="candidate-label">Full name</span><input className="candidate-input" disabled={!editing} value={form.name} onChange={(e) => update("name", e.target.value)} /></label>
             <label className="candidate-field"><span className="candidate-label">Email (verified login)</span><input className="candidate-input" value={form.email || ""} disabled /></label>
             <label className="candidate-field"><span className="candidate-label">Phone</span><input className="candidate-input" disabled={!editing} value={form.phone || ""} onChange={(e) => update("phone", normalizePhone(e.target.value))} /></label>
-            <label className="candidate-field"><span className="candidate-label">Available from</span><input className="candidate-input" disabled={!editing} type="date" value={form.available_from} onChange={(e) => update("available_from", e.target.value)} /></label>
+            <label className="candidate-field"><span className="candidate-label">Date of Birth (DOB)</span><input className="candidate-input" disabled={!editing} type="date" value={form.date_of_birth} onChange={(e) => update("date_of_birth", e.target.value)} /></label>
             <label className="candidate-field full"><span className="candidate-label">Street address</span><input className="candidate-input" disabled={!editing} value={form.address || ""} onChange={(e) => update("address", e.target.value)} /></label>
             <label className="candidate-field"><span className="candidate-label">ZIP code</span><input className="candidate-input" disabled={!editing} value={form.zip_code || ""} onChange={(e) => update("zip_code", normalizeZipCode(e.target.value))} />{editing && zipStatus ? <small style={{ color: "#64748b" }}>{zipStatus}</small> : null}</label>
             <label className="candidate-field"><span className="candidate-label">City</span><input className="candidate-input" disabled={!editing} value={form.city || ""} onChange={(e) => update("city", e.target.value)} /></label>

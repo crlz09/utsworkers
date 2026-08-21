@@ -1927,7 +1927,7 @@ export default function InvoicePage() {
       row.serviceName,
       row.candidateName,
       row.lineType === "placement_fee"
-        ? [row.projectName, row.projectLocation, `Placed: ${formatDate(row.placedAt)}`].filter(Boolean).join(" · ")
+        ? [row.projectName, row.savedDetails || [row.projectLocation, `Placed: ${formatDate(row.placedAt)}`].filter(Boolean).join(" · ")].filter(Boolean).join(" · ")
         : [row.projectName, row.projectLocation].filter(Boolean).join(" · "),
       formatHours(row.qty ?? row.hours),
       row.rate.toFixed(2),
@@ -2304,7 +2304,7 @@ export default function InvoicePage() {
                                         {[
                                           row.projectLocation,
                                           row.lineType === "placement_fee"
-                                            ? `Placed: ${formatDate(row.placedAt)}`
+                                            ? row.savedDetails || `Placed: ${formatDate(row.placedAt)}`
                                             : row.firstDate && row.lastDate ? `${formatDate(row.firstDate)} – ${formatDate(row.lastDate)}` : "",
                                           row.jobCode ? `Code: ${row.jobCode}` : "",
                                         ].filter(Boolean).join(" · ") || "No location"}

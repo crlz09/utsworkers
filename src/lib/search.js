@@ -19,3 +19,21 @@ export function matchesSearchQuery(query, values, phoneValues = []) {
     .filter(Boolean)
     .some((value) => normalizePhoneDigits(value).includes(phoneQuery));
 }
+
+export function getSearchableDateValues(value) {
+  if (!value) return [];
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return [value];
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const year = date.getFullYear();
+  const paddedMonth = String(month).padStart(2, "0");
+  const paddedDay = String(day).padStart(2, "0");
+  return [
+    `${month}/${day}/${year}`,
+    `${paddedMonth}/${paddedDay}/${year}`,
+    `${year}-${paddedMonth}-${paddedDay}`,
+    date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    date.toLocaleString("en-US"),
+  ];
+}

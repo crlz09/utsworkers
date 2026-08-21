@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Home,
+  History,
   Menu,
   Search,
   UserPlus,
@@ -28,7 +29,17 @@ const NAV_ITEMS = [
   { label: "Hours", path: "/hours", icon: Clock3 },
   { label: "Billing", path: "/invoice", icon: FileText },
   { label: "Reports", path: "/breakdown", icon: ChartNoAxesCombined },
+  { label: "Activity", path: "/admin/activity", icon: History, supervisorOnly: true },
 ];
+
+const NAV_COLLAPSED_KEY = "uts-operations-nav-collapsed";
+const NAV_AUTO_COLLAPSE_KEY = "uts-operations-nav-auto-collapse-at";
+const NAV_AUTO_COLLAPSE_DELAY = 3000;
+
+const readStoredCollapsedState = () => {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(NAV_COLLAPSED_KEY) === "true";
+};
 
 export default function UtsTopNavBar({ rightSlot = null }) {
   const navigate = useNavigate();
@@ -41,15 +52,48 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     || location.pathname === "/admin/candidates"
     || location.pathname.startsWith("/admin/workers/");
   const [notificationCount, setNotificationCount] = useState(0);
-  const [collapsed, setCollapsed] = useState(false);
+  const [canViewActivity, setCanViewActivity] = useState(false);
+  const [collapsed, setCollapsed] = useState(readStoredCollapsedState);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileOpenRef = useRef(false);
+  const autoCollapseTimerRef = useRef(null);
+  const globalSearchInputRef = useRef(null);
   const [globalSearch, setGlobalSearch] = useState(() => new URLSearchParams(location.search).get("q") || "");
 
   useEffect(() => {
     const query = new URLSearchParams(location.search).get("q") || "";
     void Promise.resolve().then(() => setGlobalSearch(query));
   }, [location.search]);
+
+  useEffect(() => {
+    if (!location.state?.restoreGlobalSearchFocus) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const input = globalSearchInputRef.current;
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.state]);
+
+  useEffect(() => {
+    if (isRegister || typeof window === "undefined") return undefined;
+    const collapseAt = Number(window.sessionStorage.getItem(NAV_AUTO_COLLAPSE_KEY));
+    if (!collapseAt || window.innerWidth <= 820) return undefined;
+
+    const collapseNavigation = () => {
+      setCollapsed(true);
+      window.localStorage.setItem(NAV_COLLAPSED_KEY, "true");
+      window.sessionStorage.removeItem(NAV_AUTO_COLLAPSE_KEY);
+      autoCollapseTimerRef.current = null;
+    };
+    const remaining = Math.max(0, collapseAt - Date.now());
+    autoCollapseTimerRef.current = window.setTimeout(collapseNavigation, remaining);
+    return () => {
+      if (autoCollapseTimerRef.current) window.clearTimeout(autoCollapseTimerRef.current);
+      autoCollapseTimerRef.current = null;
+    };
+  }, [isRegister]);
 
   useEffect(() => {
     if (isRegister) return undefined;
@@ -129,8 +173,14 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       try {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
-        const count = await loadAdminNotificationCount(supabase);
-        if (active) setNotificationCount(count);
+        const [count, permissionResult] = await Promise.all([
+          loadAdminNotificationCount(supabase),
+          supabase.from("admin_permissions").select("can_delete_workers").eq("user_id", data.session.user.id).maybeSingle(),
+        ]);
+        if (active) {
+          setNotificationCount(count);
+          setCanViewActivity(!!permissionResult.data?.can_delete_workers);
+        }
       } catch {
         if (active) setNotificationCount(0);
       }
@@ -154,11 +204,15 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     const candidateSearch = location.pathname === "/admin/candidates" || location.pathname.startsWith("/admin/workers/");
     if (candidateSearch) {
       const query = value.trim();
+      const leavingCandidateRecord = location.pathname.startsWith("/admin/workers/");
       const params = new URLSearchParams(location.pathname === "/admin/candidates" ? location.search : "");
       if (query) params.set("q", query);
       else params.delete("q");
       const nextSearch = params.toString();
-      navigate(nextSearch ? `/admin/candidates?${nextSearch}` : "/admin/candidates", { replace: true });
+      navigate(nextSearch ? `/admin/candidates?${nextSearch}` : "/admin/candidates", {
+        replace: true,
+        state: leavingCandidateRecord ? { restoreGlobalSearchFocus: true } : null,
+      });
     } else if (location.pathname === "/admin") {
       const query = value.trim();
       const params = new URLSearchParams(location.search);
@@ -182,6 +236,42 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     setMobileOpen(false);
     if (path === "/admin/candidates") setGlobalSearch("");
     navigate(path);
+  };
+
+  const clearPendingAutoCollapse = () => {
+    if (autoCollapseTimerRef.current) window.clearTimeout(autoCollapseTimerRef.current);
+    autoCollapseTimerRef.current = null;
+    window.sessionStorage.removeItem(NAV_AUTO_COLLAPSE_KEY);
+  };
+
+  const scheduleAutoCollapse = () => {
+    clearPendingAutoCollapse();
+    if (window.innerWidth <= 820) return;
+
+    setCollapsed(false);
+    window.localStorage.setItem(NAV_COLLAPSED_KEY, "false");
+    const collapseAt = Date.now() + NAV_AUTO_COLLAPSE_DELAY;
+    window.sessionStorage.setItem(NAV_AUTO_COLLAPSE_KEY, String(collapseAt));
+    autoCollapseTimerRef.current = window.setTimeout(() => {
+      setCollapsed(true);
+      window.localStorage.setItem(NAV_COLLAPSED_KEY, "true");
+      window.sessionStorage.removeItem(NAV_AUTO_COLLAPSE_KEY);
+      autoCollapseTimerRef.current = null;
+    }, NAV_AUTO_COLLAPSE_DELAY);
+  };
+
+  const goToNavItem = (path) => {
+    scheduleAutoCollapse();
+    goTo(path);
+  };
+
+  const toggleNavigationManually = () => {
+    clearPendingAutoCollapse();
+    setCollapsed((value) => {
+      const nextValue = !value;
+      window.localStorage.setItem(NAV_COLLAPSED_KEY, String(nextValue));
+      return nextValue;
+    });
   };
 
   const handleLogout = async () => {
@@ -214,9 +304,9 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       <style>{`
         :root { --uts-rail: 244px; --uts-header: 68px; --uts-safe-top: env(safe-area-inset-top, 0px); --uts-header-total: calc(var(--uts-header) + var(--uts-safe-top)); }
         * { box-sizing: border-box; }
-        body.uts-operations-shell { padding-left: var(--uts-rail); background: #f4f6f8 !important; transition: padding-left .2s ease; }
+        body.uts-operations-shell { padding-left: var(--uts-rail); background: #f4f6f8 !important; transition: padding-left .28s ease; }
         body.uts-operations-shell-collapsed { --uts-rail: 82px; }
-        .uts-ops-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 90; width: var(--uts-rail); display: flex; flex-direction: column; color: #e8edf3; background: #182433; border-right: 1px solid #26384c; transition: width .2s ease, transform .2s ease; }
+        .uts-ops-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 90; width: var(--uts-rail); display: flex; flex-direction: column; color: #e8edf3; background: #182433; border-right: 1px solid #26384c; font-family: var(--uts-font-family, Inter, ui-sans-serif, system-ui, sans-serif); font-size: 14px; line-height: 1.2; transition: width .28s ease, transform .28s ease; }
         .uts-ops-brand { min-height: var(--uts-header-total); padding: calc(10px + var(--uts-safe-top)) 18px 10px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,.08); cursor: pointer; overflow: hidden; }
         .uts-ops-brand img { width: 48px; height: 44px; object-fit: contain; flex: 0 0 auto; }
         .uts-ops-brand-copy { min-width: 0; white-space: nowrap; }
@@ -224,7 +314,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         .uts-ops-brand-copy span { color: #91a3b8; font-size: 11px; }
         .uts-ops-nav { flex: 1; padding: 18px 12px; display: grid; align-content: start; gap: 5px; overflow: auto; }
         .uts-ops-section-label { padding: 9px 11px 5px; color: #71869c; font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
-        .uts-ops-nav-btn { width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 8px; display: flex; align-items: center; gap: 12px; color: #bac7d5; background: transparent; cursor: pointer; font-weight: 700; text-align: left; white-space: nowrap; overflow: hidden; transition: .15s ease; }
+        .uts-ops-nav-btn { width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 8px; display: flex; align-items: center; gap: 12px; color: #bac7d5; background: transparent; cursor: pointer; font-family: inherit; font-size: 14px; line-height: 1.2; font-weight: 700; text-align: left; white-space: nowrap; overflow: hidden; transition: .15s ease; }
         .uts-ops-nav-btn svg { flex: 0 0 auto; }
         .uts-ops-nav-btn:hover { color: white; background: rgba(255,255,255,.07); }
         .uts-ops-nav-btn.active { color: white; background: #2f6fed; box-shadow: 0 6px 18px rgba(16,77,199,.28); }
@@ -251,6 +341,9 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         body.uts-operations-shell-collapsed .uts-ops-nav-btn span,
         body.uts-operations-shell-collapsed .uts-ops-section-label { display: none; }
         body.uts-operations-shell-collapsed .uts-ops-nav-btn { justify-content: center; }
+        @media (prefers-reduced-motion: reduce) {
+          body.uts-operations-shell, .uts-ops-sidebar { transition-duration: 0s; }
+        }
         @media (max-width: 820px) {
           :root { --uts-rail: 264px; }
           body.uts-operations-shell, body.uts-operations-shell-collapsed { padding-left: 0; }
@@ -283,16 +376,16 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       `}</style>
 
       <aside className={`uts-ops-sidebar ${mobileOpen ? "mobile-open" : ""}`} aria-label="Main navigation">
-        <div className="uts-ops-brand" onClick={() => goTo("/admin")}>
+        <div className="uts-ops-brand" onClick={() => goToNavItem("/admin")} title="Overview">
           <img src={utsLogo} alt="UTS" />
           <div className="uts-ops-brand-copy"><strong>UNIVERSAL TALENT</strong><span>Operations workspace</span></div>
         </div>
-        <button className="uts-ops-collapse" type="button" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>
+        <button className="uts-ops-collapse" type="button" onClick={toggleNavigationManually} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} title={collapsed ? "Expand navigation" : "Collapse navigation"}>
           {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
         <nav className="uts-ops-nav">
           <div className="uts-ops-section-label">Workspace</div>
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => !item.supervisorOnly || canViewActivity).map((item) => {
             const Icon = item.icon;
             const adminQuery = new URLSearchParams(location.search);
             const active = item.section === "overview"
@@ -301,18 +394,18 @@ export default function UtsTopNavBar({ rightSlot = null }) {
                 ? location.pathname === "/admin/candidates" || location.pathname.startsWith("/admin/workers/")
                 : location.pathname.startsWith(item.path);
             return (
-              <button key={`${item.label}-${item.path}`} type="button" className={`uts-ops-nav-btn ${active ? "active" : ""}`} onClick={() => goTo(item.path)}>
+              <button key={`${item.label}-${item.path}`} type="button" className={`uts-ops-nav-btn ${active ? "active" : ""}`} onClick={() => goToNavItem(item.path)} aria-label={item.label} title={item.label}>
                 <Icon size={19} /><span>{item.label}</span>
               </button>
             );
           })}
         </nav>
-        <button className="uts-ops-nav-btn uts-ops-new" type="button" onClick={() => window.open("/register", "_blank", "noopener,noreferrer")}>
+        <button className="uts-ops-nav-btn uts-ops-new" type="button" onClick={() => window.open("/register", "_blank", "noopener,noreferrer")} aria-label="New candidate" title="New candidate">
           <UserPlus size={18} /><span>New candidate</span>
         </button>
         <div className="uts-ops-sidebar-foot">
-          <button className="uts-ops-nav-btn" type="button" onClick={() => goTo("/admin/legacy")}><LayoutDashboard size={18} /><span>Legacy dashboard</span></button>
-          <button className="uts-ops-nav-btn" type="button" onClick={handleLogout}><LogOut size={18} /><span>Sign out</span></button>
+          <button className="uts-ops-nav-btn" type="button" onClick={() => goToNavItem("/admin/legacy")} aria-label="Legacy dashboard" title="Legacy dashboard"><LayoutDashboard size={18} /><span>Legacy dashboard</span></button>
+          <button className="uts-ops-nav-btn" type="button" onClick={handleLogout} aria-label="Sign out" title="Sign out"><LogOut size={18} /><span>Sign out</span></button>
         </div>
       </aside>
 
@@ -339,7 +432,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         </button>
         <form className="uts-global-search" onSubmit={handleSearch} role="search">
           <Search size={18} />
-          <input value={globalSearch} onChange={handleGlobalSearchChange} placeholder="Search candidates by name, email or phone..." aria-label="Search candidates" />
+          <input ref={globalSearchInputRef} value={globalSearch} onChange={handleGlobalSearchChange} placeholder={isCandidateWorkspace ? "Search by name, email, phone, state or status..." : "Search candidates by name, email or phone..."} aria-label="Search candidates" />
           {globalSearch ? <button className="uts-search-clear" type="button" onClick={clearGlobalSearch} aria-label="Clear search" title="Clear search"><X size={15} /></button> : null}
         </form>
         <div className="uts-ops-top-actions">

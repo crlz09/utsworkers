@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ExternalLink, FilePenLine, FileText, IdCard, UserRound, ClipboardList, LayoutDashboard } from "lucide-react";
+import { ExternalLink, FilePenLine, FileText, UserRound, ClipboardList, LayoutDashboard } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getWorkerDocumentStatus } from "../lib/workerDocuments";
@@ -30,7 +30,6 @@ export default function CandidateWorkspaceTabs() {
     { label: "Profile", path: `/admin/workers/${workerId}/profile`, icon: UserRound },
     { label: "Documents", path: `/admin/workers/${workerId}/documents`, icon: FileText },
     { label: "Bio", path: `/admin/workers/${workerId}/bio`, icon: FilePenLine },
-    { label: "Public Profile", path: `/admin/workers/${workerId}/public-profile`, icon: IdCard },
     { label: "CTS JotForm", path: `/admin/workers/${workerId}/cts-form`, icon: ClipboardList },
   ];
   const documents = candidate?.worker_documents || [];
@@ -42,7 +41,7 @@ export default function CandidateWorkspaceTabs() {
   return (
     <>
       <style>{`
-        .candidate-workspace-head { position: sticky; top: 68px; z-index: 35; background: rgba(255,255,255,.97); border-bottom: 1px solid #dfe4ea; backdrop-filter: blur(12px); }
+        .candidate-workspace-head { position: sticky; top: 68px; z-index: 35; background: rgba(255,255,255,.97); border-bottom: 1px solid #dfe4ea; backdrop-filter: blur(12px); font-family: var(--uts-font-family, Inter, ui-sans-serif, system-ui, sans-serif); }
         .candidate-workspace-head-inner { width: min(100% - 40px, 1380px); margin: 0 auto; }
         .candidate-workspace-title { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
         .candidate-workspace-name { min-width: 0; }
@@ -51,9 +50,9 @@ export default function CandidateWorkspaceTabs() {
         .candidate-workspace-identity { min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .candidate-workspace-alerts { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
         .candidate-workspace-alert { padding: 5px 8px; border: 1px solid #fdba74; border-radius: 999px; background: #fff7ed; color: #9a3412; font-size: 11px; font-weight: 850; white-space: nowrap; }
-        .candidate-workspace-public { border: 1px solid #d6dde6; border-radius: 8px; padding: 8px 11px; display: inline-flex; align-items: center; gap: 7px; color: #425267; background: white; font-weight: 750; cursor: pointer; }
+        .candidate-workspace-public { border: 1px solid #d6dde6; border-radius: 8px; padding: 8px 11px; display: inline-flex; align-items: center; gap: 7px; color: #425267; background: white; font-size: 13px; line-height: 1.2; font-weight: 750; cursor: pointer; }
         .candidate-workspace-tabs { display: flex; gap: 24px; overflow-x: auto; scrollbar-width: thin; }
-        .candidate-workspace-tab { position: relative; min-height: 48px; padding: 0 2px; border: 0; background: transparent; color: #69798d; display: inline-flex; align-items: center; gap: 8px; font-weight: 800; white-space: nowrap; cursor: pointer; }
+        .candidate-workspace-tab { position: relative; min-height: 48px; padding: 0 2px; border: 0; background: transparent; color: #69798d; display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: 14px; line-height: 1.2; font-weight: 800; white-space: nowrap; cursor: pointer; }
         .candidate-workspace-tab.active { color: #225fce; }
         .candidate-workspace-tab.active::after { content: ""; position: absolute; height: 3px; left: 0; right: 0; bottom: 0; border-radius: 3px 3px 0 0; background: #2f6fed; }
         @media(max-width:820px) { .candidate-workspace-head { top: var(--uts-header-total, calc(68px + env(safe-area-inset-top, 0px))); } .candidate-workspace-head-inner { width: min(100% - 24px, 1380px); } .candidate-workspace-title { min-height: 50px; } .candidate-workspace-tabs { gap: 18px; } }

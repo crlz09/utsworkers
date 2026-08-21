@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Download,
+  FileArchive,
   FileCheck2,
+  Files,
   FileText,
   Loader2,
+  Mail,
   Paperclip,
   ShieldCheck,
   Trash2,
@@ -18,9 +21,12 @@ import { useParams } from "react-router-dom";
 import {
   getWorkerDocumentCategoryKey,
   getWorkerDocumentLabel,
+  getWorkerDocumentStatus,
+  REMINDER_WORKER_DOCUMENT_TYPES,
   TWO_SIDED_WORKER_DOCUMENT_TYPES,
   WORKER_DOCUMENT_TYPES,
 } from "../lib/workerDocuments";
+import { getMissingCandidatePdfDocuments, sanitizeDownloadName } from "../lib/candidateDocumentBundle";
 
 const BUCKET_NAME = "worker-documents";
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -51,7 +57,7 @@ function PageStyles() {
       * { box-sizing: border-box; }
       html, body, #root { margin: 0; min-height: 100%; }
       body { background: #eef4ff; color: #0f172a; }
-      button, input, select { font: inherit; }
+      .worker-doc-shell button, .worker-doc-shell input, .worker-doc-shell select { font: inherit; }
       .spin { animation: worker-doc-spin 1s linear infinite; }
       @keyframes worker-doc-spin { to { transform: rotate(360deg); } }
       .worker-doc-page { min-height: 100dvh; background: linear-gradient(180deg, #eaf2ff 0, #f8fafc 420px); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
@@ -78,6 +84,13 @@ function PageStyles() {
       .worker-doc-feedback { padding: 12px 14px; border-radius: 13px; font-size: 14px; font-weight: 700; }
       .worker-doc-feedback.error { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; }
       .worker-doc-feedback.success { color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; }
+      .worker-doc-file-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+      .worker-doc-bundle-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+      .worker-doc-reminder { margin-top: 16px; padding: 16px; border: 1px solid #bfdbfe; border-radius: 16px; background: #f8fbff; display: grid; gap: 13px; }
+      .worker-doc-reminder-list { display: grid; gap: 8px; }
+      .worker-doc-reminder-option { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #dbe4f0; border-radius: 12px; background: white; cursor: pointer; }
+      .worker-doc-reminder-option input { width: 17px; height: 17px; }
+      .worker-doc-reminder-meta { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       @media (max-width: 760px) {
         .worker-doc-header-inner, .worker-doc-shell { width: min(100% - 24px, 1080px); }
         .worker-doc-brand img { height: 44px; }
@@ -87,6 +100,12 @@ function PageStyles() {
         .worker-doc-card { padding: 18px; }
         .worker-doc-row { grid-template-columns: 1fr; }
         .worker-doc-row-actions { justify-content: flex-start !important; }
+        .worker-doc-file-head { display: grid; }
+        .worker-doc-bundle-actions { justify-content: stretch; }
+        .worker-doc-bundle-actions .worker-doc-button { flex: 1; }
+        .worker-doc-reminder-option { align-items: flex-start; flex-wrap: wrap; }
+        .worker-doc-reminder-option > strong { min-width: calc(100% - 30px); }
+        .worker-doc-reminder-meta { padding-left: 27px; }
       }
     `}</style>
   );
@@ -105,12 +124,46 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [busyDocumentId, setBusyDocumentId] = useState("");
+  const [bundleBusy, setBundleBusy] = useState("");
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const [reminderTypes, setReminderTypes] = useState([]);
+  const [sendingReminder, setSendingReminder] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const requiresBothSides = TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType);
   const hasRequiredFiles = requiresBothSides
     ? Boolean(documentFiles.front && documentFiles.back)
     : Boolean(documentFiles.front);
+
+  const openDocumentReminder = () => {
+    setReminderTypes(REMINDER_WORKER_DOCUMENT_TYPES
+      .filter((type) => type.required && !getWorkerDocumentStatus(documents, type.value).complete)
+      .map((type) => type.value));
+    setError("");
+    setSuccess("");
+    setReminderOpen(true);
+  };
+
+  const toggleReminderType = (type) => setReminderTypes((previous) => previous.includes(type)
+    ? previous.filter((value) => value !== type)
+    : [...previous, type]);
+
+  const sendDocumentReminder = async () => {
+    if (!worker?.id || !reminderTypes.length || sendingReminder) return;
+    setSendingReminder(true);
+    setError("");
+    setSuccess("");
+    const { data, error: invokeError } = await supabase.functions.invoke("send-document-reminder", {
+      body: { mode: "manual", workerId: worker.id, documentTypes: reminderTypes },
+    });
+    setSendingReminder(false);
+    if (invokeError || data?.error) {
+      setError(data?.error || invokeError?.message || "Could not send the reminder.");
+      return;
+    }
+    setReminderOpen(false);
+    setSuccess(`Reminder sent to ${worker.email}.`);
+  };
 
   const changeDocumentType = (nextType) => {
     setDocumentType(nextType);
@@ -296,6 +349,55 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
     }
   };
 
+  const downloadAvailableDocuments = async () => {
+    const results = await Promise.all(documents.map(async (document) => {
+      const { data, error: downloadError } = await supabase.storage.from(BUCKET_NAME).download(document.file_path);
+      if (downloadError) throw new Error(`${document.file_name}: ${downloadError.message}`);
+      return { document, blob: data };
+    }));
+    return results;
+  };
+
+  const handleDownloadAll = async () => {
+    if (!documents.length || bundleBusy) return;
+    setBundleBusy("zip");
+    setError("");
+    setSuccess("");
+    try {
+      const sources = await downloadAvailableDocuments();
+      const { createCandidateDocumentsZip } = await import("../lib/candidateDocumentPdf");
+      await createCandidateDocumentsZip(worker?.name, sources);
+      setSuccess(`${documents.length} documents downloaded in one ZIP file.`);
+    } catch (downloadError) {
+      setError(downloadError.message || "Could not download all documents.");
+    } finally {
+      setBundleBusy("");
+    }
+  };
+
+  const handleGeneratePdf = async () => {
+    if (!documents.length || bundleBusy) return;
+    const missingDocuments = getMissingCandidatePdfDocuments(documents);
+    if (missingDocuments.length) {
+      setSuccess("");
+      setError(`No se puede crear el archivo. Falta ${missingDocuments.join(", ")} por cargar.`);
+      return;
+    }
+    setBundleBusy("pdf");
+    setError("");
+    setSuccess("");
+    try {
+      const sources = await downloadAvailableDocuments();
+      const { createCandidateDocumentsPdf } = await import("../lib/candidateDocumentPdf");
+      await createCandidateDocumentsPdf(worker?.name, sources);
+      setSuccess(`${sanitizeDownloadName(worker?.name, "candidate")}_documents.pdf generated successfully.`);
+    } catch (pdfError) {
+      setError(pdfError.message || "Could not generate the PDF.");
+    } finally {
+      setBundleBusy("");
+    }
+  };
+
   const handleDelete = async (document) => {
     if (!window.confirm(`Delete “${document.file_name}”?`)) return;
     setBusyDocumentId(document.id);
@@ -400,13 +502,48 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
             </section>
 
             <section className="worker-doc-card">
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div className="worker-doc-file-head">
                 <div>
                   <h2 style={{ margin: 0, fontSize: 22 }}>Uploaded files</h2>
                   <p style={{ marginTop: 6, color: "#64748b", fontSize: 14 }}>{documents.length} document{documents.length === 1 ? "" : "s"}</p>
                 </div>
-                <Paperclip size={22} color="#64748b" />
+                {adminMode ? <div className="worker-doc-bundle-actions">
+                  <button className="worker-doc-button" type="button" disabled={!worker?.email || Boolean(bundleBusy) || sendingReminder} onClick={openDocumentReminder} title={worker?.email ? "Choose missing documents and send a reminder" : "This candidate has no email address"}>
+                    <Mail size={15} /> Remind Documents
+                  </button>
+                  <button className="worker-doc-button" type="button" disabled={!documents.length || Boolean(bundleBusy)} onClick={handleDownloadAll}>
+                    {bundleBusy === "zip" ? <Loader2 size={15} className="spin" /> : <FileArchive size={15} />} Download All
+                  </button>
+                  <button className="worker-doc-button primary" type="button" disabled={!documents.length || Boolean(bundleBusy)} onClick={handleGeneratePdf}>
+                    {bundleBusy === "pdf" ? <Loader2 size={15} className="spin" /> : <Files size={15} />} Generate PDF
+                  </button>
+                </div> : <Paperclip size={22} color="#64748b" />}
               </div>
+              {adminMode && reminderOpen ? <div className="worker-doc-reminder">
+                <div>
+                  <div style={{ fontWeight: 900 }}>Send document reminder</div>
+                  <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>Choose what {worker?.name || "this candidate"} should upload. Missing required documents are selected automatically.</div>
+                </div>
+                <div className="worker-doc-reminder-list">
+                  {REMINDER_WORKER_DOCUMENT_TYPES.map((type) => {
+                    const status = getWorkerDocumentStatus(documents, type.value);
+                    return <label className="worker-doc-reminder-option" key={type.value}>
+                      <input type="checkbox" checked={reminderTypes.includes(type.value)} onChange={() => toggleReminderType(type.value)} />
+                      <strong style={{ flex: 1 }}>{type.label}</strong>
+                      <span className="worker-doc-reminder-meta">
+                        <span style={{ color: type.required ? "#9a3412" : "#64748b", fontSize: 11, fontWeight: 850 }}>{type.required ? "REQUIRED" : "OPTIONAL"}</span>
+                        <span style={{ color: status.complete ? "#166534" : "#b91c1c", fontSize: 11, fontWeight: 850 }}>{status.complete ? "UPLOADED" : "MISSING"}</span>
+                      </span>
+                    </label>;
+                  })}
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, flexWrap: "wrap" }}>
+                  <button className="worker-doc-button" type="button" disabled={sendingReminder} onClick={() => setReminderOpen(false)}>Cancel</button>
+                  <button className="worker-doc-button primary" type="button" disabled={sendingReminder || !reminderTypes.length} onClick={sendDocumentReminder}>
+                    {sendingReminder ? <Loader2 size={15} className="spin" /> : <Mail size={15} />} {sendingReminder ? "Sending..." : "Send reminder"}
+                  </button>
+                </div>
+              </div> : null}
               <div style={{ marginTop: 8 }}>
                 {!documents.length ? (
                   <div style={{ padding: "34px 12px", textAlign: "center", color: "#64748b" }}>
