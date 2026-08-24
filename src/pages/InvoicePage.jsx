@@ -1096,7 +1096,6 @@ export default function InvoicePage() {
       supabase
         .from("hours_entries")
         .select("*")
-        .eq("source", "admin")
         .gte("work_date", dateFrom)
         .lte("work_date", dateTo),
       supabase
@@ -1107,7 +1106,7 @@ export default function InvoicePage() {
       supabase
         .from("weekly_hours_reviews")
         .select("*")
-        .eq("status", "approved")
+        .eq("status", "locked")
         .gte("week_start_date", reviewStart)
         .lte("week_start_date", dateTo),
       supabase
@@ -1158,7 +1157,10 @@ export default function InvoicePage() {
   const jobsById = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
   const workersById = useMemo(() => new Map(workers.map((worker) => [worker.id, worker])), [workers]);
   const candidatesById = useMemo(() => new Map(candidates.map((candidate) => [candidate.id, candidate])), [candidates]);
-  const approvedReviewKeys = useMemo(() => new Set(weeklyReviews.map((review) => `${review.cts_job_candidate_id}|${review.week_start_date}`)), [weeklyReviews]);
+  const lockedReviewsByKey = useMemo(
+    () => new Map(weeklyReviews.map((review) => [`${review.cts_job_candidate_id}|${review.week_start_date}`, review])),
+    [weeklyReviews]
+  );
 
   const projectOptions = useMemo(() => {
     const placedCandidates = candidates.filter((candidate) => String(candidate.candidate_status || "").toLowerCase() === "placed");
@@ -1170,14 +1172,16 @@ export default function InvoicePage() {
 
     const approvedHoursByJobId = new Map();
     hoursEntries.forEach((entry) => {
-      if (entry.source !== "admin") return;
-      if (!approvedReviewKeys.has(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)) return;
+      const review = lockedReviewsByKey.get(`${entry.cts_job_candidate_id}|${entry.week_start_date}`);
+      const expectedSource = review?.official_source === "worker" ? "client" : review?.official_source;
+      if (!review || entry.source !== expectedSource) return;
       const candidate = candidatesById.get(entry.cts_job_candidate_id);
       const jobId = entry.cts_job_id || candidate?.cts_job_id;
       if (!jobId) return;
       approvedHoursByJobId.set(jobId, (approvedHoursByJobId.get(jobId) || 0) + Number(entry.regular_hours || 0));
     });
     ctsImportedHours.forEach((entry) => {
+      if (lockedReviewsByKey.get(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)?.official_source !== "cts") return;
       if (!entry.cts_job_id) return;
       approvedHoursByJobId.set(entry.cts_job_id, (approvedHoursByJobId.get(entry.cts_job_id) || 0) + Number(entry.total_hours || 0));
     });
@@ -1192,7 +1196,7 @@ export default function InvoicePage() {
         projectLocation: [job.city, job.state].filter(Boolean).join(", "),
       }))
       .sort((a, b) => a.projectName.localeCompare(b.projectName));
-  }, [approvedReviewKeys, candidates, candidatesById, ctsImportedHours, hoursEntries, jobs]);
+  }, [candidates, candidatesById, ctsImportedHours, hoursEntries, jobs, lockedReviewsByKey]);
 
   const effectiveSelectedProjectIds = selectedProjectIds ?? projectOptions.map((project) => project.id);
   const selectedProjectIdSet = useMemo(() => new Set(effectiveSelectedProjectIds), [effectiveSelectedProjectIds]);
@@ -1291,9 +1295,14 @@ export default function InvoicePage() {
   const invoiceRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     const grouped = new Map();
-    const importedCandidateWeeks = new Set(ctsImportedHours.map((entry) => `${entry.cts_job_candidate_id}|${entry.week_start_date}`));
+    const importedCandidateWeeks = new Set(
+      ctsImportedHours
+        .filter((entry) => lockedReviewsByKey.get(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)?.official_source === "cts")
+        .map((entry) => `${entry.cts_job_candidate_id}|${entry.week_start_date}`)
+    );
 
     ctsImportedHours.forEach((entry) => {
+      if (!importedCandidateWeeks.has(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)) return;
       const hours = Number(entry.total_hours || 0);
       if (!hours) return;
       const candidate = candidatesById.get(entry.cts_job_candidate_id);
@@ -1345,8 +1354,9 @@ export default function InvoicePage() {
     });
 
     hoursEntries.forEach((entry) => {
-      if (entry.source !== "admin") return;
-      if (!approvedReviewKeys.has(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)) return;
+      const review = lockedReviewsByKey.get(`${entry.cts_job_candidate_id}|${entry.week_start_date}`);
+      const expectedSource = review?.official_source === "worker" ? "client" : review?.official_source;
+      if (!review || entry.source !== expectedSource) return;
       if (importedCandidateWeeks.has(`${entry.cts_job_candidate_id}|${entry.week_start_date}`)) return;
       const hours = Number(entry.regular_hours || 0);
       if (!hours) return;
@@ -1450,7 +1460,7 @@ export default function InvoicePage() {
       if (projectCompare !== 0) return projectCompare;
       return a.candidateName.localeCompare(b.candidateName);
     });
-  }, [approvedReviewKeys, candidates, candidatesById, ctsImportedHours, dateFrom, dateTo, hoursEntries, jobsById, search, selectedProjectIdSet, workersById]);
+  }, [candidates, candidatesById, ctsImportedHours, dateFrom, dateTo, hoursEntries, jobsById, lockedReviewsByKey, search, selectedProjectIdSet, workersById]);
 
   const rowsWithTotals = useMemo(
     () => invoiceRows.map((row) => {

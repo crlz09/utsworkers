@@ -1,17 +1,12 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowLeft, Clock3, FileText, LogOut, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
-const items = [
-  { label: "Profile", path: "/worker/profile", icon: UserRound },
-  { label: "Documents", path: "/worker/documents", icon: FileText },
-  { label: "Hours", path: "/worker/hours", icon: Clock3, disabled: true },
-];
-
 export default function CandidateTopBar({ workerName = "Candidate portal", adminWorkerId = "" }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [canSubmitHours, setCanSubmitHours] = useState(false);
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -19,12 +14,30 @@ export default function CandidateTopBar({ workerName = "Candidate portal", admin
   };
 
   const adminMode = Boolean(adminWorkerId);
+  useEffect(() => {
+    let active = true;
+    if (adminMode) return () => { active = false; };
+
+    const loadHoursAccess = async () => {
+      const { data, error } = await supabase.rpc("current_worker_hours_assignment");
+      if (!active) return;
+      setCanSubmitHours(!error && Array.isArray(data) && data.length > 0);
+    };
+
+    void loadHoursAccess();
+    return () => { active = false; };
+  }, [adminMode]);
+
   const navItems = adminMode
     ? [
         { label: "Profile", path: `/admin/workers/${adminWorkerId}/profile`, icon: UserRound },
         { label: "Documents", path: `/admin/workers/${adminWorkerId}/documents`, icon: FileText },
       ]
-    : items;
+    : [
+        { label: "Profile", path: "/worker/profile", icon: UserRound },
+        { label: "Documents", path: "/worker/documents", icon: FileText },
+        { label: "Hours", path: "/worker/hours", icon: Clock3, disabled: !canSubmitHours },
+      ];
 
   return (
     <>

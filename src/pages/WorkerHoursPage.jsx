@@ -668,7 +668,7 @@ export default function WorkerHoursPage() {
   }, [load]);
 
   const first = rows[0] || {};
-  const isApproved = reviewStatus === "approved";
+  const isApproved = reviewStatus === "approved" || reviewStatus === "locked";
   const total = useMemo(() => Object.values(values).reduce((sum, value) => sum + Number(value || 0), 0), [values]);
   const canSubmit = rows.length > 0 && !isApproved && !saving;
 

@@ -27,8 +27,10 @@ const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
   { value: "missing", label: "Missing hours" },
   { value: "pending", label: "Pending" },
+  { value: "submitted", label: "Submitted" },
+  { value: "disputed", label: "Disputed" },
   { value: "reviewed", label: "Reviewed" },
-  { value: "approved", label: "Approved" },
+  { value: "locked", label: "Approved & locked" },
 ];
 
 function PageStyles() {
@@ -296,8 +298,10 @@ function PageStyles() {
       }
       .status-pill.missing { background: #fef2f2; color: #b91c1c; }
       .status-pill.pending { background: #fef9c3; color: #a16207; }
+      .status-pill.submitted { background: #fff7ed; color: #c2410c; }
+      .status-pill.disputed { background: #fef2f2; color: #b91c1c; }
       .status-pill.reviewed { background: #eff6ff; color: #1d4ed8; }
-      .status-pill.approved { background: #ecfdf5; color: #047857; }
+      .status-pill.locked { background: #ecfdf5; color: #047857; }
 
       .empty { border: 1px dashed #cbd5e1; background: #f8fafc; color: #475569; border-radius: 18px; padding: 28px; text-align: center; font-weight: 800; }
 
@@ -448,8 +452,10 @@ function downloadCsv(filename, headers, rows) {
 }
 
 function getRowStatus(total, review) {
-  if (review?.status === "approved") return "approved";
+  if (review?.status === "locked" || review?.status === "approved") return "locked";
+  if (review?.status === "disputed") return "disputed";
   if (review?.status === "reviewed") return "reviewed";
+  if (review?.status === "submitted") return "submitted";
   if (total <= 0) return "missing";
   return "pending";
 }
@@ -458,8 +464,10 @@ function getStatusLabel(status) {
   return {
     missing: "Missing hours",
     pending: "Pending",
+    submitted: "Submitted",
+    disputed: "Disputed",
     reviewed: "Reviewed",
-    approved: "Approved",
+    locked: "Approved & locked",
   }[status] || "Pending";
 }
 
@@ -468,7 +476,6 @@ export default function HoursTrackerPage() {
   const [assignments, setAssignments] = useState([]);
   const [allAssignments, setAllAssignments] = useState([]);
   const [importedRows, setImportedRows] = useState([]);
-  const [entriesByKey, setEntriesByKey] = useState(new Map());
   const [workerEntriesByKey, setWorkerEntriesByKey] = useState(new Map());
   const [draftHours, setDraftHours] = useState(new Map());
   const [reviewsByKey, setReviewsByKey] = useState(new Map());
@@ -536,7 +543,6 @@ export default function HoursTrackerPage() {
         success: "",
       });
       setAssignments([]);
-      setEntriesByKey(new Map());
       setWorkerEntriesByKey(new Map());
       setDraftHours(new Map());
       setReviewsByKey(new Map());
@@ -595,7 +601,6 @@ export default function HoursTrackerPage() {
     setAllAssignments(enrichedAssignments);
     setAssignments(nextAssignments);
     setImportedRows(importedRes.data || []);
-    setEntriesByKey(nextEntries);
     setWorkerEntriesByKey(nextWorkerEntries);
     setDraftHours(nextDraft);
     setReviewsByKey(nextReviews);
@@ -661,7 +666,7 @@ export default function HoursTrackerPage() {
     missing: rows.filter((row) => row.status === "missing").length,
     pending: rows.filter((row) => row.status === "pending").length,
     reviewed: rows.filter((row) => row.status === "reviewed").length,
-    approved: rows.filter((row) => row.status === "approved").length,
+    approved: rows.filter((row) => row.status === "locked").length,
   }), [rows]);
 
   const updateHours = (candidateId, workDate, value) => {
@@ -673,70 +678,33 @@ export default function HoursTrackerPage() {
     });
   };
 
-  const upsertReview = async (assignment, status) => {
-    const reviewPayload = {
-      cts_job_candidate_id: assignment.id,
-      cts_job_id: assignment.cts_job_id,
-      worker_id: assignment.worker_id,
-      week_start_date: weekStart,
-      status,
-      reviewed_at: status === "reviewed" || status === "approved" ? new Date().toISOString() : null,
-      approved_at: status === "approved" ? new Date().toISOString() : null,
-    };
-
-    const { data, error } = await supabase
-      .from("weekly_hours_reviews")
-      .upsert(reviewPayload, { onConflict: "cts_job_candidate_id,week_start_date" })
-      .select("*")
-      .single();
-
-    if (error) throw error;
-    setReviewsByKey((prev) => {
-      const next = new Map(prev);
-      next.set(reviewKey(assignment.id, weekStart), data || reviewPayload);
-      return next;
-    });
-  };
-
   const saveRow = async (assignment) => {
     setSavingKey(`save-${assignment.id}`);
     setFeedback({ error: "", success: "" });
 
-    const upsertRows = [];
-    const deleteIds = [];
+    const entries = [];
     days.forEach((day) => {
       const key = entryKey(assignment.id, day);
       const value = draftHours.get(key) ?? "";
-      const existing = entriesByKey.get(key);
-      if (value === "" || Number(value) === 0) {
-        if (existing?.id) deleteIds.push(existing.id);
-        return;
-      }
-      upsertRows.push({
-        cts_job_candidate_id: assignment.id,
-        cts_job_id: assignment.cts_job_id,
-        worker_id: assignment.worker_id,
+      entries.push({
         work_date: day,
-        week_start_date: weekStart,
-        source: "admin",
-        regular_hours: Number(value),
+        regular_hours: value === "" || Number(value) === 0 ? null : Number(value),
       });
     });
 
     try {
-      if (deleteIds.length) {
-        const { error } = await supabase.from("hours_entries").delete().eq("source", "admin").in("id", deleteIds);
-        if (error) throw error;
-      }
-      if (upsertRows.length) {
-        const { error } = await supabase
-          .from("hours_entries")
-          .upsert(upsertRows, { onConflict: "cts_job_candidate_id,work_date,source" });
-        if (error) throw error;
-      }
-      if ((reviewsByKey.get(reviewKey(assignment.id, weekStart))?.status || "pending") === "approved") {
-        await upsertReview(assignment, "pending");
-      }
+      const currentReview = reviewsByKey.get(reviewKey(assignment.id, weekStart));
+      const reason = currentReview?.status === "locked"
+        ? window.prompt("This week is locked. Enter the reason for this correction:", "")
+        : null;
+      if (currentReview?.status === "locked" && !reason?.trim()) throw new Error("A correction reason is required.");
+      const { error } = await supabase.rpc("save_admin_weekly_timesheet", {
+        p_candidate_id: assignment.id,
+        p_week_start: weekStart,
+        p_entries: entries,
+        p_reason: reason?.trim() || null,
+      });
+      if (error) throw error;
       await load({ preserveFeedback: true });
       setFeedback({ error: "", success: `Hours saved for ${assignment.name}.` });
     } catch (error) {
@@ -747,35 +715,21 @@ export default function HoursTrackerPage() {
   };
 
   const resetWeek = async (assignment) => {
-    const confirmed = window.confirm(
-      `Clear all hours for ${assignment.name} for ${formatWeekRange(weekStart)}? This also removes hours imported from CTS XLSX and cannot be undone.`
+    const reason = window.prompt(
+      `Enter the reason for clearing all hours for ${assignment.name} for ${formatWeekRange(weekStart)}:`,
+      ""
     );
-    if (!confirmed) return;
+    if (!reason?.trim()) return;
 
     setSavingKey(`reset-${assignment.id}`);
     setFeedback({ error: "", success: "" });
     try {
-      const { error: entriesError } = await supabase
-        .from("hours_entries")
-        .delete()
-        .eq("cts_job_candidate_id", assignment.id)
-        .gte("work_date", weekStart)
-        .lte("work_date", days[6]);
-      if (entriesError) throw entriesError;
-
-      const { error: importedError } = await supabase
-        .from("cts_hours_import_rows")
-        .delete()
-        .eq("cts_job_candidate_id", assignment.id)
-        .eq("week_start_date", weekStart);
-      if (importedError) throw importedError;
-
-      const { error: reviewError } = await supabase
-        .from("weekly_hours_reviews")
-        .delete()
-        .eq("cts_job_candidate_id", assignment.id)
-        .eq("week_start_date", weekStart);
-      if (reviewError) throw reviewError;
+      const { error } = await supabase.rpc("clear_weekly_timesheet", {
+        p_candidate_id: assignment.id,
+        p_week_start: weekStart,
+        p_reason: reason.trim(),
+      });
+      if (error) throw error;
 
       await load({ preserveFeedback: true });
       setFeedback({ error: "", success: `All hours cleared for ${assignment.name} for ${formatWeekRange(weekStart)}.` });
@@ -790,7 +744,33 @@ export default function HoursTrackerPage() {
     setSavingKey(`${status}-${assignment.id}`);
     setFeedback({ error: "", success: "" });
     try {
-      await upsertReview(assignment, status);
+      const row = rows.find((item) => item.assignment.id === assignment.id);
+      let officialSource = null;
+      let reason = null;
+      if (status === "locked") {
+        officialSource = row?.ctsHours ? "cts" : row?.manualTotal > 0 ? "admin" : "worker";
+        const sourceTotals = [row?.manualTotal, row?.workerTotal, row?.ctsHours?.total]
+          .map(Number)
+          .filter((value) => value > 0);
+        const difference = sourceTotals.length > 1 ? Math.max(...sourceTotals) - Math.min(...sourceTotals) : 0;
+        if (difference > 0.25) {
+          reason = window.prompt(
+            `Reported sources differ by ${formatHours(difference)} hours. Explain why ${officialSource.toUpperCase()} is the official source:`,
+            ""
+          );
+          if (!reason?.trim()) throw new Error("An approval reason is required when sources differ.");
+        }
+      }
+      const { data, error } = await supabase.rpc("review_weekly_timesheet", {
+        p_candidate_id: assignment.id,
+        p_week_start: weekStart,
+        p_action: status,
+        p_official_source: officialSource,
+        p_reason: reason?.trim() || null,
+      });
+      if (error) throw error;
+      const updated = Array.isArray(data) ? data[0] : data;
+      if (updated) setReviewsByKey((prev) => new Map(prev).set(reviewKey(assignment.id, weekStart), updated));
       setFeedback({ error: "", success: `${assignment.name} marked as ${getStatusLabel(status).toLowerCase()} for ${formatWeekRange(weekStart)}.` });
     } catch (error) {
       setFeedback({ error: error.message || "Could not update review status.", success: "" });
@@ -977,7 +957,7 @@ export default function HoursTrackerPage() {
       const importedTotal = importPreview.reduce((sum, row) => sum + importedHoursTotal(row), 0);
       closeImportPreview();
       await load({ preserveFeedback: true });
-      setFeedback({ error: "", success: `${importedCount} CTS weekly rows imported, approved, and used to replace any previous CTS hours for the same candidates and weeks (${formatHours(importedTotal)} hours at $1/hour).` });
+      setFeedback({ error: "", success: `${importedCount} CTS weekly rows imported for review (${formatHours(importedTotal)} hours). They are not official until an administrator approves and locks them.` });
     } catch (error) {
       setFeedback({ error: error.message || "Could not import CTS hours.", success: "" });
     } finally {
@@ -1054,12 +1034,12 @@ export default function HoursTrackerPage() {
               <div>
                 <div className="kicker"><FileSpreadsheet size={15} /> CTS spreadsheet preview</div>
                 <h2 className="section-title">Review candidate matches before importing</h2>
-                <p className="section-subtitle">{importFile?.name} · CTS rows become approved weekly hours and invoice at one dollar per hour.</p>
+                <p className="section-subtitle">{importFile?.name} · CTS rows are imported for reconciliation and require approval before invoicing.</p>
               </div>
               <div className="table-actions">
                 <button className="btn" type="button" onClick={closeImportPreview} disabled={importing}><X size={14} /> Cancel</button>
                 <button className="btn success" type="button" onClick={commitCtsImport} disabled={importing || unresolvedImportCount > 0}>
-                  {importing ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />} Import & approve
+                  {importing ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />} Import for review
                 </button>
               </div>
             </div>
@@ -1141,7 +1121,7 @@ export default function HoursTrackerPage() {
                               placeholder="—"
                               value={values[day] ?? ""}
                               disabled={!!ctsHours}
-                              title={ctsHours ? "Hours imported from the approved CTS spreadsheet" : undefined}
+                              title={ctsHours ? "CTS hours are reviewed as a separate source" : undefined}
                               onChange={(event) => updateHours(assignment.id, day, event.target.value)}
                               aria-label={`${assignment.name} ${day} hours`}
                             />
@@ -1149,14 +1129,14 @@ export default function HoursTrackerPage() {
                           </td>
                         ))}
                         <td className="total-cell">{formatHours(total)}{ctsHours ? <div className="cts-hours-note">CTS · R {formatHours(ctsHours.regular)} · OT {formatHours(ctsHours.overtime)} · DT {formatHours(ctsHours.doubleTime)}</div> : null}{workerTotal > 0 ? <div className="worker-hint">Worker {formatHours(workerTotal)}</div> : null}</td>
-                        <td><span className={`status-pill ${status}`}>{status === "approved" ? <CheckCircle2 size={13} /> : null}{getStatusLabel(status)}</span></td>
+                        <td><span className={`status-pill ${status}`}>{status === "locked" ? <CheckCircle2 size={13} /> : null}{getStatusLabel(status)}</span></td>
                         <td>
                           <div className="row-actions">
                             <button className="btn" type="button" onClick={() => saveRow(assignment)} disabled={!!savingKey || !!ctsHours}>
                               {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
                             </button>
                             <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Reviewed</button>
-                            <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Approve</button>
+                            <button className="btn success" type="button" onClick={() => updateStatus(assignment, "locked")} disabled={!!savingKey || total <= 0 || status === "locked"}>Approve & lock</button>
                             <button className="btn danger" type="button" onClick={() => resetWeek(assignment)} disabled={!!savingKey || (total <= 0 && workerTotal <= 0)} title="Clear all hours for this week, including CTS imports">
                               {savingKey === `reset-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />} Clear week
                             </button>
@@ -1179,7 +1159,7 @@ export default function HoursTrackerPage() {
                         <div className="worker-name">{assignment.name}</div>
                         <div className="worker-meta">{assignment.phone || "No phone"}{assignment.email ? <><br />{assignment.email}</> : null}</div>
                       </div>
-                      <span className={`status-pill ${status}`}>{status === "approved" ? <CheckCircle2 size={13} /> : null}{getStatusLabel(status)}</span>
+                      <span className={`status-pill ${status}`}>{status === "locked" ? <CheckCircle2 size={13} /> : null}{getStatusLabel(status)}</span>
                     </div>
                     <div className="card-project-grid">
                       <div>
@@ -1199,7 +1179,7 @@ export default function HoursTrackerPage() {
                             placeholder="—"
                             value={values[day] ?? ""}
                             disabled={!!ctsHours}
-                            title={ctsHours ? "Hours imported from the approved CTS spreadsheet" : undefined}
+                            title={ctsHours ? "CTS hours are reviewed as a separate source" : undefined}
                             onChange={(event) => updateHours(assignment.id, day, event.target.value)}
                             aria-label={`${assignment.name} ${day} hours`}
                           />
@@ -1212,7 +1192,7 @@ export default function HoursTrackerPage() {
                         {savingKey === `save-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save
                       </button>
                       <button className="btn" type="button" onClick={() => updateStatus(assignment, "reviewed")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Reviewed</button>
-                      <button className="btn success" type="button" onClick={() => updateStatus(assignment, "approved")} disabled={!!savingKey || total <= 0 || !!ctsHours}>Approve</button>
+                      <button className="btn success" type="button" onClick={() => updateStatus(assignment, "locked")} disabled={!!savingKey || total <= 0 || status === "locked"}>Approve & lock</button>
                       <button className="btn danger" type="button" onClick={() => resetWeek(assignment)} disabled={!!savingKey || (total <= 0 && workerTotal <= 0)}>
                         {savingKey === `reset-${assignment.id}` ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />} Clear week
                       </button>
