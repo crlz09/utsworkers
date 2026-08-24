@@ -4,6 +4,8 @@ import { createClient } from "npm:@supabase/supabase-js@2"
 const notificationRecipients = [
   "cmolina@universaltalentsource.com",
   "ealana@universaltalentsource.com",
+  "andrearamirez@universaltalentsource.com",
+  "mariaalana@universaltalentsource.com",
 ]
 
 const respond = (status: number, body: Record<string, unknown>) =>

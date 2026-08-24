@@ -3,14 +3,12 @@ import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   Bell,
-  Briefcase,
   CheckCircle2,
   Clock3,
   ExternalLink,
   Loader2,
   RefreshCw,
   UserRound,
-  Users,
   X,
 } from "lucide-react";
 import UtsTopNavBar from "../components/UtsTopNavBar";
@@ -24,9 +22,10 @@ import {
 } from "../lib/adminNotifications";
 
 const TYPE_META = {
-  worker: { label: "Workers", icon: UserRound, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
-  job: { label: "Jobs", icon: Briefcase, color: "#7c2d12", bg: "#fff7ed", border: "#fed7aa" },
-  hours: { label: "Hours", icon: Clock3, color: "#6d28d9", bg: "#f5f3ff", border: "#ddd6fe" },
+  registered: { label: "Registered", icon: UserRound, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+  vetting_pending: { label: "Vetting Pending", icon: Clock3, color: "#9a3412", bg: "#fff7ed", border: "#fed7aa" },
+  vetting_completed: { label: "Vetting Completed", icon: CheckCircle2, color: "#166534", bg: "#f0fdf4", border: "#bbf7d0" },
+  documents_pending: { label: "Documents Pending", icon: AlertTriangle, color: "#6d28d9", bg: "#f5f3ff", border: "#ddd6fe" },
 };
 
 const SEVERITY_META = {
@@ -272,7 +271,7 @@ function SeverityPill({ severity }) {
 }
 
 function TypePill({ type }) {
-  const meta = TYPE_META[type] || TYPE_META.worker;
+  const meta = TYPE_META[type] || TYPE_META.registered;
   const Icon = meta.icon;
   return (
     <span className="pill" style={{ color: meta.color, background: meta.bg, border: `1px solid ${meta.border}` }}>
@@ -283,7 +282,7 @@ function TypePill({ type }) {
 }
 
 function NotificationCard({ item, onOpen, onDismiss, onMarkReviewed }) {
-  const typeMeta = TYPE_META[item.type] || TYPE_META.worker;
+  const typeMeta = TYPE_META[item.type] || TYPE_META.registered;
   const Icon = typeMeta.icon;
 
   return (
@@ -323,7 +322,7 @@ function NotificationCard({ item, onOpen, onDismiss, onMarkReviewed }) {
           justifyContent: "flex-end",
         }}
       >
-        {item.type === "worker" && item.id.startsWith("worker-unreviewed:") ? (
+        {item.type === "registered" ? (
           <button className="btn" type="button" onClick={() => onMarkReviewed(item)}>
             <CheckCircle2 size={16} />
             Mark Reviewed
@@ -359,7 +358,7 @@ export default function AdminNotificationsPage() {
       setData(await loadAdminNotificationData(supabase));
     } catch (error) {
       setFeedback({ error: error.message || "Could not load notifications.", success: "" });
-      setData({ workers: [], jobs: [], candidates: [], hoursEntries: [] });
+      setData({ workers: [], recruiterNotifications: [] });
     } finally {
       setLoading(false);
     }
@@ -384,22 +383,47 @@ export default function AdminNotificationsPage() {
     () => ({
       total: notifications.length,
       high: notifications.filter((item) => item.severity === "high").length,
-      workers: notifications.filter((item) => item.type === "worker").length,
-      jobs: notifications.filter((item) => item.type === "job").length,
-      hours: notifications.filter((item) => item.type === "hours").length,
+      registered: notifications.filter((item) => item.type === "registered").length,
+      vettingPending: notifications.filter((item) => item.type === "vetting_pending").length,
+      vettingCompleted: notifications.filter((item) => item.type === "vetting_completed").length,
+      documentsPending: notifications.filter((item) => item.type === "documents_pending").length,
     }),
     [notifications]
   );
 
   const filters = [
     { value: "all", label: "All", count: summary.total },
-    { value: "worker", label: "Workers", count: summary.workers },
-    { value: "job", label: "Jobs", count: summary.jobs },
-    { value: "hours", label: "Hours", count: summary.hours },
+    { value: "registered", label: "Registered", count: summary.registered },
+    { value: "vetting_pending", label: "Vetting Pending", count: summary.vettingPending },
+    { value: "vetting_completed", label: "Vetting Completed", count: summary.vettingCompleted },
+    { value: "documents_pending", label: "Documents Pending", count: summary.documentsPending },
     { value: "high", label: "High Priority", count: summary.high },
   ];
 
-  const dismissNotification = (item) => {
+  const markPersistentNotificationRead = async (item) => {
+    const notificationId = item.meta?.notificationId;
+    if (!notificationId) return true;
+    const { error } = await supabase
+      .from("recruiter_notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("id", notificationId)
+      .is("read_at", null);
+    if (error) {
+      setFeedback({ error: error.message || "Could not mark the notification as read.", success: "" });
+      return false;
+    }
+    setData((previous) => ({
+      ...previous,
+      recruiterNotifications: (previous?.recruiterNotifications || []).filter((notification) => notification.id !== notificationId),
+    }));
+    return true;
+  };
+
+  const dismissNotification = async (item) => {
+    if (item.meta?.persistent) {
+      await markPersistentNotificationRead(item);
+      return;
+    }
     setDismissed((prev) => {
       const next = new Set(prev);
       next.add(item.id);
@@ -408,8 +432,9 @@ export default function AdminNotificationsPage() {
     });
   };
 
-  const openNotification = (item) => {
+  const openNotification = async (item) => {
     if (!item.route) return;
+    if (item.meta?.persistent && !(await markPersistentNotificationRead(item))) return;
     if (item.route.startsWith("/admin") || item.route.startsWith("/hours")) {
       window.open(item.route, "_blank", "noopener,noreferrer");
       return;
@@ -459,7 +484,7 @@ export default function AdminNotificationsPage() {
                 </div>
                 <h1 className="hero-title">Tasks & Attention</h1>
                 <p className="hero-subtitle">
-                  Review workers, jobs, and hours that need a decision or missing information.
+                  Track new registrations, vetting handoffs, and required candidate documents.
                 </p>
               </div>
 
@@ -479,12 +504,12 @@ export default function AdminNotificationsPage() {
                 <div className="metric-value">{summary.high}</div>
               </div>
               <div className="metric-card">
-                <div className="metric-label">Workers</div>
-                <div className="metric-value">{summary.workers}</div>
+                <div className="metric-label">Vetting Pending</div>
+                <div className="metric-value">{summary.vettingPending}</div>
               </div>
               <div className="metric-card">
-                <div className="metric-label">Jobs / Hours</div>
-                <div className="metric-value">{summary.jobs + summary.hours}</div>
+                <div className="metric-label">Documents Pending</div>
+                <div className="metric-value">{summary.documentsPending}</div>
               </div>
             </div>
           </section>
