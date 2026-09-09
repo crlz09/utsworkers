@@ -9,6 +9,7 @@ import {
   FileSpreadsheet,
   Link2,
   Loader2,
+  Lock,
   RefreshCw,
   Save,
   Trash2,
@@ -216,6 +217,9 @@ function PageStyles() {
       .import-table { width: 100%; min-width: 980px; border-collapse: collapse; }
       .import-table th { padding: 9px 10px; background: #f8fafc; color: #64748b; font-size: 10px; text-transform: uppercase; text-align: left; }
       .import-table td { padding: 9px 10px; border-top: 1px solid #eef2f7; color: #334155; font-size: 12px; }
+      .import-table tr.needs-matching td { background: #fff7ed; border-top-color: #fed7aa; }
+      .import-table tr.needs-matching td:first-child { box-shadow: inset 4px 0 #f97316; }
+      .import-table tr.needs-matching .select { border-color: #fb923c; background: #fffaf5; }
       .import-table .select { min-width: 260px; min-height: 36px; padding: 6px 9px; }
       .source-hours { display: inline-flex; gap: 6px; flex-wrap: wrap; }
       .source-hours span { padding: 4px 7px; border-radius: 8px; background: #f1f5f9; font-size: 10px; font-weight: 800; white-space: nowrap; }
@@ -919,7 +923,7 @@ export default function HoursTrackerPage() {
     setImportPreview([]);
   };
 
-  const commitCtsImport = async () => {
+  const commitCtsImport = async ({ override = false } = {}) => {
     const unresolved = importPreview.filter((row) => !row.assignmentId);
     if (unresolved.length) {
       setFeedback({ error: `Select a candidate assignment for ${unresolved.length} unresolved row${unresolved.length === 1 ? "" : "s"}.`, success: "" });
@@ -947,7 +951,7 @@ export default function HoursTrackerPage() {
           worker_id: assignment.worker_id,
         };
       });
-      const { error } = await supabase.rpc("import_cts_weekly_hours", {
+      const { error } = await supabase.rpc(override ? "import_and_override_cts_weekly_hours" : "import_cts_weekly_hours", {
         p_filename: importFile?.name || "CTS hours.xlsx",
         p_file_sha256: importFileHash,
         p_rows: rowsPayload,
@@ -957,7 +961,12 @@ export default function HoursTrackerPage() {
       const importedTotal = importPreview.reduce((sum, row) => sum + importedHoursTotal(row), 0);
       closeImportPreview();
       await load({ preserveFeedback: true });
-      setFeedback({ error: "", success: `${importedCount} CTS weekly rows imported for review (${formatHours(importedTotal)} hours). They are not official until an administrator approves and locks them.` });
+      setFeedback({
+        error: "",
+        success: override
+          ? `${importedCount} CTS weekly rows imported, approved, and locked (${formatHours(importedTotal)} hours). CTS is now the official billing source.`
+          : `${importedCount} CTS weekly rows imported for review (${formatHours(importedTotal)} hours). They are not official until an administrator approves and locks them.`,
+      });
     } catch (error) {
       setFeedback({ error: error.message || "Could not import CTS hours.", success: "" });
     } finally {
@@ -1034,12 +1043,15 @@ export default function HoursTrackerPage() {
               <div>
                 <div className="kicker"><FileSpreadsheet size={15} /> CTS spreadsheet preview</div>
                 <h2 className="section-title">Review candidate matches before importing</h2>
-                <p className="section-subtitle">{importFile?.name} · CTS rows are imported for reconciliation and require approval before invoicing.</p>
+                <p className="section-subtitle">{importFile?.name} · Import for review, or override to make CTS official and invoice-ready immediately.</p>
               </div>
               <div className="table-actions">
                 <button className="btn" type="button" onClick={closeImportPreview} disabled={importing}><X size={14} /> Cancel</button>
-                <button className="btn success" type="button" onClick={commitCtsImport} disabled={importing || unresolvedImportCount > 0}>
+                <button className="btn success" type="button" onClick={() => commitCtsImport()} disabled={importing || unresolvedImportCount > 0}>
                   {importing ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />} Import for review
+                </button>
+                <button className="btn dark" type="button" onClick={() => commitCtsImport({ override: true })} disabled={importing || unresolvedImportCount > 0} title="Import CTS hours as the official source and approve and lock each matched week">
+                  {importing ? <Loader2 className="spin" size={15} /> : <Lock size={15} />} Import and override
                 </button>
               </div>
             </div>
@@ -1053,7 +1065,7 @@ export default function HoursTrackerPage() {
                 <thead><tr><th>CTS employee</th><th>Week ending</th><th>CTS memo</th><th>Hours</th><th>Candidate / project</th></tr></thead>
                 <tbody>
                   {importPreview.map((row) => (
-                    <tr key={row.source_row_key}>
+                    <tr key={row.source_row_key} className={!row.assignmentId ? "needs-matching" : undefined}>
                       <td><strong>{row.source_employee_name}</strong><div className="worker-meta">Invoice {row.source_invoice_number || "—"}</div></td>
                       <td>{row.week_ending_date}</td>
                       <td>{row.source_memo || "—"}<div className="worker-meta">{row.source_customer || ""}</div></td>
