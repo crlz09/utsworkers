@@ -868,7 +868,17 @@ function InvoiceStyles() {
       }
 
       @media print {
-        @page { size: Letter; margin: 0.35in; }
+        @page {
+          size: Letter;
+          margin: 0.35in;
+          @bottom-center {
+            content: counter(page);
+            color: #64748b;
+            font-family: Inter, Arial, sans-serif;
+            font-size: 8pt;
+            font-weight: 700;
+          }
+        }
         * {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
