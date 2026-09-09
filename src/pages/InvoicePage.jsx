@@ -874,7 +874,15 @@ function InvoiceStyles() {
           print-color-adjust: exact !important;
         }
         html, body { background: #ffffff !important; overflow: visible !important; }
-        .uts-topbar, .invoice-hero, .invoice-controls, .invoice-actions, .invoice-dashboard, .rate-input, .service-select, .line-input, .row-action-btn, .remove-line-btn, .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
+        body.uts-operations-shell, body.uts-operations-shell-collapsed {
+          padding: 0 !important;
+          background: #ffffff !important;
+        }
+        .uts-topbar, .uts-ops-sidebar, .uts-ops-topbar, .uts-ops-floating-menu,
+        .uts-ops-mobile-menu, .uts-ops-mobile-backdrop, .invoice-hero,
+        .invoice-controls, .invoice-actions, .invoice-dashboard, .rate-input,
+        .service-select, .line-input, .row-action-btn, .remove-line-btn,
+        .invoice-modal-backdrop, .go-to-top-button { display: none !important; }
         .print-service-name, .print-rate-value, .print-manual-value { display: inline !important; }
         .invoice-shell { width: 100%; max-width: none; padding: 0; gap: 0; }
         .invoice-grid { display: block; }

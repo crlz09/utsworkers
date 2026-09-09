@@ -42,6 +42,12 @@ function overlapScore(left, right) {
 }
 
 function toIsoDate(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Excel's 1900 date system counts days from 1899-12-30 (including its
+    // historical leap-year compatibility offset).
+    const excelDate = new Date(Date.UTC(1899, 11, 30) + Math.trunc(value) * 86400000);
+    return toIsoDate(excelDate);
+  }
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     const year = value.getUTCFullYear();
     const month = String(value.getUTCMonth() + 1).padStart(2, "0");
