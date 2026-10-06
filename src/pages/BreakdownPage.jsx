@@ -1,333 +1,51 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { Calculator, ChevronDown, Minus, Plus, RotateCcw, UsersRound } from "lucide-react";
 import UtsTopNavBar from "../components/UtsTopNavBar";
+import { calculateWorkforce, normalizeWorkforce, WORKFORCE_DEFAULTS } from "../lib/workforceCalculator";
 import "./BreakdownPage.css";
 
-const DEFAULTS = {
-  capital: 0,
-  interestRate: 5,
-  expenses: [],
-  employeeRate: 30,
-  perDiemEmployee: 0,
-  hoursPerWeek: 40,
-  daysPerWeek: 5,
-  overtimeThreshold: 40,
-  overtimeMultiplier: 1.5,
-  payrollBurden: 12,
-};
-
-const currency = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
-
-const preciseCurrency = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-function loadStored(key, fallback) {
-  try {
-    const value = window.localStorage.getItem(key);
-    return value ? { ...fallback, ...JSON.parse(value) } : fallback;
-  } catch {
-    return fallback;
-  }
+const KEY = "uts-workforce-calculator-v1";
+const money = (v) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(v);
+const number = (v) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(v);
+const percent = (v) => `${(v * 100).toFixed(2)}%`;
+const scenarios = [[5, 0], [0, 5], [5, 5], [10, 0], [0, 10], [5, 10], [10, 5], [15, 0], [0, 15], [10, 10], [15, 5], [5, 15]];
+function readInputs() {
+  try { return normalizeWorkforce(JSON.parse(localStorage.getItem(KEY)) || {}); }
+  catch { return { ...WORKFORCE_DEFAULTS }; }
 }
-
-function NumericField({
-  label,
-  value,
-  onChange,
-  prefix = "$",
-  suffix = "",
-  step = 1,
-  help,
-}) {
-  return (
-    <label className="bd-field">
-      <span>
-        {label}
-        {help ? <small>{help}</small> : null}
-      </span>
-      <span className="bd-input">
-        {prefix ? <i>{prefix}</i> : null}
-        <input
-          type="number"
-          inputMode="decimal"
-          min="0"
-          step={step}
-          value={value}
-          onFocus={(event) => event.currentTarget.select()}
-          onChange={(event) => onChange(Number(event.target.value) || 0)}
-        />
-        {suffix ? <i>{suffix}</i> : null}
-      </span>
-    </label>
-  );
+function Field({ label, value, onChange, unit, min = 0 }) {
+  return <label className="wf-field"><span>{label}</span><div><input aria-label={label} type="number" inputMode="decimal" min={min} step="any" value={value} onFocus={(e) => e.target.select()} onChange={(e) => onChange(e.target.value === "" ? "" : Math.max(min, Number(e.target.value) || 0))} onBlur={() => { if (value === "") onChange(min); }} /><small>{unit}</small></div></label>;
 }
-
+function Counter({ label, description, value, onChange }) {
+  return <div className={`wf-counter wf-${label}`}><b>{label}</b><span>{description}</span><div className="wf-stepper"><button aria-label={`Quitar ${label}`} disabled={!value} onClick={() => onChange(Math.max(0, Number(value) - 1))}><Minus size={18} /></button><input aria-label={`Cantidad ${label}`} type="number" inputMode="numeric" min="0" step="1" value={value} onFocus={(e) => e.target.select()} onChange={(e) => onChange(e.target.value === "" ? "" : Math.max(0, Math.floor(Number(e.target.value) || 0)))} onBlur={() => { if (value === "") onChange(0); }} /><button aria-label={`Agregar ${label}`} onClick={() => onChange(Number(value) + 1)}><Plus size={18} /></button></div></div>;
+}
+function Row({ label, value, strong = false }) {
+  return <div className={`wf-row ${strong ? "wf-total" : ""}`}><span>{label}</span><b>{money(value)}</b></div>;
+}
+function Detail({ title, children }) {
+  return <details className="wf-details"><summary>{title}<ChevronDown size={18} /></summary><div className="wf-details-body">{children}</div></details>;
+}
 export default function BreakdownPage() {
-  const [inputs, setInputs] = useState(() =>
-    loadStored("breakdown-foundation-v1", DEFAULTS),
-  );
-  const [playground, setPlayground] = useState(() =>
-    loadStored("breakdown-playground-v2", { hours: 40, people: 0, margin: 0 }),
-  );
-
-  const model = useMemo(() => {
-    const regularHours = Math.min(inputs.hoursPerWeek, inputs.overtimeThreshold);
-    const overtimeHours = Math.max(inputs.hoursPerWeek - inputs.overtimeThreshold, 0);
-    const weightedHours = regularHours + overtimeHours * inputs.overtimeMultiplier;
-    const monthlyLoadedWages =
-      weightedHours * inputs.employeeRate * 4 * (1 + inputs.payrollBurden / 100);
-    const monthlyPerDiem = inputs.daysPerWeek * inputs.perDiemEmployee * 4;
-    const monthlyCostPerPerson = monthlyLoadedWages + monthlyPerDiem;
-    const exactCapacity =
-      monthlyCostPerPerson > 0 ? inputs.capital / monthlyCostPerPerson : 0;
-    const sustainablePeople = Math.floor(exactCapacity);
-    const monthlyInterest = inputs.capital * (inputs.interestRate / 100);
-    const monthlyExpenses = inputs.expenses.reduce(
-      (total, expense) => total + (Number(expense.amount) || 0),
-      0,
-    );
-    const totalBreakEven = monthlyExpenses + monthlyInterest;
-    const supportedHours = sustainablePeople * inputs.hoursPerWeek * 4;
-    const marginPerHour = supportedHours ? totalBreakEven / supportedHours : 0;
-
-    return {
-      monthlyLoadedWages,
-      monthlyPerDiem,
-      monthlyCostPerPerson,
-      exactCapacity,
-      sustainablePeople,
-      monthlyInterest,
-      monthlyExpenses,
-      totalBreakEven,
-      supportedHours,
-      marginPerHour,
-    };
+  const [inputs, setInputs] = useState(readInputs);
+  const [storageFailed, setStorageFailed] = useState(false);
+  const values = Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, v === "" ? 0 : v]));
+  const r = calculateWorkforce(values);
+  const update = (key, value) => setInputs((a) => ({ ...a, [key]: value }));
+  useEffect(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(inputs)); }
+    catch { queueMicrotask(() => setStorageFailed(true)); }
   }, [inputs]);
-
-  const playgroundModel = useMemo(() => {
-    const monthlyHours = playground.hours * playground.people * 4;
-    const monthlyMargin = monthlyHours * playground.margin;
-    return {
-      monthlyHours,
-      monthlyMargin,
-      requiredMargin: monthlyHours ? model.totalBreakEven / monthlyHours : 0,
-      result: monthlyMargin - model.totalBreakEven,
-    };
-  }, [model.totalBreakEven, playground]);
-
-  const update = (key, value) => {
-    setInputs((current) => ({ ...current, [key]: value }));
-  };
-
-  const updateExpense = (id, key, value) => {
-    update(
-      "expenses",
-      inputs.expenses.map((expense) =>
-        expense.id === id ? { ...expense, [key]: value } : expense,
-      ),
-    );
-  };
-
-  return (
-    <div className="breakdown-page">
-      <UtsTopNavBar />
-
-      <main>
-        <section className="bd-kpis" aria-label="Resultados principales">
-          <article className="dark">
-            <span>Personas sostenibles · 4 semanas</span>
-            <strong>{model.sustainablePeople}<small> personas</small></strong>
-            <em>Capacidad exacta: {model.exactCapacity.toFixed(2)}</em>
-          </article>
-          <article>
-            <span>Break-even mensual total</span>
-            <strong>{currency.format(model.totalBreakEven)}</strong>
-            <em>Gastos + interés mensual</em>
-          </article>
-          <article>
-            <span>Costo mensual por persona</span>
-            <strong>{currency.format(model.monthlyCostPerPerson)}</strong>
-            <em>Nómina cargada + per diem</em>
-          </article>
-          <article className="positive">
-            <span>Margen requerido por hora</span>
-            <strong>{preciseCurrency.format(model.marginPerHour)}</strong>
-            <em>Entre {model.supportedHours.toLocaleString()} horas sostenidas</em>
-          </article>
-        </section>
-
-        <div className="bd-workspace">
-          <section className="bd-assumptions">
-            <div className="bd-section-heading">
-              <div>
-                <p className="bd-eyebrow">DATOS</p>
-                <h2>Construye la base</h2>
-              </div>
-              <span>Cada mes = 4 semanas</span>
-            </div>
-
-            <InputSection number="01" title="Capital">
-              <div className="bd-field-grid two">
-                <NumericField
-                  label="Capital disponible"
-                  value={inputs.capital}
-                  onChange={(value) => update("capital", value)}
-                  step={1000}
-                />
-                <NumericField
-                  label="Interés mensual"
-                  value={inputs.interestRate}
-                  onChange={(value) => update("interestRate", value)}
-                  prefix=""
-                  suffix="%"
-                  step={0.1}
-                  help={`${currency.format(model.monthlyInterest)} por mes`}
-                />
-              </div>
-            </InputSection>
-
-            <InputSection number="02" title="Gastos mensuales">
-              <div className="bd-expenses">
-                {inputs.expenses.length === 0 ? (
-                  <p className="bd-empty">
-                    Aún no hay gastos. Agrega cada gasto con su nombre y monto.
-                  </p>
-                ) : null}
-                {inputs.expenses.map((expense) => (
-                  <div className="bd-expense-row" key={expense.id}>
-                    <label>
-                      <span>Nombre del gasto</span>
-                      <input
-                        type="text"
-                        placeholder="Ej. Payroll manager"
-                        value={expense.name}
-                        onChange={(event) =>
-                          updateExpense(expense.id, "name", event.target.value)
-                        }
-                      />
-                    </label>
-                    <NumericField
-                      label="Monto mensual"
-                      value={expense.amount}
-                      onChange={(value) => updateExpense(expense.id, "amount", value)}
-                    />
-                    <button
-                      type="button"
-                      className="bd-remove"
-                      aria-label={`Eliminar ${expense.name || "gasto"}`}
-                      onClick={() =>
-                        update(
-                          "expenses",
-                          inputs.expenses.filter((item) => item.id !== expense.id),
-                        )
-                      }
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="bd-add"
-                onClick={() =>
-                  update("expenses", [
-                    ...inputs.expenses,
-                    { id: crypto.randomUUID(), name: "", amount: 0 },
-                  ])
-                }
-              >
-                + Agregar gasto mensual
-              </button>
-            </InputSection>
-
-            <InputSection number="03" title="Horario de trabajo">
-              <div className="bd-field-grid">
-                <NumericField label="Tarifa promedio" value={inputs.employeeRate} onChange={(value) => update("employeeRate", value)} />
-                <NumericField label="Carga de nómina" value={inputs.payrollBurden} onChange={(value) => update("payrollBurden", value)} prefix="" suffix="%" step={0.1} />
-                <NumericField label="Per diem promedio" value={inputs.perDiemEmployee} onChange={(value) => update("perDiemEmployee", value)} />
-                <NumericField label="Horas por semana" value={inputs.hoursPerWeek} onChange={(value) => update("hoursPerWeek", value)} prefix="" suffix="h" />
-                <NumericField label="Días por semana" value={inputs.daysPerWeek} onChange={(value) => update("daysPerWeek", value)} prefix="" suffix="días" />
-                <NumericField label="Overtime comienza" value={inputs.overtimeThreshold} onChange={(value) => update("overtimeThreshold", value)} prefix="" suffix="h" />
-                <NumericField label="Multiplicador overtime" value={inputs.overtimeMultiplier} onChange={(value) => update("overtimeMultiplier", value)} prefix="" suffix="×" step={0.1} />
-              </div>
-            </InputSection>
-          </section>
-
-          <aside className="bd-calculation">
-            <p className="bd-eyebrow">CÁLCULO</p>
-            <h2>Cómo funciona el modelo</h2>
-            <div className="bd-money">
-              <MoneyRow label="Nómina cargada · 4 semanas" value={model.monthlyLoadedWages} />
-              <MoneyRow label="Per diem · 4 semanas" value={model.monthlyPerDiem} />
-              <MoneyRow label="Gastos mensuales" value={model.monthlyExpenses} />
-              <MoneyRow label="Interés mensual" value={model.monthlyInterest} />
-              <MoneyRow label="Break-even total" value={model.totalBreakEven} total />
-            </div>
-            <div className="bd-formula">
-              <b>FÓRMULAS</b>
-              <p>La capacidad usa el costo total de cuatro semanas de un empleado representativo.</p>
-              <code>Capital ÷ costo por persona = personas sostenibles</code>
-              <code>Gastos + interés = break-even total</code>
-              <code>Break-even ÷ horas sostenidas = margen por hora</code>
-            </div>
-          </aside>
-        </div>
-
-        <section className="bd-playground">
-          <div className="bd-playground-heading">
-            <div>
-              <p className="bd-eyebrow">PLAYGROUND / EJERCICIO INVERSO</p>
-              <h2>Estima la ganancia mensual</h2>
-            </div>
-            <p>Prueba horas, personas y margen por hora. El modelo descuenta el break-even calculado arriba.</p>
-          </div>
-          <div className="bd-playground-grid">
-            <div className="bd-playground-inputs">
-              <NumericField label="Horas por semana" value={playground.hours} onChange={(hours) => setPlayground((current) => ({ ...current, hours }))} prefix="" suffix="h" />
-              <NumericField label="Personas" value={playground.people} onChange={(people) => setPlayground((current) => ({ ...current, people }))} prefix="" />
-              <NumericField label="Margen por hora" value={playground.margin} onChange={(margin) => setPlayground((current) => ({ ...current, margin }))} />
-              {playground.people > model.sustainablePeople ? <p className="bd-warning">Esta cantidad excede tu capacidad de capital.</p> : null}
-            </div>
-            <div className="bd-results">
-              <Result label="Horas mensuales" value={playgroundModel.monthlyHours.toLocaleString()} />
-              <Result label="Margen mensual" value={currency.format(playgroundModel.monthlyMargin)} />
-              <Result label="Break-even" value={currency.format(model.totalBreakEven)} />
-              <Result label="Margen requerido/h" value={preciseCurrency.format(playgroundModel.requiredMargin)} />
-              <div className={`bd-total ${playgroundModel.result < 0 ? "negative" : ""}`}>
-                <span>{playgroundModel.result >= 0 ? "Ganancia estimada" : "Pérdida estimada"}</span>
-                <strong>{currency.format(playgroundModel.result)}</strong>
-                <small>Después de todos los gastos</small>
-              </div>
-            </div>
-          </div>
-          <code className="bd-playground-formula">Horas × Personas × Margen × 4 − Break-even = Total después de gastos</code>
-        </section>
-      </main>
-    </div>
-  );
-}
-
-function InputSection({ number, title, children }) {
-  return (
-    <div className="bd-input-section">
-      <div className="bd-input-title"><b>{number}</b><h3>{title}</h3></div>
-      {children}
-    </div>
-  );
-}
-
-function MoneyRow({ label, value, total = false }) {
-  return <div className={total ? "total" : ""}><span>{label}</span><strong>{currency.format(value)}</strong></div>;
-}
-
-function Result({ label, value }) {
-  return <div><span>{label}</span><strong>{value}</strong></div>;
+  const field = (key, label, unit, min = 0) => <Field key={key} label={label} unit={unit} min={min} value={inputs[key]} onChange={(v) => update(key, v)} />;
+  return <div className="breakdown-page"><UtsTopNavBar /><main className="wf-main">
+    <header className="wf-heading"><div><p className="wf-eyebrow"><Calculator size={15} /> UTS · WORKFORCE CALCULATOR</p><h1>Tu equipo. Tus números.</h1><p>Ajusta tu combinación de W2 y 1099 y calcula el resultado al instante.</p></div><span className="wf-period">Proyección mensual · USD</span></header>
+    <div className="wf-primary"><section className="wf-team" aria-label="Configura tu equipo"><div className="wf-section-title"><h2><UsersRound size={20} /> Configura tu equipo</h2><span>{r.workers} personas</span></div><div className="wf-counters"><Counter label="W2" description="Empleados" value={inputs.w2} onChange={(v) => update("w2", v)} /><Counter label="1099" description="Contratistas" value={inputs.contractors} onChange={(v) => update("contractors", v)} /></div><div className="wf-mix" aria-hidden="true"><span style={{ width: `${r.workers ? Number(inputs.w2) / r.workers * 100 : 0}%` }} /></div><div className="wf-legend"><span>● {number(Number(inputs.w2))} W2</span><span>● {number(Number(inputs.contractors))} 1099</span></div><div className="wf-fields">{field("hours", "Horas por semana", "h/persona")}{field("fee", "CTS hourly fee", "$/h")}</div><p className="wf-hint">{number(r.monthlyHours)} h por persona/mes · {number(values.weeks)} semanas ÷ {number(Math.max(1, values.months))} meses</p></section>
+    <section className={`wf-result ${r.profit < 0 ? "wf-loss" : ""}`} aria-label="Mixed Workforce Result" aria-live="polite"><p className="wf-eyebrow">MIXED WORKFORCE RESULT</p><span className="wf-profit-label">{r.profit < 0 ? "Pérdida" : "Ganancia"} operativa mensual</span><strong className="wf-profit">{money(r.profit)}</strong><div className="wf-result-metrics"><div><span>Overall operating margin</span><b>{percent(r.margin)}</b><small>Ganancia ÷ ingresos totales</small></div><div><span>Resultado por hora</span><b>{money(r.hourlyProfit)}</b><small>Por cada hora trabajada</small></div></div><div className="wf-result-footer"><span>{number(r.hours)} horas mensuales</span><span>{r.workers} trabajadores</span></div></section></div>
+    <section className="wf-summary" aria-label="Resumen mensual">{[["Ingresos totales", r.revenue, "Sueldos reembolsados + fee CTS"], ["Costo operativo total", r.cost, "W2 + 1099 + costos fijos"], ["Ingresos por fee CTS", r.feeRevenue, `${money(values.fee)} por hora trabajada`]].map(([label, value, note]) => <div key={label}><span>{label}</span><b>{money(value)}</b><small>{note}</small></div>)}</section>
+    <div className="wf-secondary"><Detail title="Tarifas y supuestos"><h3>Pago por hora</h3><div className="wf-fields">{field("wage", "Sueldo W2", "$/h")}{field("contractorPay", "Pago 1099", "$/h")}</div><h3>Impuestos y seguros W2</h3><div className="wf-fields">{field("fica", "Employer FICA", "%")}{field("futa", "FUTA", "%")}{field("futaBase", "Base anual FUTA", "$/persona")}{field("suta", "Indiana SUTA", "%")}{field("sutaBase", "Base anual SUTA", "$/persona")}{field("workersComp", "Workers’ Comp", "$/h")}</div><h3>Administración y costos fijos</h3><div className="wf-fields">{field("liability", "General Liability", "$/mes")}{field("gustoBase", "Gusto · base", "$/mes")}{field("gustoEmployee", "Gusto · empleado W2", "$/mes")}{field("weeks", "Semanas por año", "semanas")}{field("months", "Meses por año", "meses", 1)}</div><button className="wf-reset" onClick={() => setInputs({ ...WORKFORCE_DEFAULTS })}><RotateCcw size={16} /> Restaurar valores del Excel</button></Detail>
+    <Detail title="Desglose del resultado"><h3>Costos mensuales W2</h3>{[["Sueldos", r.wages], ["Employer FICA", r.fica], ["FUTA · promedio anualizado", r.futa], ["SUTA · promedio anualizado", r.suta], ["Workers’ Comp", r.workersComp], ["Gusto · empleados", r.gustoEmployees], ["Gusto · base fija", values.gustoBase], ["General Liability", values.liability]].map(([label, value]) => <Row key={label} label={label} value={value} />)}<Row label="Costo W2 + costos fijos" value={r.w2Cost} strong /><Row label="Pago a contratistas 1099" value={r.contractorCost} /><Row label="Costo operativo combinado" value={r.cost} strong /><h3>De ingresos a ganancia</h3><Row label="Reembolso de sueldos W2 + pago 1099" value={r.wages + r.contractorCost} /><Row label="Fee CTS" value={r.feeRevenue} /><Row label="Ingresos totales" value={r.revenue} strong /><Row label="Menos costo operativo" value={r.cost} /><Row label="Ganancia / pérdida" value={r.profit} strong /></Detail>
+    <Detail title="Comparar combinaciones W2 / 1099"><p className="wf-hint">Con tus supuestos actuales. Toca una combinación para usarla.</p><div className="wf-scenarios">{scenarios.map(([w2, contractors]) => { const s = calculateWorkforce({ ...values, w2, contractors }); return <button key={`${w2}-${contractors}`} onClick={() => setInputs((a) => ({ ...a, w2, contractors }))} aria-pressed={values.w2 === w2 && values.contractors === contractors}><span>{w2} W2 · {contractors} 1099</span><b>{money(s.profit)}<small>/mes · {percent(s.margin)}</small></b></button>; })}</div></Detail>
+    <Detail title="Escala de costos W2 · 1 a 30 empleados"><div className="wf-table-wrap" tabIndex="0" role="region" aria-label="Tabla de costos W2"><table><thead><tr>{["W2", "Sueldos", "FICA", "FUTA + SUTA", "WC", "Gusto + GL", "Costo total", "Costo/h", "Fee/h", "Resultado/h", "Resultado/mes"].map((label) => <th key={label}>{label}</th>)}</tr></thead><tbody>{Array.from({ length: 30 }, (_, i) => { const s = calculateWorkforce({ ...values, w2: i + 1, contractors: 0 }); return <tr key={i}><th>{i + 1}</th>{[s.wages, s.fica, s.futa + s.suta, s.workersComp, s.gustoEmployees + s.fixed, s.cost, s.hours ? s.cost / s.hours : 0, values.fee, s.hourlyProfit, s.profit].map((value, index) => <td key={index}>{money(value)}</td>)}</tr>; })}</tbody></table></div></Detail>
+    <Detail title="Cómo se calcula"><div className="wf-notes"><p>Ingresos = reembolso del sueldo W2 y del pago 1099 + fee CTS por todas las horas. Margen operativo = ganancia ÷ ingresos totales, incluyendo esos reembolsos.</p><p>El Excel no aplica impuestos patronales, Workers’ Comp ni cargos Gusto por empleado a contratistas 1099. Gusto base y General Liability se mantienen, incluso sin trabajadores.</p><p>FUTA y SUTA son promedios de la base anual completa dividida entre los meses del año. Las tasas son supuestos editables del archivo.</p><p>No incluye per diem, intereses de capital ni recargo de overtime. Las horas adicionales usan la misma tarifa. Este simulador no determina la clasificación legal de los trabajadores.</p><p>General Liability parte de $489.17: el archivo contempla 9 pagos financiados restantes y excluye el pago inicial.</p></div></Detail></div>
+    <footer className="wf-footer">{storageFailed ? "No se pudieron guardar los cambios en este navegador." : "Tus ajustes se guardan automáticamente en este navegador."}<span>Basado en UTS Employee Cost Calculator · Per diem excluido</span></footer>
+  </main></div>;
 }
