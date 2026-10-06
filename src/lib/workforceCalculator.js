@@ -24,3 +24,15 @@ export function calculateWorkforce(values) {
   const revenue = wages + contractorCost + feeRevenue, profit = feeRevenue - burden - fixed;
   return { workers, monthlyHours, hours, wages, fica, futa, suta, workersComp, gustoEmployees, fixed, burden, w2Cost, contractorCost, cost, feeRevenue, revenue, profit, hourlyProfit: hours ? profit / hours : 0, margin: revenue ? profit / revenue : 0 };
 }
+
+// Weekly amounts are annualized averages, including monthly fixed costs.
+export function workforcePeriodResult(values, period = 'monthly') {
+  const assumptions = normalizeWorkforce(values);
+  const result = calculateWorkforce(assumptions);
+  if (period !== 'weekly') return result;
+  if (!assumptions.weeks) return null;
+  const factor = assumptions.months / assumptions.weeks;
+  return Object.fromEntries(Object.entries(result).map(([key, value]) => [
+    key, ['workers', 'margin', 'hourlyProfit', 'monthlyHours'].includes(key) ? value : value * factor,
+  ]));
+}

@@ -4,3 +4,5 @@
 @media(prefers-reduced-motion:reduce){.wf-mix span,.wf-details summary>svg{transition:none}}
 
 @media(max-width:820px){.wf-heading .wf-eyebrow{padding-left:42px;min-height:24px}}
+
+.wf-period-toggle{display:flex;gap:4px;background:rgba(0,0,0,.18);padding:4px;border-radius:10px;margin:0 0 18px;align-self:flex-start}.wf-period-toggle button{border:0;border-radius:7px;background:transparent;color:#d1e1d8;min-height:44px;padding:0 20px;cursor:pointer;font-size:12px;font-weight:600}.wf-period-toggle button[aria-pressed=true]{background:#f1f7f1;color:#183c3a}.wf-period-toggle button:disabled{opacity:.4;cursor:default}.wf-weekly-note{font-size:10px;color:#c1d8ce;line-height:1.6;margin:14px 0 0}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateWorkforce, normalizeWorkforce, WORKFORCE_DEFAULTS } from '../src/lib/workforceCalculator.js';
+import { calculateWorkforce, normalizeWorkforce, workforcePeriodResult, WORKFORCE_DEFAULTS } from '../src/lib/workforceCalculator.js';
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-7, `${a} != ${b}`);
 test('matches Excel Calculator B7:B14 and cost components', () => {
   const r = calculateWorkforce(WORKFORCE_DEFAULTS);
@@ -28,4 +28,22 @@ test('contractor pay is pass-through; fee and fixed costs change profit', () => 
 test('normalizes invalid saved inputs and whole headcounts', () => {
   const a = normalizeWorkforce({ w2: -1, contractors: 2.9, months: 0, wage: 'bad', fee: Infinity });
   assert.equal(a.w2, 0); assert.equal(a.contractors, 2); assert.equal(a.months, 1); assert.equal(a.wage, 30); assert.equal(a.fee, 5);
+});
+
+test('weekly result annualizes monthly totals and preserves rates', () => {
+  const monthly = workforcePeriodResult(WORKFORCE_DEFAULTS);
+  const weekly = workforcePeriodResult(WORKFORCE_DEFAULTS, 'weekly');
+  close(weekly.profit, 1745.210769230769);
+  close(weekly.revenue, 21000);
+  close(weekly.hours, 600);
+  close(weekly.cost, 19254.78923076923);
+  close(weekly.fixed, 131.34692307692308);
+  close(weekly.margin, monthly.margin);
+  close(weekly.hourlyProfit, monthly.hourlyProfit);
+  close(weekly.revenue - weekly.cost, weekly.profit);
+  const custom = workforcePeriodResult({ ...WORKFORCE_DEFAULTS, weeks: 48 }, 'weekly');
+  close(custom.profit * 4, calculateWorkforce({ ...WORKFORCE_DEFAULTS, weeks: 48 }).profit);
+  const empty = workforcePeriodResult({ ...WORKFORCE_DEFAULTS, w2: 0, contractors: 0 }, 'weekly');
+  close(empty.profit, -131.34692307692308);
+  assert.equal(workforcePeriodResult({ ...WORKFORCE_DEFAULTS, weeks: 0 }, 'weekly'), null);
 });
