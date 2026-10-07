@@ -25,6 +25,7 @@ import utsLogo from "../assets/uts-logo.png";
 const NAV_ITEMS = [
   { label: "Overview", path: "/admin", icon: LayoutDashboard, section: "overview" },
   { label: "Candidates", path: "/admin/candidates", icon: UsersRound, section: "candidates" },
+  { label: "Onboarding", path: "/admin/onboarding", icon: FileText },
   { label: "Projects", path: "/cts-jobs", icon: BriefcaseBusiness },
   { label: "Hours", path: "/hours", icon: Clock3 },
   { label: "Billing", path: "/invoice", icon: FileText },
@@ -49,6 +50,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   const isCandidateWorkspace = location.pathname === "/admin/candidates"
     || location.pathname.startsWith("/admin/workers/");
   const showWorkspaceHeader = location.pathname === "/admin"
+    || location.pathname === "/admin/onboarding"
     || location.pathname === "/admin/candidates"
     || location.pathname.startsWith("/admin/workers/");
   const [notificationCount, setNotificationCount] = useState(0);

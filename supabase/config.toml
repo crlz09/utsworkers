@@ -67,6 +67,11 @@ sql_paths = ["./seed.sql"]
 [functions.cts-jotform-webhook]
 verify_jwt = false
 
+[functions.screening-workflow]
+# Each request is authorized inside the function using auth.getUser and admin permissions.
+# A dedicated sync secret is restricted to Gmail imports.
+verify_jwt = false
+
 [db.network_restrictions]
 # Enable management of network restrictions.
 enabled = false

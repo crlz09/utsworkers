@@ -5,6 +5,10 @@ operations. It includes public worker registration and profiles, role-protected
 admin and client workspaces, CTS job tracking, weekly hours review, and
 invoicing.
 
+Drug-screen hiring onboarding is available in the Onboarding workspace. See
+[setup and verification](docs/screening-onboarding.md) for Gmail authorization,
+private documents, reviewed emails, and deployment requirements.
+
 ## Prerequisites
 
 - Node.js 20 or later

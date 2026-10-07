@@ -29,6 +29,7 @@ export default function CandidateWorkspaceTabs() {
     { label: "Details", path: `/admin/workers/${workerId}/details`, icon: LayoutDashboard },
     { label: "Profile", path: `/admin/workers/${workerId}/profile`, icon: UserRound },
     { label: "Documents", path: `/admin/workers/${workerId}/documents`, icon: FileText },
+    { label: "Onboarding", path: `/admin/workers/${workerId}/onboarding`, icon: ClipboardList },
     { label: "Bio", path: `/admin/workers/${workerId}/bio`, icon: FilePenLine },
     { label: "CTS JotForm", path: `/admin/workers/${workerId}/cts-form`, icon: ClipboardList },
   ];

@@ -22,6 +22,7 @@ const CandidateCtsFormPage = lazy(() => import("./pages/CandidateCtsFormPage"));
 const CandidatesHomePage = lazy(() => import("./pages/CandidatesHomePage"));
 const CandidateBioPage = lazy(() => import("./pages/CandidateBioPage"));
 const CandidateDetailsPage = lazy(() => import("./pages/CandidateDetailsPage"));
+const ScreeningOnboardingPage = lazy(() => import("./pages/ScreeningOnboardingPage"));
 const LegacyAdminPage = lazy(() => import("./pages/LegacyAdminPage"));
 
 function RouteFallback() {
@@ -47,6 +48,8 @@ export default function App() {
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
+        <Route path="/admin/onboarding" element={<AdminRoute><ScreeningOnboardingPage /></AdminRoute>} />
+        <Route path="/admin/workers/:workerId/onboarding" element={<AdminRoute><ScreeningOnboardingPage /></AdminRoute>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
