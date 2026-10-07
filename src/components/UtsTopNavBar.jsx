@@ -25,6 +25,7 @@ import utsLogo from "../assets/uts-logo.png";
 const NAV_ITEMS = [
   { label: "Overview", path: "/admin", icon: LayoutDashboard, section: "overview" },
   { label: "Candidates", path: "/admin/candidates", icon: UsersRound, section: "candidates" },
+  { label: "Docs", path: "/admin/docs", icon: FileText, adminOnly: true },
   { label: "Onboarding", path: "/admin/onboarding", icon: FileText },
   { label: "Projects", path: "/cts-jobs", icon: BriefcaseBusiness },
   { label: "Hours", path: "/hours", icon: Clock3 },
@@ -49,12 +50,15 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   const isAdminArea = location.pathname.startsWith("/admin");
   const isCandidateWorkspace = location.pathname === "/admin/candidates"
     || location.pathname.startsWith("/admin/workers/");
+  const isDocsWorkspace = location.pathname === "/admin/docs";
   const showWorkspaceHeader = location.pathname === "/admin"
+    || isDocsWorkspace
     || location.pathname === "/admin/onboarding"
     || location.pathname === "/admin/candidates"
     || location.pathname.startsWith("/admin/workers/");
   const [notificationCount, setNotificationCount] = useState(0);
   const [canViewActivity, setCanViewActivity] = useState(false);
+  const [canViewDocs, setCanViewDocs] = useState(false);
   const [collapsed, setCollapsed] = useState(readStoredCollapsedState);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileOpenRef = useRef(false);
@@ -177,11 +181,12 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         if (!data.session) return;
         const [count, permissionResult] = await Promise.all([
           loadAdminNotificationCount(supabase),
-          supabase.from("admin_permissions").select("can_delete_workers").eq("user_id", data.session.user.id).maybeSingle(),
+          supabase.from("admin_permissions").select("can_edit_workers, can_delete_workers").eq("user_id", data.session.user.id).maybeSingle(),
         ]);
         if (active) {
           setNotificationCount(count);
           setCanViewActivity(!!permissionResult.data?.can_delete_workers);
+          setCanViewDocs(!!permissionResult.data?.can_edit_workers || !!permissionResult.data?.can_delete_workers);
         }
       } catch {
         if (active) setNotificationCount(0);
@@ -195,6 +200,13 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     event.preventDefault();
     const query = globalSearch.trim();
     setMobileOpen(false);
+    if (isDocsWorkspace) {
+      const params = new URLSearchParams(location.search);
+      if (query) params.set("q", query); else params.delete("q");
+      params.delete("page");
+      navigate(params.size ? `/admin/docs?${params}` : "/admin/docs");
+      return;
+    }
     const candidateSearch = location.pathname === "/admin/candidates" || location.pathname.startsWith("/admin/workers/");
     const basePath = candidateSearch ? "/admin/candidates" : "/admin";
     navigate(query ? `${basePath}?q=${encodeURIComponent(query)}` : basePath);
@@ -215,21 +227,24 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         replace: true,
         state: leavingCandidateRecord ? { restoreGlobalSearchFocus: true } : null,
       });
-    } else if (location.pathname === "/admin") {
+    } else if (location.pathname === "/admin" || isDocsWorkspace) {
       const query = value.trim();
       const params = new URLSearchParams(location.search);
       if (query) params.set("q", query);
       else params.delete("q");
-      const nextSearch = params.toString();
-      navigate(nextSearch ? `/admin?${nextSearch}` : "/admin", { replace: true });
+      const basePath = isDocsWorkspace ? "/admin/docs" : "/admin";
+      if (isDocsWorkspace) params.delete("page");
+      const search = params.toString();
+      navigate(search ? `${basePath}?${search}` : basePath, { replace: true });
     }
   };
 
   const clearGlobalSearch = () => {
     setGlobalSearch("");
-    const basePath = isCandidateWorkspace ? "/admin/candidates" : "/admin";
+    const basePath = isDocsWorkspace ? "/admin/docs" : isCandidateWorkspace ? "/admin/candidates" : "/admin";
     const params = new URLSearchParams(location.pathname === basePath ? location.search : "");
     params.delete("q");
+    if (isDocsWorkspace) params.delete("page");
     const nextSearch = params.toString();
     navigate(nextSearch ? `${basePath}?${nextSearch}` : basePath, { replace: true });
   };
@@ -387,7 +402,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         </button>
         <nav className="uts-ops-nav">
           <div className="uts-ops-section-label">Workspace</div>
-          {NAV_ITEMS.filter((item) => !item.supervisorOnly || canViewActivity).map((item) => {
+          {NAV_ITEMS.filter((item) => (!item.supervisorOnly || canViewActivity) && (!item.adminOnly || canViewDocs)).map((item) => {
             const Icon = item.icon;
             const adminQuery = new URLSearchParams(location.search);
             const active = item.section === "overview"
@@ -434,7 +449,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         </button>
         <form className="uts-global-search" onSubmit={handleSearch} role="search">
           <Search size={18} />
-          <input ref={globalSearchInputRef} value={globalSearch} onChange={handleGlobalSearchChange} placeholder={isCandidateWorkspace ? "Search by name, email, phone, state or status..." : "Search candidates by name, email or phone..."} aria-label="Search candidates" />
+          <input ref={globalSearchInputRef} value={globalSearch} onChange={handleGlobalSearchChange} placeholder={isDocsWorkspace ? "Search documents by candidate, file name or type..." : isCandidateWorkspace ? "Search by name, email, phone, state or status..." : "Search candidates by name, email or phone..."} aria-label={isDocsWorkspace ? "Search library" : "Search candidates"} />
           {globalSearch ? <button className="uts-search-clear" type="button" onClick={clearGlobalSearch} aria-label="Clear search" title="Clear search"><X size={15} /></button> : null}
         </form>
         <div className="uts-ops-top-actions">

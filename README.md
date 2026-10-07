@@ -9,6 +9,10 @@ Drug-screen hiring onboarding is available in the Onboarding workspace. See
 [setup and verification](docs/screening-onboarding.md) for Gmail authorization,
 private documents, reviewed emails, and deployment requirements.
 
+Administrators can search all uploaded candidate and screening files in **Docs**
+(`/admin/docs`), with category filters, private previews, and downloads. See
+[document library](docs/admin-documents.md) for access rules and verification.
+
 ## Prerequisites
 
 - Node.js 20 or later
