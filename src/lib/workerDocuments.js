@@ -10,6 +10,7 @@ export const WORKER_DOCUMENT_TYPES = [
 export const CTS_BIO_DOCUMENT_LABEL = "BIO";
 
 export const TWO_SIDED_WORKER_DOCUMENT_TYPES = new Set([
+  "osha_card",
   "state_id_or_driver_license",
   "employment_authorization_card",
   "social_security_card",
@@ -65,9 +66,10 @@ export const getWorkerDocumentStatus = (documents, documentType) => {
 
   if (TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType)) {
     const sides = matching.map((document) => String(document.document_type || "").toLowerCase());
-    const front = sides.some((value) => /\s-\sfront$/.test(value));
+    const front = sides.some((value) => /\s-\sfront$/.test(value)
+      || (documentType === "osha_card" && !/\s-\sback$/.test(value)));
     const back = sides.some((value) => /\s-\sback$/.test(value));
-    return { complete: front && back, front, back };
+    return { complete: front && (documentType === "osha_card" || back), front, back };
   }
 
   return { complete: matching.length > 0 };

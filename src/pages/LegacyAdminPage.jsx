@@ -1305,10 +1305,11 @@ function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openRemin
   const [sendingReminder, setSendingReminder] = useState(false);
   const [reminderError, setReminderError] = useState("");
   const [reminderSuccess, setReminderSuccess] = useState("");
-  const requiresBothSides = TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType);
+  const supportsBothSides = TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType);
+  const requiresBothSides = supportsBothSides && documentType !== "osha_card";
   const hasRequiredFiles = requiresBothSides
     ? Boolean(selectedFiles.front && selectedFiles.back)
-    : Boolean(selectedFiles.single);
+    : Boolean(supportsBothSides ? selectedFiles.front : selectedFiles.single);
 
   const resetSelectedFiles = () => {
     setSelectedFiles({ single: null, front: null, back: null });
@@ -1386,8 +1387,8 @@ function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openRemin
       const baseDocumentLabel = documentType === "other"
         ? `Other: ${trimmedOtherDescription}`
         : getWorkerDocumentLabel(documentType);
-      const filesToUpload = requiresBothSides
-        ? [["front", selectedFiles.front], ["back", selectedFiles.back]]
+      const filesToUpload = supportsBothSides
+        ? [["front", selectedFiles.front], ["back", selectedFiles.back]].filter(([, file]) => file)
         : [["document", selectedFiles.single]];
       const existingDocuments = documents.filter(
         (document) => getWorkerDocumentCategoryKey(document.document_type)
@@ -1415,7 +1416,7 @@ function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openRemin
           file_path: path,
           file_type: file.type || null,
           file_size: file.size || null,
-          document_type: requiresBothSides
+          document_type: supportsBothSides
             ? `${baseDocumentLabel} - ${side === "front" ? "Front" : "Back"}`
             : baseDocumentLabel,
         });
@@ -1608,14 +1609,14 @@ function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openRemin
           />
         ) : <div />}
 
-        {requiresBothSides ? (
+        {supportsBothSides ? (
           <>
             <label style={{ display: "grid", gap: 6, color: "#475569", fontSize: 12, fontWeight: 800 }}>
               FRONT (REQUIRED)
               <input key={`front-${fileInputKey}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => selectFile("front", e.target.files?.[0])} style={inputStyle} />
             </label>
             <label style={{ display: "grid", gap: 6, color: "#475569", fontSize: 12, fontWeight: 800 }}>
-              BACK (REQUIRED)
+              {requiresBothSides ? "BACK (REQUIRED)" : "BACK (OPTIONAL)"}
               <input key={`back-${fileInputKey}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => selectFile("back", e.target.files?.[0])} style={inputStyle} />
             </label>
           </>
@@ -1653,7 +1654,7 @@ function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openRemin
       <div style={{ color: "#64748b", fontSize: 13 }}>
         {requiresBothSides
           ? "Both front and back are required for this document type."
-          : "Upload one file for this document type."} A new upload replaces the existing document in the same category.
+          : supportsBothSides ? "Front is required; back is optional." : "Upload one file for this document type."} A new upload replaces the existing document in the same category.
       </div>
 
       {error ? (

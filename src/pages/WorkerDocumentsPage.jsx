@@ -130,7 +130,8 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
   const [sendingReminder, setSendingReminder] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const requiresBothSides = TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType);
+  const supportsBothSides = TWO_SIDED_WORKER_DOCUMENT_TYPES.has(documentType);
+  const requiresBothSides = supportsBothSides && documentType !== "osha_card";
   const hasRequiredFiles = requiresBothSides
     ? Boolean(documentFiles.front && documentFiles.back)
     : Boolean(documentFiles.front);
@@ -251,8 +252,8 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
       const baseDocumentLabel = documentType === "other"
         ? `Other: ${trimmedOtherDescription}`
         : getWorkerDocumentLabel(documentType);
-      const filesToUpload = requiresBothSides
-        ? [["front", documentFiles.front], ["back", documentFiles.back]]
+      const filesToUpload = supportsBothSides
+        ? [["front", documentFiles.front], ["back", documentFiles.back]].filter(([, file]) => file)
         : [["document", documentFiles.front]];
       const existingDocuments = documents.filter(
         (document) => getWorkerDocumentCategoryKey(document.document_type) === getWorkerDocumentCategoryKey(baseDocumentLabel)
@@ -274,7 +275,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
           file_path: path,
           file_type: file.type,
           file_size: file.size,
-          document_type: requiresBothSides
+          document_type: supportsBothSides
             ? `${baseDocumentLabel} - ${side === "front" ? "Front" : "Back"}`
             : baseDocumentLabel,
         });
@@ -478,22 +479,22 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
                   />
                 </label>
               ) : null}
-              <div className={requiresBothSides ? "worker-doc-sides" : "worker-doc-field"}>
+              <div className={supportsBothSides ? "worker-doc-sides" : "worker-doc-field"}>
                 <label className="worker-doc-side">
-                  <span className="worker-doc-label">{requiresBothSides ? "Front (required)" : "Document (required)"}</span>
+                  <span className="worker-doc-label">{supportsBothSides ? "Front (required)" : "Document (required)"}</span>
                   <input ref={frontFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("front", event)} />
                   {documentFiles.front ? <small style={{ color: "#475569" }}>{documentFiles.front.name} · {formatFileSize(documentFiles.front.size)}</small> : null}
                 </label>
-                {requiresBothSides ? (
+                {supportsBothSides ? (
                   <label className="worker-doc-side">
-                    <span className="worker-doc-label">Back (required)</span>
+                    <span className="worker-doc-label">{requiresBothSides ? "Back (required)" : "Back (optional)"}</span>
                     <input ref={backFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("back", event)} />
                     {documentFiles.back ? <small style={{ color: "#475569" }}>{documentFiles.back.name} · {formatFileSize(documentFiles.back.size)}</small> : null}
                   </label>
                 ) : null}
               </div>
               <small style={{ color: "#64748b", lineHeight: 1.5 }}>
-                {requiresBothSides ? "Both front and back are required for this document type." : "Upload one file for this document type."} A new upload replaces the existing document in the same category.
+                {requiresBothSides ? "Both front and back are required for this document type." : supportsBothSides ? "Front is required; back is optional." : "Upload one file for this document type."} A new upload replaces the existing document in the same category.
               </small>
               <button className="worker-doc-button primary" type="button" disabled={uploading || !hasRequiredFiles || (documentType === "other" && !otherDescription.trim())} onClick={handleUpload}>
                 {uploading ? <Loader2 size={17} className="spin" /> : <Upload size={17} />}
