@@ -53,7 +53,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   const isDocsWorkspace = location.pathname === "/admin/docs";
   const showWorkspaceHeader = location.pathname === "/admin"
     || isDocsWorkspace
-    || location.pathname === "/admin/onboarding"
+    || location.pathname.startsWith("/admin/onboarding")
     || location.pathname === "/admin/candidates"
     || location.pathname.startsWith("/admin/workers/");
   const [notificationCount, setNotificationCount] = useState(0);

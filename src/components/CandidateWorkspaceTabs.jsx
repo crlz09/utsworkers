@@ -77,7 +77,7 @@ export default function CandidateWorkspaceTabs() {
           <nav className="candidate-workspace-tabs" aria-label="Candidate record sections">
             {tabs.map((tab) => {
               const Icon = tab.icon;
-              const active = location.pathname === tab.path;
+              const active = tab.path.endsWith("/onboarding") ? location.pathname.startsWith(tab.path) : location.pathname === tab.path;
               return (
                 <button key={tab.path} type="button" className={`candidate-workspace-tab${active ? " active" : ""}`} onClick={() => navigate(tab.path)}>
                   <Icon size={17} /> {tab.label}

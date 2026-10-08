@@ -34,6 +34,38 @@ Deno.test(
           ),
         ),
       );
+      await db.exec(
+        await Deno.readTextFile(
+          new URL(
+            "../migrations/20261008000005_onboarding_certificates.sql",
+            import.meta.url,
+          ),
+        ),
+      );
+      await db.exec(
+        "update worker_documents set onboarding_cert_category='mewp',document_name='Client aerial lift course',document_type='MEWP' where file_name='file-6.pdf';",
+      );
+      await assert.rejects(
+        () =>
+          db.exec(
+            "update worker_documents set onboarding_cert_category='invalid' where file_name='file-6.pdf'",
+          ),
+        /check constraint/,
+      );
+      await assert.rejects(
+        () =>
+          db.exec(
+            "update worker_documents set document_name='' where file_name='file-6.pdf'",
+          ),
+        /check constraint/,
+      );
+      await assert.rejects(
+        () =>
+          db.exec(
+            "update worker_documents set onboarding_cert_category=null where file_name='file-6.pdf'",
+          ),
+        /check constraint/,
+      );
       await db.exec("set role anon;");
       await assert.rejects(
         () => db.query("select search_admin_documents()"),
@@ -54,6 +86,13 @@ Deno.test(
             [query, category, page],
           )
         ).rows[0].data;
+      const named = await search("aerial lift");
+      assert.equal(named.total, 1);
+      assert.equal(
+        named.documents[0].document_name,
+        "Client aerial lift course",
+      );
+      assert.equal((await search("", "MEWP")).total, 1);
       const all = await search();
       assert.equal(all.total, 1107);
       assert.equal(all.documents.length, 50);

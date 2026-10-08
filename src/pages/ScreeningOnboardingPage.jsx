@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { FileText, Inbox, Loader2, RefreshCw, Upload, X } from "lucide-react";
 import UtsTopNavBar from "../components/UtsTopNavBar";
+import OnboardingStepTabs from "../components/OnboardingStepTabs";
 import CandidateWorkspaceTabs from "../components/CandidateWorkspaceTabs";
 import { supabase } from "../lib/supabase";
 import {
@@ -927,6 +928,7 @@ export default function ScreeningOnboardingPage() {
             </button>
           </div>
         </header>
+        <OnboardingStepTabs />
         {configuration && (
           <div className="screening-connection">
             <span>

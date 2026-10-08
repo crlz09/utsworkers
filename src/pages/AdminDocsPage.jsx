@@ -254,9 +254,12 @@ export default function AdminDocsPage() {
                       <tr key={document.id}>
                         <td>
                           <strong className="admin-docs-file-name">
-                            {document.file_name}
+                            {document.document_name || document.file_name}
                           </strong>
                           <small>
+                            {document.document_name
+                              ? `${document.file_name} · `
+                              : ""}
                             {sizeLabel(document.file_size)}
                             {document.confirmation_number
                               ? ` · ${document.confirmation_number}`

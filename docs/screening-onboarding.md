@@ -3,6 +3,22 @@
 **Onboarding** (`/admin/onboarding`) imports and reviews screening orders. Verified orders
 also appear in **Candidate → Onboarding**. Gusto integration is a later hiring step.
 
+## Onboarding steps
+
+Onboarding has two tabs: **Screening** (the drug-screen workflow below) and **Certs**.
+Certs is available globally at `/admin/onboarding/certs` and per candidate at
+`/admin/workers/:workerId/onboarding/certs`. Select a candidate in the global view.
+Optional upload categories are OSHA, MEWP, Fall Arrest, Orientation, and Others.
+Each upload has a custom document name; multiple certificates can be appended in
+any category. Existing OSHA cards are included, while unrelated Other documents
+are not automatically treated as certificates.
+
+Files use the existing private `worker-documents` bucket and document RLS. Metadata
+is stored in `document_name` and `onboarding_cert_category`. Certificates are also
+visible in candidate Documents and searchable by custom name in Docs. Replacing
+a standard document does not remove certificates appended through Certs. Uploading
+a certificate does not mark the candidate approved or ready to work.
+
 ## Workflow
 
 1. Sync Gmail or import the original ePassport PDF manually. Pasting Cheryl's email can fill

@@ -178,7 +178,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
   const loadDocuments = useCallback(async (workerId) => {
     const { data, error: loadError } = await supabase
       .from("worker_documents")
-      .select("id, worker_id, file_name, file_path, file_type, file_size, document_type, uploaded_at")
+      .select("id, worker_id, file_name, file_path, file_type, file_size, document_type, document_name, onboarding_cert_category, uploaded_at")
       .eq("worker_id", workerId)
       .order("uploaded_at", { ascending: false });
 
@@ -256,7 +256,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
         ? [["front", documentFiles.front], ["back", documentFiles.back]].filter(([, file]) => file)
         : [["document", documentFiles.front]];
       const existingDocuments = documents.filter(
-        (document) => getWorkerDocumentCategoryKey(document.document_type) === getWorkerDocumentCategoryKey(baseDocumentLabel)
+        (document) => !document.onboarding_cert_category && getWorkerDocumentCategoryKey(document.document_type) === getWorkerDocumentCategoryKey(baseDocumentLabel)
       );
 
       for (const [side, file] of filesToUpload) {
@@ -556,9 +556,9 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
                     <div style={{ minWidth: 0, display: "flex", gap: 11, alignItems: "flex-start" }}>
                       <FileText size={20} color="#2563eb" style={{ flex: "0 0 auto", marginTop: 2 }} />
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 850, overflowWrap: "anywhere" }}>{document.file_name}</div>
+                        <div style={{ fontWeight: 850, overflowWrap: "anywhere" }}>{document.document_name || document.file_name}</div>
                         <div style={{ marginTop: 5, color: "#64748b", fontSize: 12, lineHeight: 1.45 }}>
-                          {getWorkerDocumentLabel(document.document_type)} · {formatFileSize(document.file_size)} · {formatDate(document.uploaded_at)}
+                          {document.document_name ? `${document.file_name} · ` : ""}{getWorkerDocumentLabel(document.document_type)} · {formatFileSize(document.file_size)} · {formatDate(document.uploaded_at)}
                         </div>
                       </div>
                     </div>

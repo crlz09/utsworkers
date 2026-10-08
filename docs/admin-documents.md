@@ -1,7 +1,7 @@
 # Admin document library
 
 **Docs** at `/admin/docs` lists uploaded files across candidates. Search by candidate name,
-email, filename, document type/description, or screening confirmation. Search matches metadata,
+email, filename, custom certificate name, document type/description, or screening confirmation. Search matches metadata,
 not the text inside PDF/image files. Choose a type or use the OSHA Card / Others quick filters.
 Results are ordered newest first and paginated in groups of 50, with full-library counts.
 

@@ -23,6 +23,7 @@ const CandidatesHomePage = lazy(() => import("./pages/CandidatesHomePage"));
 const CandidateBioPage = lazy(() => import("./pages/CandidateBioPage"));
 const CandidateDetailsPage = lazy(() => import("./pages/CandidateDetailsPage"));
 const AdminDocsPage = lazy(() => import("./pages/AdminDocsPage"));
+const OnboardingCertsPage = lazy(() => import("./pages/OnboardingCertsPage"));
 const ScreeningOnboardingPage = lazy(() => import("./pages/ScreeningOnboardingPage"));
 const LegacyAdminPage = lazy(() => import("./pages/LegacyAdminPage"));
 
@@ -50,6 +51,8 @@ export default function App() {
     <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/admin/docs" element={<AdminRoute><AdminDocsPage /></AdminRoute>} />
+        <Route path="/admin/onboarding/certs" element={<AdminRoute><OnboardingCertsPage /></AdminRoute>} />
+        <Route path="/admin/workers/:workerId/onboarding/certs" element={<AdminRoute><OnboardingCertsPage /></AdminRoute>} />
         <Route path="/admin/onboarding" element={<AdminRoute><ScreeningOnboardingPage /></AdminRoute>} />
         <Route path="/admin/workers/:workerId/onboarding" element={<AdminRoute><ScreeningOnboardingPage /></AdminRoute>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
