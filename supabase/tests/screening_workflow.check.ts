@@ -89,6 +89,11 @@ Deno.test(
           return json(url.searchParams.has("select") ? order : null);
         }
       }
+      if (
+        url.pathname.startsWith("/storage/v1/object/") &&
+        request.method === "POST"
+      )
+        return json({ Key: url.pathname, Id: "result-upload" });
       if (url.pathname.startsWith("/storage/v1/object/"))
         return new Response(pdf, {
           headers: { "Content-Type": "application/pdf" },
@@ -319,6 +324,39 @@ Deno.test(
         ).status,
         400,
       );
+      for (const [bytes, mime, extension] of [
+        [new Uint8Array([255, 216, 255, 224]), "image/jpeg", "jpg"],
+        [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), "image/png", "png"],
+        [new TextEncoder().encode("RIFFxxxxWEBP"), "image/webp", "webp"],
+        [pdf, "application/pdf", "pdf"],
+      ] as const) {
+        delete order.result_received_at;
+        const form = new FormData();
+        form.set(
+          "data",
+          JSON.stringify({
+            action: "result",
+            id: order.id,
+            version: order.updated_at,
+            note: "Candidate photo received today",
+          }),
+        );
+        form.set(
+          "pdf",
+          new File([bytes], `result.${extension}`, { type: mime }),
+        );
+        const response = await handler(
+          new Request("https://local/screening-workflow", {
+            method: "POST",
+            headers: { Authorization: "Bearer test-token" },
+            body: form,
+          }),
+        );
+        assert.equal(response.status, 200, await response.text());
+        assert.equal(order.result_file_type, mime);
+        assert.equal(order.result_file_size, bytes.length);
+        assert.ok(String(order.result_file_path).endsWith(`.${extension}`));
+      }
     } finally {
       globalThis.fetch = originalFetch;
       envKeys.forEach((key, i) =>

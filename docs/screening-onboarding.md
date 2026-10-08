@@ -28,7 +28,7 @@ a certificate does not mark the candidate approved or ready to work.
 3. Save the order to the candidate. The recipient must match the profile's email.
 4. Review the Spanish or English message and send it with the original PDF through Resend.
    Replies go to `cmolina@universaltalentsource.com`.
-5. Record reported attendance separately from receipt of the provider result PDF. Receipt of
+5. Record reported attendance separately from receipt of the provider result document. Receipt of
    a result does not approve a hire. History records each change.
 
 Screening rows and PDFs are separate from ordinary candidate documents. Only candidate
@@ -157,3 +157,9 @@ References: [Gmail sync](https://developers.google.com/workspace/gmail/api/guide
 [offline OAuth](https://developers.google.com/identity/protocols/oauth2/web-server#offline),
 [Resend idempotency](https://resend.com/docs/dashboard/emails/idempotency-keys),
 [private storage](https://supabase.com/docs/guides/storage/security/access-control).
+
+Screening results accept PDF, JPG, PNG, and WebP files up to 10 MB, including
+candidate-submitted photos. Record the source and receipt date. Images preview
+inline and keep their original image format in the private screening bucket;
+Docs uses the stored result MIME type and size. The ePassport import and email
+attachment remain restricted to the original PDF.

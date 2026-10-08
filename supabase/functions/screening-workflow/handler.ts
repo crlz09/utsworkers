@@ -12,6 +12,7 @@ import {
   emailHtml,
   normalizeEmail,
   validateOrder,
+  validateScreeningResult,
 } from "../_shared/screening.js";
 
 const cors = {
@@ -65,7 +66,7 @@ export function createScreeningHandler(adminFactory = adminClient) {
     const admin = adminFactory();
     try {
       if (Number(request.headers.get("content-length") || 0) > 12 * 1024 * 1024)
-        return respond(413, { error: "Upload a PDF up to 10 MB." });
+        return respond(413, { error: "Upload a file up to 10 MB." });
       const multipart = request.headers
         .get("content-type")
         ?.includes("multipart/form-data");
@@ -437,19 +438,28 @@ export function createScreeningHandler(adminFactory = adminClient) {
         const file = form?.get("pdf");
         if (!(file instanceof File))
           return respond(400, {
-            error: "Attach the result PDF received from the provider.",
+            error: "Attach the result PDF or photo.",
           });
         const note = String(body.note || "").trim();
         if (!note)
           return respond(400, {
             error: "Record the result's source and receipt date.",
           });
-        const path = `${order.id}/result-${crypto.randomUUID()}.pdf`;
-        await uploadPdf(admin, path, new Uint8Array(await file.arrayBuffer()));
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const format = validateScreeningResult(bytes);
+        const path = `${order.id}/result-${crypto.randomUUID()}.${format.extension}`;
+        check(
+          await admin.storage.from(SCREENING_BUCKET).upload(path, bytes, {
+            contentType: format.contentType,
+            upsert: false,
+          }),
+        );
         try {
           await update({
             result_file_path: path,
             result_file_name: file.name.slice(0, 255),
+            result_file_type: format.contentType,
+            result_file_size: bytes.length,
             result_received_at: new Date().toISOString(),
             result_note: note.slice(0, 5000),
           });

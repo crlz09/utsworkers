@@ -11,7 +11,7 @@ stored document classification: an `Other: OSHA 10` file remains under Others. C
 individual uploaded files, so front/back files count separately.
 
 Sources are `worker_documents` (including saved BIOs) and `candidate_screenings` original
-PDFs and result PDFs. Unlinked screening orders display the original candidate name/email
+PDFs and result PDFs or images. Unlinked screening orders display the original candidate name/email
 and a pending verification label. Candidate links go to the relevant document or onboarding
 workspace. Open creates a private signed URL valid for 60 seconds; Download uses the existing
 Storage authorization. The library does not mutate documents or their classifications.

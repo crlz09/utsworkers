@@ -66,6 +66,20 @@ Deno.test(
           ),
         /check constraint/,
       );
+      await db.exec(
+        "create schema storage; create table storage.buckets(id text primary key,allowed_mime_types text[]); insert into storage.buckets values ('candidate-screenings',array['application/pdf']);",
+      );
+      await db.exec(
+        await Deno.readTextFile(
+          new URL(
+            "../migrations/20261008004638_screening_result_images.sql",
+            import.meta.url,
+          ),
+        ),
+      );
+      await db.exec(
+        "update candidate_screenings set result_file_type='image/jpeg',result_file_size=1234;",
+      );
       await db.exec("set role anon;");
       await assert.rejects(
         () => db.query("select search_admin_documents()"),
@@ -93,6 +107,9 @@ Deno.test(
         "Client aerial lift course",
       );
       assert.equal((await search("", "MEWP")).total, 1);
+      const resultFile = await search("", "Drug Test Result");
+      assert.equal(resultFile.documents[0].file_type, "image/jpeg");
+      assert.equal(resultFile.documents[0].file_size, 1234);
       const all = await search();
       assert.equal(all.total, 1107);
       assert.equal(all.documents.length, 50);

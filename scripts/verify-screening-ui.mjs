@@ -29,6 +29,10 @@ const worker = {
 const pdfDoc = await PDFDocument.create();
 pdfDoc.addPage();
 const pdf = Buffer.from(await pdfDoc.save());
+const resultImage = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=",
+  "base64",
+);
 const orders = [
   {
     id: "00000000-0000-4000-8000-000000000003",
@@ -101,9 +105,25 @@ await context.route(`https://${supabaseHost}/**`, async (route) => {
     });
   if (url.pathname.includes("/auth/v1/user")) return fulfill(user);
   if (url.pathname.includes("/storage/v1/object/"))
-    return route.fulfill({ contentType: "application/pdf", body: pdf });
+    return url.pathname.includes("result.png")
+      ? route.fulfill({ contentType: "image/png", body: resultImage })
+      : route.fulfill({ contentType: "application/pdf", body: pdf });
   if (url.pathname.includes("/functions/v1/screening-workflow")) {
-    const action = request.postDataJSON();
+    const action = request
+      .headers()
+      ["content-type"]?.includes("multipart/form-data")
+      ? JSON.parse(
+          String(
+            (
+              await new Request(request.url(), {
+                method: "POST",
+                headers: request.headers(),
+                body: request.postDataBuffer(),
+              }).formData()
+            ).get("data"),
+          ),
+        )
+      : request.postDataJSON();
     actions.push(action);
     if (action.action === "configuration")
       return fulfill({
@@ -143,6 +163,15 @@ await context.route(`https://${supabaseHost}/**`, async (route) => {
       Object.assign(order, {
         attendance_reported_at: new Date().toISOString(),
         attendance_note: action.note,
+        updated_at: new Date().toISOString(),
+      });
+    if (action.action === "result")
+      Object.assign(order, {
+        result_received_at: new Date().toISOString(),
+        result_note: action.note,
+        result_file_path: `${order.id}/result.png`,
+        result_file_name: "result-photo.png",
+        result_file_type: "image/png",
         updated_at: new Date().toISOString(),
       });
     return fulfill({ saved: true, sent: true });
@@ -236,6 +265,32 @@ try {
     })
     .waitFor();
   assert.equal(orders[0].result_received_at, undefined);
+  await page
+    .getByLabel("Result source and receipt date")
+    .fill("Candidate photo received today");
+  const resultInput = page.getByLabel("Result document (PDF or photo)");
+  assert.ok((await resultInput.getAttribute("accept")).includes("image/png"));
+  await resultInput.setInputFiles({
+    name: "result-photo.png",
+    mimeType: "image/png",
+    buffer: resultImage,
+  });
+  await page
+    .getByRole("button", { name: "Save private result", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "View private result", exact: true })
+    .waitFor();
+  await page
+    .getByRole("button", { name: "View private result", exact: true })
+    .click();
+  await page.locator(".screening-result-image").waitFor();
+  assert.ok(
+    await page
+      .locator(".screening-result-image")
+      .evaluate((img) => img.complete && img.naturalWidth > 0),
+  );
+
   await page.getByRole("button", { name: "Import PDF", exact: true }).click();
   await page.getByRole("dialog").waitFor();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -257,7 +312,7 @@ try {
   await page.getByRole("heading", { name: worker.name }).waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "UI verified: PDF preview, identity review, bilingual email, one send, attendance, manual import dialog, candidate tab, and mobile layout. All services mocked.",
+    "UI verified: PDF preview, identity review, bilingual email, one send, attendance, private result photo upload and preview, manual import dialog, candidate tab, and mobile layout. All services mocked.",
   );
   console.log(`Screenshots: ${outputDir}`);
 } finally {

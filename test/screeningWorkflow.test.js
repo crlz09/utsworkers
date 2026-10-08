@@ -8,6 +8,7 @@ import {
   screeningStage,
   validateOrder,
   validatePdf,
+  validateScreeningResult,
 } from "../supabase/functions/_shared/screening.js";
 
 const instructions = `Good afternoon,\nHere is the location for your pre-employment drug screen.\n\nYour confirmation # is: AI123456789AB\n\nExample Laboratory\n123 Example Street\nCovington, GA, 30014\nPhone: (678) 555-0100\n\nTesting Hours - Mon - Fri - 8am -5pm & Sat & Sun - 8am - 2pm\n\nIf you need to go to a different site or change your scheduled time, please contact Cheryl Hiser Benash at (317) 555-0100 with your request.`;
@@ -120,4 +121,35 @@ test("attendance and result receipt are separate milestones from email delivery"
     screeningStage({ result_received_at: "date" }),
     "result_received",
   );
+});
+
+test("result uploads recognize image signatures without weakening original ePassport validation", () => {
+  const images = [
+    [new Uint8Array([255, 216, 255, 224]), "image/jpeg", "jpg"],
+    [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), "image/png", "png"],
+    [new TextEncoder().encode("RIFFxxxxWEBP"), "image/webp", "webp"],
+  ];
+  for (const [bytes, contentType, extension] of images) {
+    assert.deepEqual(validateScreeningResult(bytes), {
+      contentType,
+      extension,
+    });
+    assert.throws(() => validatePdf(bytes), /original PDF/);
+  }
+  assert.equal(
+    validateScreeningResult(new TextEncoder().encode("%PDF-1.7")).contentType,
+    "application/pdf",
+  );
+  assert.throws(
+    () =>
+      validateScreeningResult(
+        new TextEncoder().encode('<svg onload="alert(1)">'),
+      ),
+    /must be/,
+  );
+  assert.throws(
+    () => validateScreeningResult(new Uint8Array(10485761)),
+    /10 MB/,
+  );
+  assert.throws(() => validateScreeningResult(new Uint8Array()), /10 MB/);
 });

@@ -130,3 +130,25 @@ export const escapeHtml = (value) =>
 export function emailHtml(body) {
   return `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;white-space:pre-wrap">${escapeHtml(body)}</div>`;
 }
+
+export function validateScreeningResult(bytes) {
+  if (!bytes.length || bytes.length > 10 * 1024 * 1024)
+    throw new Error("Upload a PDF, JPG, PNG, or WebP file up to 10 MB.");
+  if (String.fromCharCode(...bytes.slice(0, 5)) === "%PDF-")
+    return { contentType: "application/pdf", extension: "pdf" };
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+    return { contentType: "image/jpeg", extension: "jpg" };
+  if (
+    [137, 80, 78, 71, 13, 10, 26, 10].every(
+      (value, index) => bytes[index] === value,
+    )
+  )
+    return { contentType: "image/png", extension: "png" };
+  if (
+    bytes.length >= 12 &&
+    String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
+  )
+    return { contentType: "image/webp", extension: "webp" };
+  throw new Error("The result must be a PDF, JPG, PNG, or WebP image.");
+}

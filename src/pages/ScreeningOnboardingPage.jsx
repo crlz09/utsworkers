@@ -238,7 +238,7 @@ function OrderReview({
   const [reviewed, setReviewed] = useState(false);
   const [attendanceNote, setAttendanceNote] = useState("");
   const [resultNote, setResultNote] = useState("");
-  const [resultPdf, setResultPdf] = useState(null);
+  const [resultFile, setResultFile] = useState(null);
   const [providerId, setProviderId] = useState("");
   const [preview, setPreview] = useState(null);
   const [history, setHistory] = useState([]);
@@ -271,13 +271,13 @@ function OrderReview({
       if (preview?.url) URL.revokeObjectURL(preview.url);
     };
   }, [preview]);
-  const showPdf = (path, name) =>
+  const showDocument = (path, name) =>
     run("pdf", async () => {
       const { data, error } = await supabase.storage
         .from(SCREENING_BUCKET)
         .download(path);
       if (error) throw error;
-      setPreview({ url: URL.createObjectURL(data), name });
+      setPreview({ url: URL.createObjectURL(data), name, type: data.type });
     });
   const chooseLanguage = (next) => {
     setLanguage(next);
@@ -371,7 +371,7 @@ function OrderReview({
         <button
           type="button"
           disabled={!!busy}
-          onClick={() => showPdf(order.file_path, order.file_name)}
+          onClick={() => showDocument(order.file_path, order.file_name)}
         >
           Review PDF
         </button>
@@ -387,7 +387,15 @@ function OrderReview({
               Close
             </button>
           </header>
-          <iframe src={preview.url} title={preview.name} />
+          {preview.type?.startsWith("image/") ? (
+            <img
+              className="screening-result-image"
+              src={preview.url}
+              alt={preview.name}
+            />
+          ) : (
+            <iframe src={preview.url} title={preview.name} />
+          )}
         </div>
       )}
       {order.source_message_id && (
@@ -506,7 +514,9 @@ function OrderReview({
           </span>
           <span>
             <strong>From:</strong>{" "}
-            {order.email_from || configuration?.sender || "Sender needs configuration"}
+            {order.email_from ||
+              configuration?.sender ||
+              "Sender needs configuration"}
           </span>
           <span>
             <strong>Replies:</strong> cmolina@universaltalentsource.com
@@ -683,10 +693,10 @@ function OrderReview({
               type="button"
               disabled={!!busy}
               onClick={() =>
-                showPdf(order.result_file_path, order.result_file_name)
+                showDocument(order.result_file_path, order.result_file_name)
               }
             >
-              View private result PDF
+              View private result
             </button>
           </div>
         ) : (
@@ -695,27 +705,28 @@ function OrderReview({
               Result source and receipt date
               <textarea
                 rows={2}
-                placeholder="Provider, received date, and relevant context"
+                placeholder="Provider or candidate, received date, and relevant context"
                 value={resultNote}
                 onChange={(event) => setResultNote(event.target.value)}
                 disabled={disabled}
               />
             </label>
             <label>
-              Provider result PDF
+              Result document (PDF or photo)
               <input
                 type="file"
-                accept="application/pdf,.pdf"
+                accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
                 disabled={disabled}
                 onChange={(event) =>
-                  setResultPdf(event.target.files?.[0] || null)
+                  setResultFile(event.target.files?.[0] || null)
                 }
               />
             </label>
+            <small>PDF, JPG, PNG or WebP · Up to 10 MB</small>
             <button
               type="button"
               disabled={
-                disabled || !order.worker_id || !resultNote.trim() || !resultPdf
+                disabled || !order.worker_id || !resultNote.trim() || !resultFile
               }
               onClick={() =>
                 run("result", async () => {
@@ -726,7 +737,7 @@ function OrderReview({
                       version: order.updated_at,
                       note: resultNote,
                     },
-                    resultPdf,
+                    resultFile,
                   );
                   await onRefresh(order.id);
                 })
