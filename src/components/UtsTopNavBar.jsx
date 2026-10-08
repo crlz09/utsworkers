@@ -199,55 +199,29 @@ export default function UtsTopNavBar({ rightSlot = null }) {
 
   const handleSearch = (event) => {
     event.preventDefault();
+    if (location.pathname !== "/admin") return;
+    const params = new URLSearchParams(location.search);
     const query = globalSearch.trim();
+    if (query) params.set("q", query); else params.delete("q");
     setMobileOpen(false);
-    if (isDocsWorkspace) {
-      const params = new URLSearchParams(location.search);
-      if (query) params.set("q", query); else params.delete("q");
-      params.delete("page");
-      navigate(params.size ? `/admin/docs?${params}` : "/admin/docs");
-      return;
-    }
-    const candidateSearch = location.pathname === "/admin/candidates" || location.pathname.startsWith("/admin/workers/");
-    const basePath = candidateSearch ? "/admin/candidates" : "/admin";
-    navigate(query ? `${basePath}?q=${encodeURIComponent(query)}` : basePath);
+    navigate(params.size ? `/admin?${params}` : "/admin");
   };
 
   const handleGlobalSearchChange = (event) => {
     const value = event.target.value;
     setGlobalSearch(value);
-    const candidateSearch = location.pathname === "/admin/candidates" || location.pathname.startsWith("/admin/workers/");
-    if (candidateSearch) {
-      const query = value.trim();
-      const leavingCandidateRecord = location.pathname.startsWith("/admin/workers/");
-      const params = new URLSearchParams(location.pathname === "/admin/candidates" ? location.search : "");
-      if (query) params.set("q", query);
-      else params.delete("q");
-      const nextSearch = params.toString();
-      navigate(nextSearch ? `/admin/candidates?${nextSearch}` : "/admin/candidates", {
-        replace: true,
-        state: leavingCandidateRecord ? { restoreGlobalSearchFocus: true } : null,
-      });
-    } else if (location.pathname === "/admin" || isDocsWorkspace) {
-      const query = value.trim();
-      const params = new URLSearchParams(location.search);
-      if (query) params.set("q", query);
-      else params.delete("q");
-      const basePath = isDocsWorkspace ? "/admin/docs" : "/admin";
-      if (isDocsWorkspace) params.delete("page");
-      const search = params.toString();
-      navigate(search ? `${basePath}?${search}` : basePath, { replace: true });
-    }
+    if (location.pathname !== "/admin") return;
+    const params = new URLSearchParams(location.search);
+    if (value.trim()) params.set("q", value.trim()); else params.delete("q");
+    navigate(params.size ? `/admin?${params}` : "/admin", { replace: true });
   };
 
   const clearGlobalSearch = () => {
     setGlobalSearch("");
-    const basePath = isDocsWorkspace ? "/admin/docs" : isCandidateWorkspace ? "/admin/candidates" : "/admin";
-    const params = new URLSearchParams(location.pathname === basePath ? location.search : "");
+    if (location.pathname !== "/admin") return;
+    const params = new URLSearchParams(location.search);
     params.delete("q");
-    if (isDocsWorkspace) params.delete("page");
-    const nextSearch = params.toString();
-    navigate(nextSearch ? `${basePath}?${nextSearch}` : basePath, { replace: true });
+    navigate(params.size ? `/admin?${params}` : "/admin", { replace: true });
   };
 
   const goTo = (path) => {
@@ -448,11 +422,11 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         <button className="uts-ops-icon-btn uts-ops-mobile-menu" type="button" onClick={() => setMobileOpen((value) => !value)} aria-label="Open navigation">
           {mobileOpen ? <X size={19} /> : <Menu size={19} />}
         </button>
-        <form className="uts-global-search" onSubmit={handleSearch} role="search">
+        {location.pathname === "/admin" ? <form className="uts-global-search" onSubmit={handleSearch} role="search">
           <Search size={18} />
-          <input ref={globalSearchInputRef} value={globalSearch} onChange={handleGlobalSearchChange} placeholder={isDocsWorkspace ? "Search documents by candidate, file name or type..." : isCandidateWorkspace ? "Search by name, email, phone, state or status..." : "Search candidates by name, email or phone..."} aria-label={isDocsWorkspace ? "Search library" : "Search candidates"} />
+          <input ref={globalSearchInputRef} value={globalSearch} onChange={handleGlobalSearchChange} placeholder="Search candidates by name, email or phone..." aria-label="Search candidates" />
           {globalSearch ? <button className="uts-search-clear" type="button" onClick={clearGlobalSearch} aria-label="Clear search" title="Clear search"><X size={15} /></button> : null}
-        </form>
+        </form> : null}
         <div className="uts-ops-top-actions">
           {rightSlot}
           {isAdminArea ? (

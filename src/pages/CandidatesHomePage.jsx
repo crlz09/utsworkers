@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Loader2, UserPlus, UserRound } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Loader2, Search, UserPlus, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import UtsTopNavBar from "../components/UtsTopNavBar";
 import { matchesSearchQuery } from "../lib/search";
@@ -70,6 +70,9 @@ export default function CandidatesHomePage() {
     <div className="candidates-home-page">
       <style>{`
         .candidates-home-page { min-height: 100vh; background: #f4f6f8; color: #172033; font-family: Inter,ui-sans-serif,system-ui,sans-serif; }
+        .candidates-local-search { display:flex;align-items:center;gap:10px;padding:0 14px;background:white;border:1px solid #cbd5e1;border-radius:12px;margin-bottom:20px; }
+        .candidates-local-search input { width:100%;min-width:0;min-height:46px;border:0;background:transparent;font:inherit;color:#172033; }
+        .candidates-local-search:focus-within { outline:3px solid #bfdbfe; }
         .candidates-home-shell { width: min(100% - 48px,1380px); margin: 0 auto; padding: 28px 0 54px; display: grid; gap: 20px; }
         .candidates-home-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
         .candidates-home-heading h1 { margin: 0; font-size: clamp(28px,4vw,38px); letter-spacing: -.035em; }
@@ -103,6 +106,7 @@ export default function CandidatesHomePage() {
           <div><h1>Candidates</h1><p>Select a candidate to open their complete record, documents, public profile, and CTS form.</p></div>
           <button className="candidates-add" type="button" onClick={() => window.open("/register", "_blank", "noopener,noreferrer")}><UserPlus size={17} /> Add candidate</button>
         </header>
+        <div className="candidates-local-search" role="search"><Search size={18} /><input type="search" aria-label="Search candidates" placeholder="Search by name, email, phone, state or status…" value={search} onChange={(event) => { const params = new URLSearchParams(location.search); if (event.target.value) params.set("q",event.target.value); else params.delete("q"); navigate(params.size ? `${location.pathname}?${params}` : location.pathname, { replace:true }); }} /></div>
 
         <section className="candidates-directory">
           <div className="candidates-directory-head">

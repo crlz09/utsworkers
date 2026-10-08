@@ -144,7 +144,7 @@ await context.route(`https://${host}/**`, async (route) => {
           ]
         : [],
     );
-  if (url.pathname.endsWith("/workers")) return fulfill(null);
+  if (url.pathname.endsWith("/workers")) return fulfill(url.searchParams.has("auth_user_id") || url.searchParams.has("email") ? null : [{...candidate,status:"completed",created_at:"2026-10-07T00:00:00Z"}]);
   if (url.pathname.endsWith("/client_users")) return fulfill([]);
   if (url.pathname.includes("/rpc/")) return fulfill(null);
   return fulfill([]);
@@ -186,11 +186,12 @@ try {
     .click();
   await page.getByRole("status").filter({ hasText: "56 files" }).waitFor();
   await page
-    .getByRole("textbox", { name: "Search library", exact: true })
+    .getByRole("searchbox", { name: "Search documents", exact: true })
     .fill("lift");
   await page.getByRole("status").filter({ hasText: "1 file" }).waitFor();
   assert.ok(page.url().includes("/admin/docs"));
-  await page.getByRole("button", { name: "Clear search", exact: true }).click();
+  assert.equal(await page.locator('.uts-global-search').count(),0);
+  await page.getByRole("searchbox", { name: "Search documents", exact: true }).fill("");
   await page.getByRole("status").filter({ hasText: "56 files" }).waitFor();
   fail = true;
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
@@ -229,6 +230,20 @@ try {
     ),
     "Mobile must not overflow",
   );
+  await page.goto('http://127.0.0.1:5173/admin/candidates');
+  const candidateSearch=page.getByRole('searchbox',{name:'Search candidates',exact:true});
+  await candidateSearch.waitFor();
+  assert.equal(await page.locator('.uts-global-search').count(),0);
+  await candidateSearch.fill('not found');
+  await page.getByText('No candidates match this search.').waitFor();
+  await candidateSearch.fill('Example');
+  await page.getByRole('button',{name:'Example Candidate',exact:true}).waitFor();
+  await page.goto('http://127.0.0.1:5173/admin/onboarding');
+  await page.getByRole('heading',{name:'Screening inbox',exact:true}).waitFor();
+  assert.equal(await page.locator('.uts-global-search').count(),0);
+  await page.getByRole('link',{name:'Certs',exact:true}).click();
+  await page.getByRole('combobox',{name:'Find a candidate',exact:true}).waitFor();
+  assert.equal(await page.locator('.uts-global-search').count(),0);
   admin = false;
   await page.reload();
   await page.waitForURL(/\/login/);
