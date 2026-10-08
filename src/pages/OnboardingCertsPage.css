@@ -307,3 +307,58 @@ body:has(.cert-page) {
     animation: none;
   }
 }
+
+.cert-candidate-picker {
+  grid-template-columns: 1fr;
+}
+.cert-autocomplete {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+.cert-autocomplete-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  z-index: 30;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px #17243a22;
+  overflow: hidden;
+}
+.cert-autocomplete-menu ul {
+  list-style: none;
+  padding: 4px;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.cert-autocomplete-menu li {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.cert-autocomplete-menu li[aria-selected="true"] {
+  background: #eef4ff;
+  color: #1d4ed8;
+}
+.cert-autocomplete-menu strong {
+  font-size: 14px;
+}
+.cert-autocomplete-menu small {
+  font-size: 12px;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+.cert-autocomplete-menu p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+  padding: 12px;
+  border-top: 1px solid #e2e8f0;
+}

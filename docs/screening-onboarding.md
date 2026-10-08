@@ -7,7 +7,8 @@ also appear in **Candidate → Onboarding**. Gusto integration is a later hiring
 
 Onboarding has two tabs: **Screening** (the drug-screen workflow below) and **Certs**.
 Certs is available globally at `/admin/onboarding/certs` and per candidate at
-`/admin/workers/:workerId/onboarding/certs`. Select a candidate in the global view.
+`/admin/workers/:workerId/onboarding/certs`. Use **Find a candidate** in the global view: type a name, then select an autocomplete
+suggestion with a click or Enter. Suggestions show the email to distinguish similar names.
 Optional upload categories are OSHA, MEWP, Fall Arrest, Orientation, and Others.
 Each upload has a custom document name; multiple certificates can be appended in
 any category. Existing OSHA cards are included, while unrelated Other documents

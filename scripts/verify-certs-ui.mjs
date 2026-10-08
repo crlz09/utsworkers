@@ -208,9 +208,12 @@ try {
   await page
     .getByRole("heading", { name: "Select a candidate", exact: true })
     .waitFor();
-  await page
-    .getByRole("combobox", { name: "Candidate", exact: true })
-    .selectOption(candidate.id);
+  const findCandidate = page.getByRole("combobox", {
+    name: "Find a candidate",
+    exact: true,
+  });
+  await findCandidate.fill("Example");
+  await page.getByRole("option", { name: /Example Candidate/ }).click();
   await page
     .getByRole("heading", { name: candidate.name, exact: true })
     .waitFor();
@@ -269,9 +272,11 @@ try {
     .getByRole("combobox", { name: "Filter certificates" })
     .selectOption("mewp");
   assert.equal(await page.locator(".cert-document").count(), 2);
-  await page
-    .getByRole("combobox", { name: "Candidate", exact: true })
-    .selectOption(secondCandidate.id);
+  await findCandidate.fill("no match");
+  await page.getByText("No candidates found. Try another name.").waitFor();
+  await findCandidate.fill("Second");
+  await page.getByRole("option", { name: /Second Candidate/ }).waitFor();
+  await findCandidate.press("Enter");
   await page
     .getByRole("heading", { name: secondCandidate.name, exact: true })
     .waitFor();
@@ -287,7 +292,7 @@ try {
     .waitFor();
   assert.equal(
     await page
-      .getByRole("combobox", { name: "Candidate", exact: true })
+      .getByRole("combobox", { name: "Find a candidate", exact: true })
       .count(),
     0,
   );

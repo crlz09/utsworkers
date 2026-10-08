@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import UtsTopNavBar from "../components/UtsTopNavBar";
+import CandidateAutocomplete from "../components/CandidateAutocomplete";
 import CandidateWorkspaceTabs from "../components/CandidateWorkspaceTabs";
 import OnboardingStepTabs from "../components/OnboardingStepTabs";
 import {
@@ -119,10 +120,6 @@ export default function OnboardingCertsPage() {
   const { workerId: routeWorkerId = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const workerId = routeWorkerId || params.get("candidate") || "";
-  const [candidateSearch, setCandidateSearch] = useState("");
-  const [candidates, setCandidates] = useState([]);
-  const [candidateError, setCandidateError] = useState("");
-  const [candidateLoading, setCandidateLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -131,57 +128,6 @@ export default function OnboardingCertsPage() {
   const [notice, setNotice] = useState("");
   const [category, setCategory] = useState("");
   const current = result?.workerId === workerId ? result : null;
-
-  useEffect(() => {
-    if (routeWorkerId) return;
-    let active = true;
-    const timer = setTimeout(async () => {
-      setCandidateLoading(true);
-      setCandidateError("");
-      try {
-        const search = candidateSearch.trim();
-        const queries = search
-          ? ["name", "email"].map((field) =>
-              supabase
-                .from("workers")
-                .select("id,name,email")
-                .ilike(field, `%${search.replace(/[\\%_]/g, "\\$&")}%`)
-                .order("name")
-                .limit(50),
-            )
-          : [
-              supabase
-                .from("workers")
-                .select("id,name,email")
-                .order("name")
-                .limit(50),
-            ];
-        const responses = await Promise.all(queries);
-        const failure = responses.find((response) => response.error)?.error;
-        if (failure) throw failure;
-        const map = new Map(
-          responses
-            .flatMap((response) => response.data || [])
-            .map((candidate) => [candidate.id, candidate]),
-        );
-        if (active)
-          setCandidates(
-            [...map.values()].sort((a, b) => a.name.localeCompare(b.name)),
-          );
-      } catch (failure) {
-        if (active) {
-          setCandidates([]);
-          setCandidateError(failure.message || "Could not search candidates.");
-        }
-      } finally {
-        if (active) setCandidateLoading(false);
-      }
-    }, 250);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [candidateSearch, routeWorkerId]);
 
   useEffect(() => {
     let active = true;
@@ -312,49 +258,11 @@ export default function OnboardingCertsPage() {
             className="cert-candidate-picker"
             aria-label="Select candidate"
           >
-            <label>
-              Find a candidate
-              <input
-                aria-label="Find a candidate"
-                type="search"
-                placeholder="Search by name or email…"
-                value={candidateSearch}
-                disabled={busy}
-                onChange={(event) => setCandidateSearch(event.target.value)}
-              />
-            </label>
-            <label>
-              Candidate
-              <select
-                aria-label="Candidate"
-                value={workerId}
-                disabled={busy}
-                onChange={(event) => selectCandidate(event.target.value)}
-              >
-                <option value="">Select a candidate…</option>
-                {workerId &&
-                !candidates.some((candidate) => candidate.id === workerId) ? (
-                  <option value={workerId}>
-                    {current?.worker.name || "Selected candidate"}
-                  </option>
-                ) : null}
-                {candidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name} · {candidate.email}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p role="status">
-              {candidateLoading
-                ? "Searching…"
-                : "Search to find candidates beyond the initial list."}
-            </p>
-            {candidateError ? (
-              <p className="cert-error" role="alert">
-                {candidateError}
-              </p>
-            ) : null}
+            <CandidateAutocomplete
+              selected={current?.worker}
+              disabled={busy}
+              onSelect={selectCandidate}
+            />
           </section>
         ) : null}
         {error ? (
