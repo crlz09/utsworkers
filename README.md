@@ -13,6 +13,10 @@ Administrators can search all uploaded candidate and screening files in **Docs**
 (`/admin/docs`), with category filters, private previews, and downloads. See
 [document library](docs/admin-documents.md) for access rules and verification.
 
+The shared **Planner** (`/admin/planner`) replaces the notifications screen with
+tasks, assignments, dates, notes, images and team comments. See
+[planner setup and verification](docs/planner.md).
+
 ## Prerequisites
 
 - Node.js 20 or later

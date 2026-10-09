@@ -1,0 +1,351 @@
+.quick-notes-trigger {
+  position: relative;
+  gap: 7px;
+}
+.quick-notes-badge,
+.quick-notes-nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  background: #ef4444;
+  color: white;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+}
+.quick-notes-nav-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  border: 2px solid white;
+  min-width: 21px;
+  height: 21px;
+}
+.quick-notes-nav-shortcut {
+  position: relative;
+}
+.quick-notes-nav-shortcut.uts-ops-nav-btn .quick-notes-nav-badge {
+  position: static;
+  margin-left: auto;
+  border: 0;
+}
+.quick-notes-dialog {
+  padding: 0;
+  border: 0;
+  border-radius: 17px;
+  width: min(560px, calc(100vw - 24px));
+  max-height: 88vh;
+  background: #fff;
+  color: #24344d;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 25px 100px #0f172a40;
+}
+.quick-notes-dialog::backdrop {
+  background: #13223f75;
+  backdrop-filter: blur(3px);
+}
+.quick-notes-dialog * {
+  box-sizing: border-box;
+}
+.quick-notes-dialog button,
+.quick-notes-dialog input,
+.quick-notes-dialog textarea {
+  font: inherit;
+}
+.quick-notes-dialog button {
+  cursor: pointer;
+}
+.quick-notes-dialog button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.quick-notes-dialog button:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: 3px;
+}
+.quick-notes-inner {
+  padding: 25px;
+}
+.quick-notes-inner > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 21px;
+}
+.quick-notes-inner h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 8px 0;
+  font-size: 24px;
+  letter-spacing: -0.5px;
+}
+.quick-notes-inner h2 svg {
+  color: #d99d24;
+}
+.quick-notes-inner > header p {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.6;
+}
+.quick-notes-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+.quick-notes-controls > div {
+  display: flex;
+  background: #f0f3f8;
+  padding: 3px;
+  border-radius: 8px;
+}
+.quick-notes-controls > div button {
+  border: 0;
+  background: none;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 11px;
+  color: #8b98ad;
+}
+.quick-notes-controls > div button.active {
+  background: white;
+  color: #2b5fad;
+  box-shadow: 0 1px 4px #18304b10;
+}
+.quick-notes-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e0e6ef;
+  background: #f8fafc;
+  border-radius: 9px;
+  padding: 9px 11px;
+  color: #94a3b8;
+  margin-bottom: 17px;
+}
+.quick-notes-search > input {
+  border: 0;
+  background: none;
+  outline: 0;
+  min-width: 0;
+  flex: 1;
+  font-size: 11px;
+  color: #42526b;
+}
+.quick-notes-search label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.quick-notes-search input[type="checkbox"] {
+  accent-color: #2563eb;
+}
+.quick-notes-list {
+  display: grid;
+  gap: 13px;
+}
+.quick-note-card {
+  background: #fffdf5;
+  border: 1px solid #efe8d6;
+  border-radius: 10px;
+  padding: 15px;
+}
+.quick-note-card.unread {
+  border-left: 3px solid #eab63e;
+  background: #fffbea;
+}
+.quick-note-open {
+  display: block;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 0;
+  width: 100%;
+  position: relative;
+  color: #34445e;
+}
+.quick-note-open > span:first-child {
+  font-size: 13px;
+  font-weight: 800;
+  display: block;
+  padding-right: 15px;
+  overflow-wrap: anywhere;
+}
+.quick-note-open p {
+  font-size: 12px;
+  color: #78869b;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 8px 0 13px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.quick-note-unread-dot {
+  position: absolute;
+  right: 0;
+  top: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e7ac2c;
+}
+.quick-note-attribution {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 9px;
+  color: #9ba4b2;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.quick-note-attribution strong {
+  font-weight: 650;
+  color: #8390a3;
+}
+.quick-note-card-actions {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #efe9dd;
+  padding-top: 9px;
+  margin-top: 11px;
+  gap: 12px;
+}
+.quick-note-card-actions button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: none;
+  color: #9b96a0;
+  font-size: 10px;
+  padding: 2px;
+}
+.quick-note-card-actions button:hover {
+  color: #2563eb;
+}
+.quick-notes-empty {
+  padding: 42px 15px;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  color: #d4bc87;
+  text-align: center;
+}
+.quick-notes-empty h3 {
+  font-size: 14px;
+  color: #77869c;
+  margin: 15px 0 6px;
+}
+.quick-notes-empty p {
+  font-size: 11px;
+  color: #a2adbd;
+}
+.quick-notes-read-hint {
+  font-size: 9px;
+  color: #a3aebe;
+  text-align: center;
+  line-height: 1.6;
+  margin: 20px 0 0;
+}
+.quick-notes-back {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #6f84a4;
+  font-size: 11px !important;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin-bottom: 18px;
+}
+.quick-note-editor .planner-field > span {
+  font-weight: 400;
+}
+.quick-note-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.quick-note-full {
+  background: #fffdf5;
+  border: 1px solid #efe8d6;
+  border-radius: 12px;
+  padding: 20px;
+}
+.quick-note-full h3 {
+  font-size: 18px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  margin: 0 0 12px;
+}
+.quick-note-full > p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #63748f;
+  margin: 0 0 22px;
+}
+.quick-note-full-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 20px;
+}
+.quick-notes-changed {
+  font-size: 11px;
+  line-height: 1.7;
+  color: #98722a;
+  background: #fff8e7;
+  border: 1px solid #f1d897;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 14px;
+}
+.quick-notes-changed button {
+  background: none;
+  border: 0;
+  color: #2563eb;
+  text-decoration: underline;
+  font-size: 11px;
+}
+@media (max-width: 600px) {
+  .quick-notes-inner {
+    padding: 19px;
+  }
+  .planner-header-actions:has(.quick-notes-trigger) {
+    gap: 8px;
+  }
+  .quick-notes-trigger {
+    font-size: 11px !important;
+    padding: 8px 10px;
+  }
+  .quick-notes-dialog {
+    max-height: 90vh;
+  }
+  .quick-note-full {
+    padding: 15px;
+  }
+  .quick-note-attribution {
+    font-size: 9px;
+  }
+}
+/* Keep compact note controls independent of the planner's button/input reset. */
+.quick-notes-dialog .quick-note-card-actions button {
+  font-size: 10px;
+}
+.quick-notes-dialog .quick-notes-search > input {
+  font-size: 12px;
+}

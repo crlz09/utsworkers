@@ -4,7 +4,7 @@ import { AdminRoute, ClientRoute, WorkerRoute } from "./components/AccessRoute";
 
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
-const AdminNotificationsPage = lazy(() => import("./pages/AdminNotificationsPage"));
+const PlannerPage = lazy(() => import("./pages/PlannerPage"));
 const ActivityLogPage = lazy(() => import("./pages/ActivityLogPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const WorkerProfilePage = lazy(() => import("./pages/WorkerProfilePage"));
@@ -224,10 +224,10 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/notifications"
+          path="/admin/planner"
           element={
             <AdminRoute>
-              <AdminNotificationsPage />
+              <PlannerPage />
             </AdminRoute>
           }
         />
@@ -239,6 +239,7 @@ export default function App() {
             </AdminRoute>
           }
         />
+        <Route path="/admin/notifications" element={<Navigate to="/admin/planner" replace />} />
       </Routes>
     </Suspense>
   );

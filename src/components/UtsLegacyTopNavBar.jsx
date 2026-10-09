@@ -6,14 +6,15 @@ import {
   LogOut,
   Briefcase,
   Clock3,
-  Bell,
+  KanbanSquare,
   FileText,
   ChartNoAxesCombined,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
+import QuickNotesShortcut from "./QuickNotesShortcut";
 import PwaInstallButton from "./PwaInstallButton";
-import { loadAdminNotificationCount } from "../lib/adminNotifications";
+import { loadPlannerCount } from "../lib/planner";
 
 export default function UtsLegacyTopNavBar({ rightSlot = null }) {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export default function UtsLegacyTopNavBar({ rightSlot = null }) {
     isInvoice: location.pathname.startsWith("/invoice"),
     isBreakdown: location.pathname.startsWith("/breakdown"),
   };
-  const [notificationCount, setNotificationCount] = useState(0);
+  const [plannerCount, setPlannerCount] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -38,17 +39,19 @@ export default function UtsLegacyTopNavBar({ rightSlot = null }) {
       try {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
-        const count = await loadAdminNotificationCount(supabase);
-        if (active) setNotificationCount(count);
+        const count = await loadPlannerCount(supabase);
+        if (active) setPlannerCount(count);
       } catch {
-        if (active) setNotificationCount(0);
+        if (active) setPlannerCount(0);
       }
     };
 
     void loadCount();
+    window.addEventListener("uts-planner-changed", loadCount);
 
     return () => {
       active = false;
+      window.removeEventListener("uts-planner-changed", loadCount);
     };
   }, [location.pathname, routeFlags.isRegister]);
 
@@ -408,7 +411,7 @@ export default function UtsLegacyTopNavBar({ rightSlot = null }) {
           )}
 
           <div className="uts-topbar-right">
-            {rightSlot}
+            {routeFlags.isAdminArea ? <QuickNotesShortcut className="uts-logout-btn uts-alert-btn" onClick={() => navigate("/admin/planner?notes=1")} /> : null}{rightSlot}
             <PwaInstallButton />
 
             {routeFlags.isAdminArea ? (
@@ -416,14 +419,14 @@ export default function UtsLegacyTopNavBar({ rightSlot = null }) {
                 <button
                   type="button"
                   className="uts-logout-btn uts-alert-btn"
-                  onClick={() => navigate("/admin/notifications")}
-                  title="Notifications"
-                  aria-label={`Notifications${notificationCount > 0 ? `, ${notificationCount} pending` : ""}`}
+                  onClick={() => navigate("/admin/planner")}
+                  title="Planner"
+                  aria-label={`Planner${plannerCount > 0 ? `, ${plannerCount} pending` : ""}`}
                 >
-                  <Bell size={16} />
-                  {notificationCount > 0 ? (
+                  <KanbanSquare size={16} />
+                  {plannerCount > 0 ? (
                     <span className="uts-nav-badge">
-                      {notificationCount > 99 ? "99+" : notificationCount}
+                      {plannerCount > 99 ? "99+" : plannerCount}
                     </span>
                   ) : null}
                 </button>

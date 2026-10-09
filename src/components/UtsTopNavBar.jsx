@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  Bell,
+  KanbanSquare,
   BriefcaseBusiness,
   ChartNoAxesCombined,
   ChevronLeft,
@@ -20,14 +20,16 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { loadAdminNotificationCount } from "../lib/adminNotifications";
+import { loadPlannerCount } from "../lib/planner";
 import utsLogo from "../assets/uts-logo.png";
+import QuickNotesShortcut from "./QuickNotesShortcut";
 
 const NAV_ITEMS = [
   { label: "Overview", path: "/admin", icon: LayoutDashboard, section: "overview" },
   { label: "Candidates", path: "/admin/candidates", icon: UsersRound, section: "candidates" },
   { label: "Docs", path: "/admin/docs", icon: FileText, adminOnly: true },
   { label: "Onboarding", path: "/admin/onboarding", icon: ClipboardList },
+  { label: "Planner", path: "/admin/planner", icon: KanbanSquare },
   { label: "Projects", path: "/cts-jobs", icon: BriefcaseBusiness },
   { label: "Hours", path: "/hours", icon: Clock3 },
   { label: "Billing", path: "/invoice", icon: FileText },
@@ -57,7 +59,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     || location.pathname.startsWith("/admin/onboarding")
     || location.pathname === "/admin/candidates"
     || location.pathname.startsWith("/admin/workers/");
-  const [notificationCount, setNotificationCount] = useState(0);
+  const [plannerCount, setPlannerCount] = useState(0);
   const [canViewActivity, setCanViewActivity] = useState(false);
   const [canViewDocs, setCanViewDocs] = useState(false);
   const [collapsed, setCollapsed] = useState(readStoredCollapsedState);
@@ -181,20 +183,21 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
         const [count, permissionResult] = await Promise.all([
-          loadAdminNotificationCount(supabase),
+          loadPlannerCount(supabase),
           supabase.from("admin_permissions").select("can_edit_workers, can_delete_workers").eq("user_id", data.session.user.id).maybeSingle(),
         ]);
         if (active) {
-          setNotificationCount(count);
+          setPlannerCount(count);
           setCanViewActivity(!!permissionResult.data?.can_delete_workers);
           setCanViewDocs(!!permissionResult.data?.can_edit_workers || !!permissionResult.data?.can_delete_workers);
         }
       } catch {
-        if (active) setNotificationCount(0);
+        if (active) setPlannerCount(0);
       }
     };
     void loadCount();
-    return () => { active = false; };
+    window.addEventListener("uts-planner-changed", loadCount);
+    return () => { active = false; window.removeEventListener("uts-planner-changed", loadCount); };
   }, [isRegister, location.pathname]);
 
   const handleSearch = (event) => {
@@ -396,6 +399,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
           <UserPlus size={18} /><span>New candidate</span>
         </button>
         <div className="uts-ops-sidebar-foot">
+          <QuickNotesShortcut className="uts-ops-nav-btn" showLabel onClick={() => goTo("/admin/planner?notes=1")} />
           <button className="uts-ops-nav-btn" type="button" onClick={() => goToNavItem("/admin/legacy")} aria-label="Legacy dashboard" title="Legacy dashboard"><LayoutDashboard size={18} /><span>Legacy dashboard</span></button>
           <button className="uts-ops-nav-btn" type="button" onClick={handleLogout} aria-label="Sign out" title="Sign out"><LogOut size={18} /><span>Sign out</span></button>
         </div>
@@ -429,10 +433,11 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         </form> : null}
         <div className="uts-ops-top-actions">
           {rightSlot}
+          {isAdminArea ? <QuickNotesShortcut onClick={() => goTo("/admin/planner?notes=1")} /> : null}
           {isAdminArea ? (
-            <button className="uts-ops-icon-btn" type="button" onClick={() => goTo("/admin/notifications")} aria-label={`Notifications${notificationCount ? `, ${notificationCount} pending` : ""}`}>
-              <Bell size={18} />
-              {notificationCount ? <span className="uts-ops-badge">{notificationCount > 99 ? "99+" : notificationCount}</span> : null}
+            <button className="uts-ops-icon-btn" type="button" onClick={() => goTo("/admin/planner")} title="Planner" aria-label={`Planner${plannerCount ? `, ${plannerCount} pending` : ""}`}>
+              <KanbanSquare size={18} />
+              {plannerCount ? <span className="uts-ops-badge">{plannerCount > 99 ? "99+" : plannerCount}</span> : null}
             </button>
           ) : null}
         </div>
