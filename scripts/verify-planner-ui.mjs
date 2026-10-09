@@ -522,7 +522,7 @@ await noteDialog
   .getByRole("button", { name: "Save note", exact: true })
   .click();
 await noteDialog
-  .locator(".quick-note-full > p")
+  .locator(".quick-note-body > p")
   .filter({ hasText: "CTS reviewed by Andrea." })
   .waitFor();
 await page.waitForFunction(
@@ -642,6 +642,60 @@ assert.equal(
   await noteDialog.locator(".quick-note-card.unread").count(),
   0,
   "Read receipts survive reload",
+);
+// Bullet toolbar formats selections; Enter continues a list and exits an empty item.
+await noteDialog.getByRole("button", { name: "New note", exact: true }).click();
+await noteDialog
+  .getByLabel("Note title", { exact: true })
+  .fill("Bulleted handoff");
+const bulletInput = noteDialog.getByLabel("Note text", { exact: true });
+await bulletInput.fill("Call Carlos\nReview OSHA10");
+await bulletInput.selectText();
+await noteDialog
+  .getByRole("button", { name: "Bullet list", exact: true })
+  .click();
+assert.equal(await bulletInput.inputValue(), "- Call Carlos\n- Review OSHA10");
+await bulletInput.press("ArrowRight");
+await bulletInput.press("Enter");
+await bulletInput.pressSequentially("Complete CTS");
+await bulletInput.press("Enter");
+await bulletInput.press("Enter");
+assert.equal(
+  await bulletInput.inputValue(),
+  "- Call Carlos\n- Review OSHA10\n- Complete CTS\n",
+);
+await noteDialog
+  .getByRole("button", { name: "Save note", exact: true })
+  .click();
+await noteDialog.locator(".quick-note-body li").last().waitFor();
+assert.deepEqual(
+  await noteDialog.locator(".quick-note-body li").allTextContents(),
+  ["Call Carlos", "Review OSHA10", "Complete CTS"],
+);
+await noteDialog
+  .getByRole("button", { name: "Edit note", exact: true })
+  .click();
+await bulletInput.selectText();
+await noteDialog
+  .getByRole("button", { name: "Bullet list", exact: true })
+  .click();
+assert.equal(
+  await bulletInput.inputValue(),
+  "Call Carlos\nReview OSHA10\nComplete CTS",
+);
+await noteDialog
+  .getByRole("button", { name: "Save note", exact: true })
+  .click();
+await noteDialog.locator(".quick-note-body p").waitFor();
+assert.equal(await noteDialog.locator(".quick-note-body li").count(), 0);
+assert.equal(
+  await noteDialog
+    .getByRole("button", { name: "Checklist", exact: true })
+    .count(),
+  0,
+);
+console.log(
+  "Bullet lists UI passed: selected lines, Enter continuation/exit, saved list rendering and toggle off.",
 );
 console.log(
   "Quick notes UI passed: shared notes, individual read receipts, edits becoming unread, author/editor dates, creation, search, conflict drafts, archive/undo, mobile and reload.",

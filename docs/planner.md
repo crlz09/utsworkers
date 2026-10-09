@@ -87,3 +87,9 @@ admin/recruiter authorization. Live rolled-back tests verified two-user read
 isolation, edit attribution, archive counts, stale writes and outside-team
 access denial. The browser verification script covers the same note interactions
 with an isolated mock API and desktop/mobile screenshots.
+
+Quick notes support bullet lists. Select one or more lines and use **Bullet list**
+to add/remove bullets. Enter continues a bullet; Enter on an empty bullet exits
+the list. Shift+Enter inserts a plain newline. Saved notes render bullets as
+semantic lists, while previews display bullet symbols. Notes remain plain text
+in storage, so existing notes and author/read tracking continue to work.

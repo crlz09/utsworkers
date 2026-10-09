@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useLayoutEffect,
+} from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Archive,
   Check,
   ChevronLeft,
   Loader2,
+  List,
   Plus,
   RotateCcw,
   Search,
@@ -13,6 +21,12 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { isNoteUnread, markNoteRead } from "../lib/plannerNotes";
+import {
+  toggleNoteBullets,
+  continueNoteBullet,
+  noteBlocks,
+  notePreview,
+} from "../lib/noteFormatting";
 import "./QuickNotes.css";
 
 async function rows(table) {
@@ -61,6 +75,8 @@ export default function QuickNotes({ userId }) {
   const [params, setParams] = useSearchParams();
   const open = params.get("notes") === "1";
   const dialog = useRef(null);
+  const noteInput = useRef(null);
+  const formattingSelection = useRef(null);
   const [notes, setNotes] = useState([]);
   const [receipts, setReceipts] = useState(new Map());
   const [loading, setLoading] = useState(true);
@@ -244,6 +260,23 @@ export default function QuickNotes({ userId }) {
         .toLowerCase()
         .includes(query.trim().toLowerCase()),
   );
+  useLayoutEffect(() => {
+    const selection = formattingSelection.current;
+    if (selection && noteInput.current) {
+      noteInput.current.focus();
+      noteInput.current.setSelectionRange(selection.start, selection.end);
+      formattingSelection.current = null;
+    }
+  }, [draft.body]);
+  function applyFormatting(result) {
+    if (!result) return;
+    if (result.text.length > 10000) {
+      setError("Notes can contain up to 10,000 characters.");
+      return;
+    }
+    setDraft((previous) => ({ ...previous, body: result.text }));
+    formattingSelection.current = { start: result.start, end: result.end };
+  }
   const latest = selected ? notes.find((n) => n.id === selected.id) : null;
   const changed = selected && latest && latest.revision !== selected.revision;
   return (
@@ -348,9 +381,51 @@ export default function QuickNotes({ userId }) {
                       }
                     />
                   </label>
+                  <div className="quick-note-format-toolbar">
+                    <button
+                      type="button"
+                      className="planner-secondary"
+                      aria-label="Bullet list"
+                      title="Toggle bullet list for the selected lines"
+                      disabled={busy}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        const input = noteInput.current;
+                        if (input)
+                          applyFormatting(
+                            toggleNoteBullets(
+                              draft.body,
+                              input.selectionStart,
+                              input.selectionEnd,
+                            ),
+                          );
+                      }}
+                    >
+                      <List size={16} /> Bullet list
+                    </button>
+                    <span>Select lines to add or remove bullets</span>
+                  </div>
                   <label className="planner-field">
                     Note
                     <textarea
+                      ref={noteInput}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Enter" &&
+                          !event.shiftKey &&
+                          !event.nativeEvent.isComposing
+                        ) {
+                          const result = continueNoteBullet(
+                            draft.body,
+                            event.currentTarget.selectionStart,
+                            event.currentTarget.selectionEnd,
+                          );
+                          if (result) {
+                            event.preventDefault();
+                            applyFormatting(result);
+                          }
+                        }
+                      }}
                       aria-label="Note text"
                       required
                       maxLength={10000}
@@ -402,7 +477,19 @@ export default function QuickNotes({ userId }) {
               ) : (
                 <article className="quick-note-full">
                   <h3>{selected.title || "Untitled note"}</h3>
-                  <p>{selected.body}</p>
+                  <div className="quick-note-body">
+                    {noteBlocks(selected.body).map((block, index) =>
+                      block.type === "list" ? (
+                        <ul key={index}>
+                          {block.lines.map((line, lineIndex) => (
+                            <li key={lineIndex}>{line}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p key={index}>{block.lines.join("\n")}</p>
+                      ),
+                    )}
+                  </div>
                   <NoteAttribution note={selected} />
                   <div className="quick-note-full-actions">
                     <button
@@ -532,7 +619,7 @@ export default function QuickNotes({ userId }) {
                             aria-label="Unread note"
                           />
                         )}
-                        <p>{note.body}</p>
+                        <p>{notePreview(note.body)}</p>
                       </button>
                       <NoteAttribution note={note} />
                       <div className="quick-note-card-actions">

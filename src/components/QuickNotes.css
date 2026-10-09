@@ -349,3 +349,42 @@
 .quick-notes-dialog .quick-notes-search > input {
   font-size: 12px;
 }
+.quick-note-format-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 9px;
+}
+.quick-note-format-toolbar > span {
+  font-size: 10px;
+  color: #94a3b8;
+}
+.quick-note-format-toolbar .planner-secondary {
+  padding: 7px 10px;
+}
+.quick-note-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #63748f;
+  margin: 0 0 22px;
+}
+.quick-note-body p {
+  margin: 0 0 12px;
+}
+.quick-note-body ul {
+  padding-left: 22px;
+  margin: 10px 0 15px;
+  white-space: normal;
+}
+.quick-note-body li {
+  padding-left: 3px;
+  margin: 3px 0;
+  white-space: pre-wrap;
+}
+@media (max-width: 600px) {
+  .quick-note-format-toolbar > span {
+    font-size: 9px;
+  }
+}
