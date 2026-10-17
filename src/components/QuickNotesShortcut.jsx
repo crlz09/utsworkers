@@ -12,12 +12,14 @@ export default function QuickNotesShortcut({
   useEffect(() => {
     let active = true,
       debounce;
+    let version = 0;
     const refresh = async () => {
+      const current = ++version;
       try {
         const value = await loadUnreadNoteCount(supabase);
-        if (active) setCount(value);
+        if (active && current === version) setCount(value);
       } catch {
-        /* The planner shows actionable load errors. */
+        /* Keep the last count; the notes workspace displays load errors. */
       }
     };
     void refresh();

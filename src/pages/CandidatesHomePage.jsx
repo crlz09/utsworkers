@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, Loader2, Search, UserPlus, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import { matchesSearchQuery } from "../lib/search";
 import { supabase } from "../lib/supabase";
 
@@ -100,7 +99,7 @@ export default function CandidatesHomePage() {
         @media(max-width:1120px){ .candidate-directory-columns,.candidate-directory-row{grid-template-columns:48px minmax(140px,1fr) minmax(150px,1fr) minmax(105px,.7fr) minmax(100px,.6fr) 34px}.candidate-directory-state,.candidate-directory-registered,.candidate-directory-columns .state-column,.candidate-directory-columns .registered-column{display:none} }
         @media(max-width:700px){ .candidates-home-shell{width:min(100% - 24px,1380px);padding-top:20px}.candidates-home-heading,.candidates-directory-head{align-items:stretch;flex-direction:column}.candidate-directory-columns{display:none}.candidate-directory-row{padding:12px 14px;grid-template-columns:44px minmax(0,1fr) 34px;gap:10px}.candidate-directory-email,.candidate-directory-phone,.candidate-directory-state,.candidate-directory-status,.candidate-directory-registered{display:none} }
       `}</style>
-      <UtsTopNavBar />
+
       <main className="candidates-home-shell">
         <header className="candidates-home-heading">
           <div><h1>Candidates</h1><p>Select a candidate to open their complete record, documents, public profile, and CTS form.</p></div>

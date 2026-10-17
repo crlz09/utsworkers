@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAccess } from "../lib/accessContext";
 import { supabase } from "../lib/supabase";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import {
   getWorkerDocumentCategoryKey,
@@ -2743,10 +2743,10 @@ export default function AdminPage() {
   const [recruiters, setRecruiters] = useState([]);
   const [recruiterFilter, setRecruiterFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [permissions, setPermissions] = useState({
-    can_edit_workers: false,
-    can_delete_workers: false,
-  });
+  const { access } = useAccess();
+  const permissions = access.permissions || {};
+  const [loadError, setLoadError] = useState("");
+  const [loadVersion, setLoadVersion] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -2758,119 +2758,71 @@ export default function AdminPage() {
   }, [location.search]);
 
   useEffect(() => {
-    const resetScroll = () => {
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    };
-
-    resetScroll();
-    const frame = window.requestAnimationFrame(resetScroll);
-    const timeout = window.setTimeout(resetScroll, 120);
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(timeout);
-    };
-  }, []);
-
-  useEffect(() => {
+    let active = true;
     const load = async () => {
       setLoading(true);
+      setLoadError("");
+      try {
+        const [workersResult, placedCandidatesData, tradesData, locationsData, skillsData, recruitersData] = await Promise.all([
+          supabase.from("workers").select(`
+            *,
+            trades(name),
+            locations(name),
+            worker_languages(language_name, proficiency_percent),
+            worker_projects(*),
+            worker_skills(skills(id, name)),
+            worker_certifications(certifications(name)),
+            worker_documents(*)
+          `),
+          supabase.from("cts_job_candidates").select("id, worker_id, cts_job_id, candidate_status, updated_at").ilike("candidate_status", "placed"),
+          supabase.from("trades").select("*").order("name"),
+          supabase.from("locations").select("*").order("name"),
+          supabase.from("skills").select("*").order("name"),
+          supabase.from("recruiters").select("id, user_id, full_name, email, is_active").eq("is_active", true).order("full_name"),
+        ]);
+        if (!active) return;
+        const failure = [workersResult, placedCandidatesData, tradesData, locationsData, skillsData, recruitersData].find(result => result.error);
+        if (failure) throw failure.error;
+        const { data, error } = workersResult;
 
-      const { data, error } = await supabase
-        .from("workers")
-        .select(`
-          *,
-          trades(name),
-          locations(name),
-          worker_languages(language_name, proficiency_percent),
-          worker_projects(*),
-          worker_skills(skills(id, name)),
-          worker_certifications(certifications(name)),
-          worker_documents(*)
-        `);
-      const placedCandidatesData = await supabase
-        .from("cts_job_candidates")
-        .select("id, worker_id, cts_job_id, candidate_status, updated_at")
-        .ilike("candidate_status", "placed");
-
-      const tradesData = await supabase.from("trades").select("*").order("name");
-      const locationsData = await supabase.from("locations").select("*").order("name");
-      const skillsData = await supabase.from("skills").select("*").order("name");
-      const recruitersData = await supabase
-        .from("recruiters")
-        .select("id, user_id, full_name, email, is_active")
-        .eq("is_active", true)
-        .order("full_name", { ascending: true });
-      const permissionsData = await supabase
-        .from("admin_permissions")
-        .select("can_edit_workers, can_delete_workers")
-        .maybeSingle();
-
-      if (!error) {
-        const placedCandidates = [...(placedCandidatesData.data || [])].sort(
-          (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
-        );
-        const placedWorkerIds = new Set(
-          placedCandidates
-            .map((candidate) => candidate.worker_id)
-            .filter(Boolean)
-        );
-        const placedCandidateByWorkerId = new Map();
-        placedCandidates.forEach((candidate) => {
-          if (candidate.worker_id && !placedCandidateByWorkerId.has(candidate.worker_id)) {
-            placedCandidateByWorkerId.set(candidate.worker_id, candidate);
-          }
-        });
-        const syncedWorkers = (data || []).map((worker) => ({
-          ...worker,
-          hours_assignment: placedCandidateByWorkerId.get(worker.id) || null,
-          status: getSyncedWorkerStatus(worker, placedWorkerIds),
-        }));
-        const statusUpdates = (data || [])
-          .map((worker) => ({
-            worker,
+        if (!error) {
+          const placedCandidates = [...(placedCandidatesData.data || [])].sort(
+            (a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
+          );
+          const placedWorkerIds = new Set(
+            placedCandidates
+              .map((candidate) => candidate.worker_id)
+              .filter(Boolean)
+          );
+          const placedCandidateByWorkerId = new Map();
+          placedCandidates.forEach((candidate) => {
+            if (candidate.worker_id && !placedCandidateByWorkerId.has(candidate.worker_id)) {
+              placedCandidateByWorkerId.set(candidate.worker_id, candidate);
+            }
+          });
+          const syncedWorkers = (data || []).map((worker) => ({
+            ...worker,
+            hours_assignment: placedCandidateByWorkerId.get(worker.id) || null,
             status: getSyncedWorkerStatus(worker, placedWorkerIds),
-          }))
-          .filter(({ worker, status }) => worker.status !== status);
-
-        if (statusUpdates.length > 0) {
-          const statusUpdatedAt = new Date().toISOString();
-          await Promise.all(
-            statusUpdates.map(({ worker, status }) =>
-              supabase
-                .from("workers")
-                .update({ status, status_updated_at: statusUpdatedAt })
-                .eq("id", worker.id)
-            )
-          );
-          setWorkers(
-            syncedWorkers.map((worker) =>
-              statusUpdates.some((item) => item.worker.id === worker.id)
-                ? { ...worker, status_updated_at: statusUpdatedAt }
-                : worker
-            )
-          );
-        } else {
+          }));
+          // Compute display status without writing to workers during a read.
+          // Placement mutations already synchronize authoritative status in SQL.
           setWorkers(syncedWorkers);
         }
+        setTrades(tradesData.data || []);
+        setLocations(locationsData.data || []);
+        setSkills(skillsData.data || []);
+        setRecruiters(recruitersData.data || []);
+      } catch (error) {
+        if (active) setLoadError(error.message || "Could not load overview.");
+      } finally {
+        if (active) setLoading(false);
       }
-      setTrades(tradesData.data || []);
-      setLocations(locationsData.data || []);
-      setSkills(skillsData.data || []);
-      setRecruiters(recruitersData.data || []);
-      if (!permissionsData.error && permissionsData.data) {
-        setPermissions({
-          can_edit_workers: !!permissionsData.data.can_edit_workers,
-          can_delete_workers: !!permissionsData.data.can_delete_workers,
-        });
-      }
-      setLoading(false);
     };
 
-    load();
-  }, []);
+    void load();
+    return () => { active = false; };
+  }, [loadVersion]);
 
   const reloadWorkerDocuments = async (workerId) => {
     const { data, error } = await supabase
@@ -3095,7 +3047,7 @@ export default function AdminPage() {
   return (
     <>
       <PageStyles />
-      <UtsTopNavBar />
+
       <div
         className="admin-shell"
         style={{
@@ -3148,9 +3100,9 @@ export default function AdminPage() {
                 { label: "Missing contact", value: missingPhoneEmailCount, color: "#dc2626", action: () => setContactIssueFilter(true) },
                 { label: "Currently working", value: workingCount, color: "#16805b", action: () => setStatusFilter("working") },
               ].map((metric) => (
-                <button key={metric.label} type="button" onClick={metric.action} style={{ minHeight: 108, padding: 16, border: "1px solid #dfe4ea", borderRadius: 10, background: "#fff", textAlign: "left", cursor: "pointer", boxShadow: "0 2px 8px rgba(15,23,42,.035)" }}>
+                <button key={metric.label} type="button" disabled={loading || !!loadError} onClick={metric.action} style={{ minHeight: 108, padding: 16, border: "1px solid #dfe4ea", borderRadius: 10, background: "#fff", textAlign: "left", cursor: "pointer", boxShadow: "0 2px 8px rgba(15,23,42,.035)" }}>
                   <span style={{ display: "block", color: "#66768a", fontSize: 13, fontWeight: 750 }}>{metric.label}</span>
-                  <strong style={{ display: "block", marginTop: 9, color: metric.color, fontSize: 30, lineHeight: 1 }}>{metric.value}</strong>
+                  <strong style={{ display: "block", marginTop: 9, color: metric.color, fontSize: 30, lineHeight: 1 }}>{loading || loadError ? "—" : metric.value}</strong>
                   <span style={{ display: "block", marginTop: 8, color: "#8996a7", fontSize: 12 }}>Open view →</span>
                 </button>
               ))}
@@ -3296,7 +3248,7 @@ export default function AdminPage() {
             </div>
 
             <div className="workers-list" style={{ display: "grid", gap: 18 }}>
-              {loading ? (
+              {loadError ? <div role="alert">{loadError} <button onClick={() => setLoadVersion(version => version + 1)}>Retry</button></div> : loading ? (
                 <div
                   style={{
                     display: "flex",

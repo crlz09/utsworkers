@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, CalendarDays, FilterX, FolderKanban, Search, ShieldCheck, UserRound, UsersRound } from "lucide-react";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import { supabase } from "../lib/supabase";
 
 const ENTITY_LABELS = {
@@ -207,7 +206,7 @@ export default function ActivityLogPage() {
 
   return <>
     <PageStyles />
-    <UtsTopNavBar />
+
     <main className="activity-page">
       <div className="activity-shell">
         <section className="activity-hero">

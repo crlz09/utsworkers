@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, FileText, Loader2, Plus, Printer, RefreshCw, Search, Trash2, X } from "lucide-react";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { supabase } from "../lib/supabase";
 import utsLogo from "../assets/uts-logo.png";
@@ -1976,7 +1975,7 @@ export default function InvoicePage() {
   return (
     <>
       <InvoiceStyles />
-      <UtsTopNavBar />
+
       <main className="invoice-shell">
         <section className="invoice-card invoice-hero">
           <div>

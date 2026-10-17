@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { ExternalLink, FilePenLine, FileText, UserRound, ClipboardList, LayoutDashboard } from "lucide-react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Home, ExternalLink, FilePenLine, FileText, UserRound, ClipboardList, LayoutDashboard } from "lucide-react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { getWorkerDocumentStatus } from "../lib/workerDocuments";
 
@@ -8,7 +8,8 @@ export default function CandidateWorkspaceTabs() {
   const { workerId = "" } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [candidate, setCandidate] = useState(null);
+  const [record, setRecord] = useState(null);
+  const candidate = record?.id === workerId ? record : null;
 
   useEffect(() => {
     if (!workerId) return undefined;
@@ -19,7 +20,7 @@ export default function CandidateWorkspaceTabs() {
         .select("id,name,public_profile_slug,worker_documents(document_type)")
         .eq("id", workerId)
         .maybeSingle();
-      if (active) setCandidate(data || null);
+      if (active) setRecord(data || null);
     };
     void loadCandidate();
     return () => { active = false; };
@@ -42,10 +43,14 @@ export default function CandidateWorkspaceTabs() {
   return (
     <>
       <style>{`
-        .candidate-workspace-head { position: sticky; top: 68px; z-index: 35; background: rgba(255,255,255,.97); border-bottom: 1px solid #dfe4ea; backdrop-filter: blur(12px); font-family: var(--uts-font-family, Inter, ui-sans-serif, system-ui, sans-serif); }
+        .candidate-workspace-head { position: sticky; top: var(--uts-content-header-offset, 0px); z-index: 35; background: rgba(255,255,255,.97); border-bottom: 1px solid #dfe4ea; backdrop-filter: blur(12px); font-family: var(--uts-font-family, Inter, ui-sans-serif, system-ui, sans-serif); }
         .candidate-workspace-head-inner { width: min(100% - 40px, 1380px); margin: 0 auto; }
         .candidate-workspace-title { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
         .candidate-workspace-name { min-width: 0; }
+        .candidate-workspace-heading { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .candidate-workspace-home { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 36px; width: 36px; height: 36px; border: 1px solid #d6dde6; border-radius: 8px; color: #526176; background: white; text-decoration: none; }
+        .candidate-workspace-home:hover { color: #225fce; background: #eff6ff; border-color: #93b4ed; }
+        .candidate-workspace-home:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
         .candidate-workspace-name strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #172033; font-size: 17px; }
         .candidate-workspace-name span { color: #76869a; font-size: 12px; }
         .candidate-workspace-identity { min-width: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -56,15 +61,19 @@ export default function CandidateWorkspaceTabs() {
         .candidate-workspace-tab { position: relative; min-height: 48px; padding: 0 2px; border: 0; background: transparent; color: #69798d; display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: 14px; line-height: 1.2; font-weight: 800; white-space: nowrap; cursor: pointer; }
         .candidate-workspace-tab.active { color: #225fce; }
         .candidate-workspace-tab.active::after { content: ""; position: absolute; height: 3px; left: 0; right: 0; bottom: 0; border-radius: 3px 3px 0 0; background: #2f6fed; }
-        @media(max-width:820px) { .candidate-workspace-head { top: var(--uts-header-total, calc(68px + env(safe-area-inset-top, 0px))); } .candidate-workspace-head-inner { width: min(100% - 24px, 1380px); } .candidate-workspace-title { min-height: 50px; } .candidate-workspace-tabs { gap: 18px; } }
+        @media(max-width:820px) { body.uts-operations-shell-no-header .candidate-workspace-title { padding-left: 48px; } }
+        @media(max-width:820px) { .candidate-workspace-head { top: var(--uts-content-header-offset, 0px); } .candidate-workspace-head-inner { width: min(100% - 24px, 1380px); } .candidate-workspace-title { min-height: 50px; } .candidate-workspace-tabs { gap: 18px; } }
       `}</style>
       <section className="candidate-workspace-head">
         <div className="candidate-workspace-head-inner">
           <div className="candidate-workspace-title">
             <div className="candidate-workspace-identity">
+              <div className="candidate-workspace-heading">
+                <Link className="candidate-workspace-home" to="/admin/candidates" aria-label="Back to Candidates home" title="Back to Candidates home"><Home size={19} aria-hidden="true" /></Link>
               <div className="candidate-workspace-name">
                 <strong>{candidate?.name || "Candidate workspace"}</strong>
                 <span>Candidate record</span>
+              </div>
               </div>
               {documentAlerts.length ? <div className="candidate-workspace-alerts" aria-label="Pending candidate items">{documentAlerts.map((alert) => <span className="candidate-workspace-alert" key={alert}>{alert}</span>)}</div> : null}
             </div>

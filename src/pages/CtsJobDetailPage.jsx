@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate, useParams } from "react-router-dom";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { buildCtsJotformPrefillUrl } from "../lib/ctsJotform";
 import {
@@ -643,17 +642,17 @@ export default function CtsJobDetailPage() {
   const placedCount = useMemo(() => jobCandidates.filter((item) => item.candidate_status === "placed").length, [jobCandidates]);
 
   if (loading) {
-    return (<><PageStyles /><UtsTopNavBar /><div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}><div style={{ fontWeight: 900, color: "#1d4ed8" }}><Loader2 className="spin" size={18} style={{ marginRight: 8, verticalAlign: "middle" }} />Loading CTS job...</div></div></>);
+    return (<><PageStyles /><div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}><div style={{ fontWeight: 900, color: "#1d4ed8" }}><Loader2 className="spin" size={18} style={{ marginRight: 8, verticalAlign: "middle" }} />Loading CTS job...</div></div></>);
   }
 
   if (!job) {
-    return (<><PageStyles /><UtsTopNavBar /><div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 20 }}><div className="glass-card card-pad" style={{ maxWidth: 760 }}><div className="feedback-error">{feedback.error || "CTS job not found."}</div></div></div></>);
+    return (<><PageStyles /><div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 20 }}><div className="glass-card card-pad" style={{ maxWidth: 760 }}><div className="feedback-error">{feedback.error || "CTS job not found."}</div></div></div></>);
   }
 
   return (
     <>
       <PageStyles />
-      <UtsTopNavBar />
+
       <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%)" }}>
         <div className="page-shell">
           <div className="glass-card card-pad">

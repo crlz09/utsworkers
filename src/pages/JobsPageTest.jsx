@@ -14,7 +14,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import UtsClientTopBar from "../components/UtsClientTopBar";
 import GoToTopButton from "../components/GoToTopButton";
 import { supabase } from "../lib/supabase";
@@ -2387,7 +2386,7 @@ export default function JobsPageTest({ mode = "admin" }) {
   return (
     <>
       <PageStyles />
-      {isClientMode ? <UtsClientTopBar /> : <UtsTopNavBar />}
+      {isClientMode ? <UtsClientTopBar /> : null}
       <main className="jobs-test-shell">
         <section className="glass-card hero-card">
           <div className="hero-top">

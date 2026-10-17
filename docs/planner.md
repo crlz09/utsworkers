@@ -119,8 +119,9 @@ reads and writes for accounts outside the team. No test tasks were retained.
 ## Shared quick notes
 
 **Quick notes** is an independent floating workspace mounted outside the page
-routes. Open it from the single top-right shortcut available on every page for
-authorized team members. There is no bottom floating launcher or sidebar shortcut. Opening it never navigates
+routes. Open it from the single shortcut at the bottom of the sidebar, above Sign out,
+which replaces Legacy dashboard. On mobile, open the navigation menu first.
+There is no top-right or bottom floating launcher. Opening it never navigates
 to Planner. The panel remains interactive above page overlays and task dialogs;
 it does not block navigation. Drag its header to move it, minimize to keep an
 unsaved draft, or close with the existing unsaved-change protection. Open state

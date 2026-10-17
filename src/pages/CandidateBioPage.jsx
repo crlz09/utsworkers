@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Download, FilePenLine, Loader2, Save, Sparkles, X } from "lucide-react";
 import { useParams } from "react-router-dom";
 import CandidateWorkspaceTabs from "../components/CandidateWorkspaceTabs";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import { createInitialCtsBio } from "../lib/ctsBio";
 import { downloadStoredCtsBio, findStoredCtsBio, replaceStoredCtsBio } from "../lib/ctsBioStorage";
 import { supabase } from "../lib/supabase";
@@ -132,7 +131,7 @@ export default function CandidateBioPage() {
         .candidate-bio-modal-close { width: 38px; height: 38px; padding: 0; border: 1px solid #d6dde6; border-radius: 8px; display: grid; place-items: center; background: white; color: #526277; cursor: pointer; }
         @media(max-width:720px){.candidate-bio-shell{width:min(100% - 24px,1120px);padding-top:18px}.candidate-bio-card{padding:18px}.candidate-bio-head{flex-direction:column}.candidate-bio-actions{width:100%;justify-content:stretch}.candidate-bio-button{flex:1}.candidate-bio-grid{grid-template-columns:1fr}}
       `}</style>
-      <UtsTopNavBar />
+
       <CandidateWorkspaceTabs />
       <main className="candidate-bio-shell">
         <section className="candidate-bio-card">

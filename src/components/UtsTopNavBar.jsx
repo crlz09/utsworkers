@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   BriefcaseBusiness,
@@ -10,7 +10,6 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
-  Home,
   History,
   Menu,
   Search,
@@ -19,13 +18,14 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import "./UtsTopNavBar.css";
 import utsLogo from "../assets/uts-logo.png";
+import { useAccess } from "../lib/accessContext";
 import QuickNotesShortcut from "./QuickNotesShortcut";
 
 const NAV_ITEMS = [
   { label: "Overview", path: "/admin", icon: LayoutDashboard, section: "overview" },
   { label: "Candidates", path: "/admin/candidates", icon: UsersRound, section: "candidates" },
-  { label: "Docs", path: "/admin/docs", icon: FileText, adminOnly: true },
   { label: "Onboarding", path: "/admin/onboarding/planner", icon: ClipboardList },
   { label: "Projects", path: "/cts-jobs", icon: BriefcaseBusiness },
   { label: "Hours", path: "/hours", icon: Clock3 },
@@ -35,8 +35,6 @@ const NAV_ITEMS = [
 ];
 
 const NAV_COLLAPSED_KEY = "uts-operations-nav-collapsed";
-const NAV_AUTO_COLLAPSE_KEY = "uts-operations-nav-auto-collapse-at";
-const NAV_AUTO_COLLAPSE_DELAY = 3000;
 
 const readStoredCollapsedState = () => {
   if (typeof window === "undefined") return false;
@@ -47,20 +45,13 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   const navigate = useNavigate();
   const location = useLocation();
   const isRegister = location.pathname.startsWith("/register");
-  const isCandidateWorkspace = location.pathname === "/admin/candidates"
-    || location.pathname.startsWith("/admin/workers/");
-  const isDocsWorkspace = location.pathname === "/admin/docs";
-  const showWorkspaceHeader = location.pathname === "/admin"
-    || isDocsWorkspace
-    || location.pathname.startsWith("/admin/onboarding")
-    || location.pathname === "/admin/candidates"
-    || location.pathname.startsWith("/admin/workers/");
-  const [canViewActivity, setCanViewActivity] = useState(false);
-  const [canViewDocs, setCanViewDocs] = useState(false);
+  const showWorkspaceHeader = location.pathname === "/admin" || Boolean(rightSlot);
+  const { access } = useAccess();
+  const canViewActivity = !!access?.permissions?.can_delete_workers;
+  const canViewDocs = !!access?.isAdmin;
   const [collapsed, setCollapsed] = useState(readStoredCollapsedState);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileOpenRef = useRef(false);
-  const autoCollapseTimerRef = useRef(null);
   const globalSearchInputRef = useRef(null);
   const [globalSearch, setGlobalSearch] = useState(() => new URLSearchParams(location.search).get("q") || "");
 
@@ -80,26 +71,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     return () => window.cancelAnimationFrame(frame);
   }, [location.state]);
 
-  useEffect(() => {
-    if (isRegister || typeof window === "undefined") return undefined;
-    const collapseAt = Number(window.sessionStorage.getItem(NAV_AUTO_COLLAPSE_KEY));
-    if (!collapseAt || window.innerWidth <= 820) return undefined;
-
-    const collapseNavigation = () => {
-      setCollapsed(true);
-      window.localStorage.setItem(NAV_COLLAPSED_KEY, "true");
-      window.sessionStorage.removeItem(NAV_AUTO_COLLAPSE_KEY);
-      autoCollapseTimerRef.current = null;
-    };
-    const remaining = Math.max(0, collapseAt - Date.now());
-    autoCollapseTimerRef.current = window.setTimeout(collapseNavigation, remaining);
-    return () => {
-      if (autoCollapseTimerRef.current) window.clearTimeout(autoCollapseTimerRef.current);
-      autoCollapseTimerRef.current = null;
-    };
-  }, [isRegister]);
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isRegister) return undefined;
     document.body.classList.add("uts-operations-shell");
     document.body.classList.toggle("uts-operations-shell-collapsed", collapsed);
@@ -158,37 +130,25 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       tracking = false;
     };
 
+    const cancelTouch = () => { tracking = false; };
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
     window.addEventListener("touchmove", handleTouchMove, { passive: false });
     window.addEventListener("touchend", handleTouchEnd, { passive: true });
-    window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", cancelTouch, { passive: true });
     return () => {
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);
-      window.removeEventListener("touchcancel", handleTouchEnd);
+      window.removeEventListener("touchcancel", cancelTouch);
     };
   }, [isRegister]);
 
   useEffect(() => {
-    if (isRegister) return undefined;
+    // Back/forward and links outside the sidebar must also release the scroll lock.
     let active = true;
-    const loadCount = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) return;
-        const permissionResult = await supabase.from("admin_permissions").select("can_edit_workers, can_delete_workers").eq("user_id", data.session.user.id).maybeSingle();
-        if (active) {
-          setCanViewActivity(!!permissionResult.data?.can_delete_workers);
-          setCanViewDocs(!!permissionResult.data?.can_edit_workers || !!permissionResult.data?.can_delete_workers);
-        }
-      } catch {
-        /* Permission lookup will retry on navigation. */
-      }
-    };
-    void loadCount();
+    queueMicrotask(() => { if (active) setMobileOpen(false); });
     return () => { active = false; };
-  }, [isRegister, location.pathname]);
+  }, [location.key]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -223,36 +183,13 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     navigate(path);
   };
 
-  const clearPendingAutoCollapse = () => {
-    if (autoCollapseTimerRef.current) window.clearTimeout(autoCollapseTimerRef.current);
-    autoCollapseTimerRef.current = null;
-    window.sessionStorage.removeItem(NAV_AUTO_COLLAPSE_KEY);
-  };
-
-  const scheduleAutoCollapse = () => {
-    clearPendingAutoCollapse();
-    if (window.innerWidth <= 820) return;
-
-    setCollapsed(false);
-    window.localStorage.setItem(NAV_COLLAPSED_KEY, "false");
-    const collapseAt = Date.now() + NAV_AUTO_COLLAPSE_DELAY;
-    window.sessionStorage.setItem(NAV_AUTO_COLLAPSE_KEY, String(collapseAt));
-    autoCollapseTimerRef.current = window.setTimeout(() => {
-      setCollapsed(true);
-      window.localStorage.setItem(NAV_COLLAPSED_KEY, "true");
-      window.sessionStorage.removeItem(NAV_AUTO_COLLAPSE_KEY);
-      autoCollapseTimerRef.current = null;
-    }, NAV_AUTO_COLLAPSE_DELAY);
-  };
-
   const goToNavItem = (path) => {
-    scheduleAutoCollapse();
-    goTo(path);
+    if (path !== location.pathname || location.search) goTo(path);
+    else setMobileOpen(false);
   };
 
   const toggleNavigationManually = () => {
-    clearPendingAutoCollapse();
-    setCollapsed((value) => {
+    setCollapsed(value => {
       const nextValue = !value;
       window.localStorage.setItem(NAV_COLLAPSED_KEY, String(nextValue));
       return nextValue;
@@ -284,82 +221,10 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     );
   }
 
+  const adminQuery = new URLSearchParams(location.search);
+
   return (
     <>
-      <style>{`
-        :root { --uts-rail: 244px; --uts-header: 68px; --uts-safe-top: env(safe-area-inset-top, 0px); --uts-header-total: calc(var(--uts-header) + var(--uts-safe-top)); }
-        * { box-sizing: border-box; }
-        body.uts-operations-shell { padding-left: var(--uts-rail); background: #f4f6f8 !important; transition: padding-left .28s ease; }
-        body.uts-operations-shell-collapsed { --uts-rail: 82px; }
-        .uts-ops-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 90; width: var(--uts-rail); display: flex; flex-direction: column; color: #e8edf3; background: #182433; border-right: 1px solid #26384c; font-family: var(--uts-font-family, Inter, ui-sans-serif, system-ui, sans-serif); font-size: 14px; line-height: 1.2; transition: width .28s ease, transform .28s ease; }
-        .uts-ops-brand { min-height: var(--uts-header-total); padding: calc(10px + var(--uts-safe-top)) 18px 10px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,.08); cursor: pointer; overflow: hidden; }
-        .uts-ops-brand img { width: 48px; height: 44px; object-fit: contain; flex: 0 0 auto; }
-        .uts-ops-brand-copy { min-width: 0; white-space: nowrap; }
-        .uts-ops-brand-copy strong { display: block; color: white; font-size: 13px; letter-spacing: .04em; }
-        .uts-ops-brand-copy span { color: #91a3b8; font-size: 11px; }
-        .uts-ops-nav { flex: 1; padding: 18px 12px; display: grid; align-content: start; gap: 5px; overflow: auto; }
-        .uts-ops-section-label { padding: 9px 11px 5px; color: #71869c; font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
-        .uts-ops-nav-btn { width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 8px; display: flex; align-items: center; gap: 12px; color: #bac7d5; background: transparent; cursor: pointer; font-family: inherit; font-size: 14px; line-height: 1.2; font-weight: 700; text-align: left; white-space: nowrap; overflow: hidden; transition: .15s ease; }
-        .uts-ops-nav-btn svg { flex: 0 0 auto; }
-        .uts-ops-nav-btn:hover { color: white; background: rgba(255,255,255,.07); }
-        .uts-ops-nav-btn.active { color: white; background: #2f6fed; box-shadow: 0 6px 18px rgba(16,77,199,.28); }
-        .uts-ops-new { width: calc(100% - 24px); margin: 0 12px 14px; color: #182433; background: white; justify-content: center; }
-        .uts-ops-new:hover { color: #182433; background: #edf4ff; }
-        .uts-ops-sidebar-foot { padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid rgba(255,255,255,.08); display: grid; gap: 5px; }
-        .uts-ops-collapse { position: absolute; right: -13px; top: 84px; width: 26px; height: 26px; border: 1px solid #d6dde6; border-radius: 50%; background: white; color: #334155; display: grid; place-items: center; cursor: pointer; box-shadow: 0 4px 10px rgba(15,23,42,.12); }
-        .uts-ops-topbar { position: sticky; top: 0; z-index: 70; min-height: var(--uts-header-total); padding: var(--uts-safe-top) 28px 0; display: flex; align-items: center; gap: 20px; background: rgba(255,255,255,.96); border-bottom: 1px solid #dfe4ea; backdrop-filter: blur(12px); }
-        .uts-global-search { width: min(560px, 52vw); position: relative; }
-        .uts-global-search > svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #78889a; }
-        .uts-global-search input { width: 100%; height: 42px; padding: 0 42px; border: 1px solid #d6dde6; border-radius: 8px; background: #f7f8fa; color: #172033; outline: none; }
-        .uts-global-search input:focus { border-color: #2f6fed; box-shadow: 0 0 0 3px rgba(47,111,237,.12); background: white; }
-        .uts-search-clear { position: absolute; right: 8px; top: 50%; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; transform: translateY(-50%); display: grid; place-items: center; background: #e9edf2; color: #526276; cursor: pointer; }
-        .uts-search-clear:hover { background: #dce3ea; color: #172033; }
-        .uts-ops-top-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-        .uts-ops-icon-btn { position: relative; width: 40px; height: 40px; border: 1px solid #d6dde6; border-radius: 8px; background: white; color: #425267; display: grid; place-items: center; cursor: pointer; }
-        .uts-ops-mobile-menu { display: none; }
-        .uts-ops-floating-menu { display: none; }
-        .uts-ops-mobile-backdrop { display: none; }
-        .uts-ops-badge { position: absolute; top: -6px; right: -6px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px; display: grid; place-items: center; background: #dc2626; color: white; font-size: 10px; font-weight: 900; box-shadow: 0 0 0 2px white; }
-        .uts-public-header { min-height: 70px; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; background: #182433; }
-        .uts-public-header img { height: 48px; }
-        body.uts-operations-shell-collapsed .uts-ops-brand-copy,
-        body.uts-operations-shell-collapsed .uts-ops-nav-btn span,
-        body.uts-operations-shell-collapsed .uts-ops-section-label { display: none; }
-        body.uts-operations-shell-collapsed .uts-ops-nav-btn { justify-content: center; }
-        @media (prefers-reduced-motion: reduce) {
-          body.uts-operations-shell, .uts-ops-sidebar { transition-duration: 0s; }
-        }
-        @media (max-width: 820px) {
-          :root { --uts-rail: 264px; }
-          body.uts-operations-shell, body.uts-operations-shell-collapsed { padding-left: 0; }
-          body.uts-operations-shell-no-header { padding-top: var(--uts-safe-top); }
-          .uts-ops-sidebar { transform: translateX(-105%); width: 264px; box-shadow: 18px 0 48px rgba(15,23,42,.22); }
-          .uts-ops-sidebar.mobile-open { transform: translateX(0); }
-          .uts-ops-sidebar.mobile-open .uts-ops-brand-copy,
-          .uts-ops-sidebar.mobile-open .uts-ops-nav-btn span,
-          .uts-ops-sidebar.mobile-open .uts-ops-section-label { display: block; }
-          .uts-ops-sidebar.mobile-open .uts-ops-nav-btn { justify-content: flex-start; }
-          .uts-ops-collapse { display: none; }
-          body.uts-mobile-nav-open { overflow: hidden; touch-action: none; }
-          .uts-ops-topbar { padding: var(--uts-safe-top) 14px 0; gap: 10px; }
-          .uts-ops-mobile-menu { display: grid; }
-          .uts-ops-floating-menu { position: fixed; top: calc(14px + var(--uts-safe-top)); left: 14px; z-index: 75; display: grid; }
-          .uts-ops-mobile-backdrop { position: fixed; inset: 0; z-index: 80; display: block; border: 0; background: rgba(15,23,42,.38); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
-          .uts-ops-mobile-backdrop.visible { opacity: 1; pointer-events: auto; }
-          .uts-ops-candidate-home { display: none; }
-          .uts-global-search { width: auto; flex: 1; }
-          .uts-global-search input { min-width: 0; }
-          .uts-ops-icon-btn { width: 44px; height: 44px; flex: 0 0 44px; }
-          .uts-global-search input { height: 44px; font-size: 16px; }
-          .uts-ops-top-actions { flex: 0 0 auto; }
-        }
-        @media (max-width: 430px) {
-          .uts-ops-topbar { padding-inline: 10px; gap: 7px; }
-          .uts-global-search input { padding-left: 38px; padding-right: 36px; }
-          .uts-global-search > svg { left: 12px; }
-        }
-      `}</style>
-
       <aside className={`uts-ops-sidebar ${mobileOpen ? "mobile-open" : ""}`} aria-label="Main navigation">
         <div className="uts-ops-brand" onClick={() => goToNavItem("/admin")} title="Overview">
           <img src={utsLogo} alt="UTS" />
@@ -372,11 +237,10 @@ export default function UtsTopNavBar({ rightSlot = null }) {
           <div className="uts-ops-section-label">Workspace</div>
           {NAV_ITEMS.filter((item) => (!item.supervisorOnly || canViewActivity) && (!item.adminOnly || canViewDocs)).map((item) => {
             const Icon = item.icon;
-            const adminQuery = new URLSearchParams(location.search);
             const active = item.section === "overview"
               ? location.pathname === "/admin" && adminQuery.get("view") !== "candidates"
               : item.section === "candidates"
-                ? location.pathname === "/admin/candidates" || location.pathname.startsWith("/admin/workers/")
+                ? location.pathname === "/admin/candidates" || (location.pathname.startsWith("/admin/workers/") && !location.pathname.includes("/onboarding"))
                 : item.label === "Onboarding"
                   ? location.pathname.includes("/onboarding") || location.pathname === "/admin/planner"
                   : location.pathname.startsWith(item.path);
@@ -391,7 +255,11 @@ export default function UtsTopNavBar({ rightSlot = null }) {
           <UserPlus size={18} /><span>New candidate</span>
         </button>
         <div className="uts-ops-sidebar-foot">
-          <button className="uts-ops-nav-btn" type="button" onClick={() => goToNavItem("/admin/legacy")} aria-label="Legacy dashboard" title="Legacy dashboard"><LayoutDashboard size={18} /><span>Legacy dashboard</span></button>
+          {canViewDocs ? <QuickNotesShortcut className="uts-ops-nav-btn" showLabel onClick={() => {
+            setMobileOpen(false);
+            window.dispatchEvent(new Event("uts-open-quick-notes"));
+          }} /> : null}
+          {canViewDocs ? <button className={`uts-ops-nav-btn${location.pathname === "/admin/docs" ? " active" : ""}`} type="button" onClick={() => goToNavItem("/admin/docs")} aria-label="Docs" title="Docs"><FileText size={18} /><span>Docs</span></button> : null}
           <button className="uts-ops-nav-btn" type="button" onClick={handleLogout} aria-label="Sign out" title="Sign out"><LogOut size={18} /><span>Sign out</span></button>
         </div>
       </aside>
@@ -404,7 +272,6 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         tabIndex={mobileOpen ? 0 : -1}
       />
 
-      {!showWorkspaceHeader && canViewDocs ? <div style={{ position: "fixed", top: 16, right: 20, zIndex: 1000 }}><QuickNotesShortcut /></div> : null}
       {!showWorkspaceHeader ? (
         <button className="uts-ops-icon-btn uts-ops-floating-menu" type="button" onClick={() => setMobileOpen((value) => !value)} aria-label="Open navigation">
           {mobileOpen ? <X size={19} /> : <Menu size={19} />}
@@ -412,9 +279,6 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       ) : null}
 
       {showWorkspaceHeader ? <header className="uts-ops-topbar">
-        {isCandidateWorkspace ? <button className="uts-ops-icon-btn uts-ops-candidate-home" type="button" onClick={() => goTo("/admin/candidates")} aria-label="Candidate Home" title="Candidate Home">
-          <Home size={19} />
-        </button> : null}
         <button className="uts-ops-icon-btn uts-ops-mobile-menu" type="button" onClick={() => setMobileOpen((value) => !value)} aria-label="Open navigation">
           {mobileOpen ? <X size={19} /> : <Menu size={19} />}
         </button>
@@ -425,7 +289,6 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         </form> : null}
         <div className="uts-ops-top-actions">
           {rightSlot}
-          {canViewDocs ? <QuickNotesShortcut /> : null}
 
         </div>
       </header> : null}

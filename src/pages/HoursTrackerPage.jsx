@@ -19,7 +19,6 @@ import {
 import readXlsxFile from "read-excel-file/browser";
 import { supabase } from "../lib/supabase";
 import { importedHoursTotal, parseCtsHoursRows } from "../lib/ctsHoursImport";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import GoToTopButton from "../components/GoToTopButton";
 
 const WORKER_HOURS_BASE_URL = "https://uts.services";
@@ -980,7 +979,7 @@ export default function HoursTrackerPage() {
   return (
     <>
       <PageStyles />
-      <UtsTopNavBar />
+
       <main className="hours-shell">
         <section className="card top-summary">
           <div>

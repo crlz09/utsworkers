@@ -1,5 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import AccessProvider from "./components/AccessProvider";
+import OperationsLayout from "./components/OperationsLayout";
 import GlobalQuickNotes from "./components/GlobalQuickNotes";
 import { AdminRoute, ClientRoute, WorkerRoute } from "./components/AccessRoute";
 
@@ -26,7 +28,6 @@ const CandidateDetailsPage = lazy(() => import("./pages/CandidateDetailsPage"));
 const AdminDocsPage = lazy(() => import("./pages/AdminDocsPage"));
 const OnboardingCertsPage = lazy(() => import("./pages/OnboardingCertsPage"));
 const ScreeningOnboardingPage = lazy(() => import("./pages/ScreeningOnboardingPage"));
-const LegacyAdminPage = lazy(() => import("./pages/LegacyAdminPage"));
 
 function RouteFallback() {
   return (
@@ -54,203 +55,50 @@ function PlannerRedirect() {
 
 export default function App() {
   return (
-    <>
-    <GlobalQuickNotes />
-    <Suspense fallback={<RouteFallback />}>
-      <Routes>
-        <Route path="/admin/docs" element={<AdminRoute><AdminDocsPage /></AdminRoute>} />
-        <Route path="/admin/onboarding/certs" element={<AdminRoute><OnboardingCertsPage /></AdminRoute>} />
-        <Route path="/admin/workers/:workerId/onboarding/certs" element={<AdminRoute><OnboardingCertsPage /></AdminRoute>} />
-        <Route path="/admin/onboarding" element={<AdminRoute><ScreeningOnboardingPage /></AdminRoute>} />
-        <Route path="/admin/workers/:workerId/onboarding" element={<AdminRoute><ScreeningOnboardingPage /></AdminRoute>} />
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        {/* Interview pages are retained in src/pages but intentionally disabled. */}
-        <Route path="/interviews/*" element={<Navigate to="/admin" replace />} />
-        <Route path="/profile/:slug" element={<WorkerProfilePage />} />
-        <Route path="/worker/hours/:token" element={<WorkerHoursPage />} />
-        <Route path="/workers/hours/:token" element={<WorkerHoursPage />} />
-        <Route
-          path="/worker/profile"
-          element={
-            <WorkerRoute>
-              <CandidateProfilePage />
-            </WorkerRoute>
-          }
-        />
-        <Route
-          path="/worker/hours"
-          element={
-            <WorkerRoute>
-              <Navigate to="/worker/profile" replace />
-            </WorkerRoute>
-          }
-        />
-        <Route
-          path="/worker/documents"
-          element={
-            <WorkerRoute>
-              <WorkerDocumentsPage />
-            </WorkerRoute>
-          }
-        />
-        <Route
-          path="/client/cts-jobs"
-          element={
-            <ClientRoute>
-              <JobsPageTest mode="client" />
-            </ClientRoute>
-          }
-        />
-        <Route
-          path="/client/cts-jobs/:jobId"
-          element={
-            <ClientRoute>
-              <ClientCtsJobDetailPage />
-            </ClientRoute>
-          }
-        />
-        <Route
-          path="/hours"
-          element={
-            <AdminRoute>
-              <HoursTrackerPage mode="admin" />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/invoice"
-          element={
-            <AdminRoute>
-              <InvoicePage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/breakdown"
-          element={
-            <AdminRoute>
-              <BreakdownPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/cts-jobs"
-          element={
-            <AdminRoute>
-              <JobsPageTest />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/cts-jobs-test"
-          element={
-            <AdminRoute>
-              <Navigate to="/cts-jobs" replace />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/cts-jobs/:jobId"
-          element={
-            <AdminRoute>
-              <CtsJobDetailPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <AdminRoute>
-              <AdminPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/candidates"
-          element={
-            <AdminRoute>
-              <CandidatesHomePage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/legacy"
-          element={
-            <AdminRoute>
-              <LegacyAdminPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/workers/:workerId/details"
-          element={
-            <AdminRoute>
-              <CandidateDetailsPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/workers/:workerId/profile"
-          element={
-            <AdminRoute>
-              <CandidateProfilePage adminMode />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/workers/:workerId/documents"
-          element={
-            <AdminRoute>
-              <WorkerDocumentsPage adminMode />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/workers/:workerId/bio"
-          element={
-            <AdminRoute>
-              <CandidateBioPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/workers/:workerId/public-profile"
-          element={
-            <AdminRoute>
-              <CandidatePublicProfilePage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/workers/:workerId/cts-form"
-          element={
-            <AdminRoute>
-              <CandidateCtsFormPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/onboarding/planner"
-          element={
-            <AdminRoute>
-              <PlannerPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="/admin/activity"
-          element={
-            <AdminRoute>
-              <ActivityLogPage />
-            </AdminRoute>
-          }
-        />
-        <Route path="/admin/planner" element={<PlannerRedirect />} />
-        <Route path="/admin/notifications" element={<Navigate to="/admin/onboarding/planner" replace />} />
-      </Routes>
-    </Suspense>
-    </>
+    <AccessProvider>
+      <GlobalQuickNotes />
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route element={<AdminRoute><OperationsLayout /></AdminRoute>}>
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin/candidates" element={<CandidatesHomePage />} />
+            <Route path="/admin/docs" element={<AdminDocsPage />} />
+            <Route path="/admin/onboarding/planner" element={<PlannerPage />} />
+            <Route path="/admin/onboarding" element={<ScreeningOnboardingPage />} />
+            <Route path="/admin/onboarding/certs" element={<OnboardingCertsPage />} />
+            <Route path="/admin/workers/:workerId/onboarding" element={<ScreeningOnboardingPage />} />
+            <Route path="/admin/workers/:workerId/onboarding/certs" element={<OnboardingCertsPage />} />
+            <Route path="/admin/workers/:workerId/details" element={<CandidateDetailsPage />} />
+            <Route path="/admin/workers/:workerId/profile" element={<CandidateProfilePage adminMode />} />
+            <Route path="/admin/workers/:workerId/documents" element={<WorkerDocumentsPage adminMode />} />
+            <Route path="/admin/workers/:workerId/bio" element={<CandidateBioPage />} />
+            <Route path="/admin/workers/:workerId/public-profile" element={<CandidatePublicProfilePage />} />
+            <Route path="/admin/workers/:workerId/cts-form" element={<CandidateCtsFormPage />} />
+            <Route path="/admin/activity" element={<ActivityLogPage />} />
+            <Route path="/cts-jobs" element={<JobsPageTest />} />
+            <Route path="/cts-jobs/:jobId" element={<CtsJobDetailPage />} />
+            <Route path="/hours" element={<HoursTrackerPage mode="admin" />} />
+            <Route path="/invoice" element={<InvoicePage />} />
+            <Route path="/breakdown" element={<BreakdownPage />} />
+          </Route>
+          <Route path="/admin/legacy" element={<Navigate to="/admin" replace />} />
+          <Route path="/worker/profile" element={<WorkerRoute><CandidateProfilePage /></WorkerRoute>} />
+          <Route path="/worker/documents" element={<WorkerRoute><WorkerDocumentsPage /></WorkerRoute>} />
+          <Route path="/worker/hours" element={<WorkerRoute><Navigate to="/worker/profile" replace /></WorkerRoute>} />
+          <Route path="/client/cts-jobs" element={<ClientRoute><JobsPageTest mode="client" /></ClientRoute>} />
+          <Route path="/client/cts-jobs/:jobId" element={<ClientRoute><ClientCtsJobDetailPage /></ClientRoute>} />
+          <Route path="/profile/:slug" element={<WorkerProfilePage />} />
+          <Route path="/worker/hours/:token" element={<WorkerHoursPage />} />
+          <Route path="/workers/hours/:token" element={<WorkerHoursPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/interviews/*" element={<Navigate to="/admin" replace />} />
+          <Route path="/cts-jobs-test" element={<Navigate to="/cts-jobs" replace />} />
+          <Route path="/admin/planner" element={<PlannerRedirect />} />
+          <Route path="/admin/notifications" element={<Navigate to="/admin/onboarding/planner" replace />} />
+        </Routes>
+      </Suspense>
+    </AccessProvider>
   );
 }

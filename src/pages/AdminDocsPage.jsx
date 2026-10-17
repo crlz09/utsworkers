@@ -10,7 +10,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import "./AdminDocsPage.css";
 
 const dateLabel = (value) =>
@@ -121,7 +120,7 @@ export default function AdminDocsPage() {
 
   return (
     <div className="admin-docs-page">
-      <UtsTopNavBar />
+
       <main className="admin-docs-shell">
         <section className="admin-docs-hero">
           <div>

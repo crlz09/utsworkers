@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import CandidateWorkspaceTabs from "../components/CandidateWorkspaceTabs";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import { buildCtsJotformPrefillUrl } from "../lib/ctsJotform";
 import { supabase } from "../lib/supabase";
 
@@ -64,7 +63,7 @@ export default function CandidateCtsFormPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f4f6f8", fontFamily: "var(--uts-font-family)" }}>
-      <UtsTopNavBar />
+
       <CandidateWorkspaceTabs />
       <main style={{ width: "min(100% - 40px, 1380px)", margin: "0 auto", padding: "22px 0 42px" }}>
         <section style={{ background: "white", border: "1px solid #dfe4ea", borderRadius: 12, overflow: "hidden", boxShadow: "0 4px 18px rgba(15,23,42,.05)" }}>

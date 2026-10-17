@@ -101,6 +101,13 @@ const noteCount = () =>
           ?.seen_revision || 0),
   ).length;
 const errors = [];
+let permissionRequests = 0;
+let denyStaff = false;
+let profileClaims = 0;
+let workerWrites = 0;
+let holdCandidateLoad = false;
+let releaseCandidateLoad;
+let candidateLoadStarted;
 const requests = [];
 const browser = await chromium.launch({
   headless: true,
@@ -151,6 +158,11 @@ await context.route(`https://${host}/**`, async (route) => {
       headers,
     });
   if (path.includes("/auth/v1/user")) return fulfill(user);
+  if (path.includes("/auth/v1/token")) return fulfill({
+    access_token: `e30.${part}.mock`, refresh_token: "mock", token_type: "bearer",
+    expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user,
+  });
+  if (path.endsWith("/rpc/claim_current_worker_profile")) profileClaims++;
   if (path.endsWith("/rpc/planner_team_members"))
     return fulfill([
       { user_id: user.id, full_name: "Andrea Example", email: user.email },
@@ -176,6 +188,7 @@ await context.route(`https://${host}/**`, async (route) => {
     return route.fulfill({ contentType: "image/png", body: tinyPng });
   }
   const table = path.split("/").at(-1);
+  if (table === "workers" && req.method() !== "GET") workerWrites++;
   const body = ["POST", "PATCH"].includes(req.method())
     ? req.postDataJSON()
     : null;
@@ -289,16 +302,22 @@ await context.route(`https://${host}/**`, async (route) => {
     const taskId = url.searchParams.get("task_id")?.slice(3);
     return fulfill(taskId ? files.filter((f) => f.task_id === taskId) : files);
   }
-  if (table === "admin_permissions")
+  if (table === "admin_permissions") {
+    permissionRequests++;
     return fulfill({
       user_id: user.id,
-      can_edit_workers: true,
-      can_delete_workers: true,
+      can_edit_workers: !denyStaff,
+      can_delete_workers: !denyStaff,
     });
+  }
+  if (holdCandidateLoad && table === "workers" && url.searchParams.get("select") === "id,name,email,phone,state,status,created_at") {
+    await new Promise(resolve => { releaseCandidateLoad = resolve; candidateLoadStarted?.(); });
+  }
+  if (table === "workers" && (url.searchParams.has("auth_user_id") || url.searchParams.has("email"))) return fulfill(null);
   if (table === "workers")
-    return fulfill(url.searchParams.has("name") ? [candidate] : []);
+    return fulfill(url.searchParams.has("name") ? [candidate] : url.searchParams.has("id") ? { ...candidate, worker_documents: [] } : []);
   if (table === "cts_jobs") return fulfill([project]);
-  if (table === "cts_job_candidates") return fulfill({ id: "candidate-project", candidate_status: "sourced" });
+  if (table === "cts_job_candidates") return fulfill(url.searchParams.has("worker_id") ? { id: "candidate-project", candidate_status: "sourced" } : []);
   if (table === "planner_cts_reviews") {
     if (req.method() === "POST" || req.method() === "PATCH") {
       ctsReview = { ...ctsReview, ...body, id: "review", updated_at: new Date().toISOString() };
@@ -309,13 +328,23 @@ await context.route(`https://${host}/**`, async (route) => {
   return fulfill([]);
 });
 const page = await context.newPage();
+async function openQuickNotes() {
+  if (page.viewportSize().width <= 820 && !(await page.locator(".uts-ops-sidebar.mobile-open").count()))
+    await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+  await page.locator(".uts-ops-sidebar-foot .quick-notes-nav-shortcut").click();
+}
 page.on("pageerror", (e) => errors.push(e.message));
 await page.goto("http://127.0.0.1:5173/admin/notifications");
 await page.waitForURL("**/admin/onboarding/planner");
 await page.getByRole("heading", { name: "Team planner", exact: true }).waitFor();
 assert.deepEqual(await page.getByRole("navigation", { name: "Onboarding steps" }).getByRole("link").allTextContents(), [" Planner", " Screening", " Certs"]);
 assert.equal(await page.locator(".quick-notes-launcher, .quick-notes-trigger").count(), 0);
+assert.equal(await page.locator(".uts-ops-topbar").count(), 0, "No empty header on planner");
 assert.equal(await page.locator(".quick-notes-nav-shortcut").count(), 1);
+assert.deepEqual(await page.locator(".uts-ops-sidebar-foot button").evaluateAll(buttons => buttons.map(button => button.title)), ["Quick notes", "Docs", "Sign out"]);
+assert.equal(await page.locator(".uts-ops-nav").getByRole("button", { name: "Docs", exact: true }).count(), 0);
+assert.equal(await page.getByRole("button", { name: "Legacy dashboard", exact: true }).count(), 0);
+assert.equal(await page.locator(".uts-ops-top-actions .quick-notes-nav-shortcut").count(), 0);
 assert.equal(await page.locator(".uts-ops-nav").getByRole("button", { name: "Planner", exact: true }).count(), 0);
 assert.equal(await page.locator(".uts-ops-top-actions").getByRole("button", { name: /^Planner/ }).count(), 0);
 await page.getByRole("region", { name: "Task calendar" }).waitFor();
@@ -559,7 +588,7 @@ await page.getByRole("button", { name: "List view", exact: true }).click();
 await page.getByRole("button", { name: "Mobile task", exact: true }).waitFor();
 // Shared quick notes: opening the panel must not mark the list as read.
 await page.setViewportSize({ width: 1600, height: 1050 });
-await page.locator(".uts-ops-top-actions .quick-notes-nav-shortcut").click();
+await openQuickNotes();
 const noteDialog = page.getByRole("dialog", { name: /Quick notes/ });
 await noteDialog.locator(".quick-note-card").first().waitFor();
 assert.equal(noteCount(), 2);
@@ -571,7 +600,7 @@ await noteDialog
 await noteDialog.locator(".quick-note-full").waitFor();
 await page.waitForFunction(() =>
   document
-    .querySelector(".uts-ops-top-actions .quick-notes-nav-shortcut")
+    .querySelector(".uts-ops-sidebar-foot .quick-notes-nav-shortcut")
     .getAttribute("aria-label")
     .includes("1 unread"),
 );
@@ -616,7 +645,7 @@ await noteDialog
   .waitFor();
 await page.waitForFunction(() =>
   document
-    .querySelector(".uts-ops-top-actions .quick-notes-nav-shortcut")
+    .querySelector(".uts-ops-sidebar-foot .quick-notes-nav-shortcut")
     .getAttribute("aria-label")
     .includes("1 unread"),
 );
@@ -699,7 +728,7 @@ await noteDialog
   .getByRole("button", { name: "Close quick notes", exact: true })
   .click();
 await page.reload();
-await page.locator(".uts-ops-top-actions .quick-notes-nav-shortcut").click();
+await openQuickNotes();
 await noteDialog.locator(".quick-note-card").first().waitFor();
 assert.equal(
   await noteDialog.locator(".quick-note-card.unread").count(),
@@ -784,7 +813,7 @@ await page.getByRole("heading", { name: "Certs", exact: true }).waitFor();
 assert.equal(await noteDialog.getByLabel("Note text", { exact: true }).inputValue(), "Draft survives Onboarding tabs");
 await noteDialog.getByRole("button", { name: "Minimize quick notes" }).click();
 await noteDialog.waitFor({ state: "hidden" });
-await page.locator(".uts-ops-top-actions .quick-notes-nav-shortcut").click();
+await openQuickNotes();
 assert.equal(await noteDialog.getByLabel("Note text", { exact: true }).inputValue(), "Draft survives Onboarding tabs");
 await page.getByRole("navigation", { name: "Onboarding steps" }).getByRole("link", { name: "Planner", exact: true }).click();
 await page.getByRole("heading", { name: "Team planner", exact: true }).waitFor();
@@ -801,6 +830,94 @@ page.once("dialog", d => d.accept());
 await noteDialog.getByRole("button", { name: "Close quick notes" }).click();
 await page.getByRole("dialog").getByRole("button", { name: "Close task" }).click();
 console.log("Global notes UI passed: tab navigation, draft preservation, drag, minimize/reopen, and top layer above task modal.");
+// Navigation is a persistent shell, with one access lookup per session.
+const initialPermissions = permissionRequests;
+assert.equal(profileClaims, 0, "Staff sessions never claim candidate profiles");
+await page.evaluate(() => {
+  window.__utsSidebar = document.querySelector(".uts-ops-sidebar");
+  window.__utsHeader = document.querySelector(".uts-ops-topbar");
+});
+if (await page.getByRole("button", { name: "Collapse navigation", exact: true }).count())
+  await page.getByRole("button", { name: "Collapse navigation", exact: true }).click();
+const collapsedWidth = await page.locator(".uts-ops-sidebar").evaluate(node => node.getBoundingClientRect().width);
+holdCandidateLoad = true;
+const candidateStarted = new Promise(resolve => { candidateLoadStarted = resolve; });
+await page.getByRole("button", { name: "Candidates", exact: true }).click();
+await page.getByRole("heading", { name: "Candidates", exact: true }).waitFor();
+assert.equal(await page.locator(".uts-ops-topbar").count(), 0, "No empty header on Candidates");
+assert.equal(await page.evaluate(() => window.__utsSidebar === document.querySelector(".uts-ops-sidebar") && window.__utsHeader === document.querySelector(".uts-ops-topbar")), true, "Navigation DOM survives slow page changes");
+assert.equal(await page.locator(".uts-ops-sidebar").evaluate(node => node.getBoundingClientRect().width), collapsedWidth);
+assert.equal(permissionRequests, initialPermissions, "Navigation does not reload shared permissions");
+await candidateStarted;
+holdCandidateLoad = false;
+await Promise.all([
+  page.waitForResponse(response => response.url().includes("/workers?")),
+  Promise.resolve().then(() => releaseCandidateLoad()),
+]);
+await page.getByRole("button", { name: "Onboarding", exact: true }).click();
+await page.getByRole("heading", { name: "Team planner", exact: true }).waitFor();
+assert.equal(await page.evaluate(() => window.__utsSidebar === document.querySelector(".uts-ops-sidebar")), true);
+await page.getByRole("button", { name: "Expand navigation", exact: true }).click();
+const expandedWidth = await page.locator(".uts-ops-sidebar").evaluate(node => node.getBoundingClientRect().width);
+await page.getByRole("navigation", { name: "Onboarding steps" }).getByRole("link", { name: "Certs", exact: true }).click();
+await page.getByRole("heading", { name: "Certs", exact: true }).waitFor();
+await page.waitForTimeout(3200);
+assert.equal(await page.locator(".uts-ops-sidebar").evaluate(node => node.getBoundingClientRect().width), expandedWidth, "No automatic collapse after navigation");
+assert.equal(permissionRequests, initialPermissions);
+await page.evaluate(async () => {
+  const { supabase } = await import("/src/lib/supabase.js");
+  const { error } = await supabase.auth.refreshSession();
+  if (error) throw error;
+});
+assert.equal(permissionRequests, initialPermissions, "Token refresh does not reload access or page");
+assert.equal(await page.evaluate(() => window.__utsSidebar === document.querySelector(".uts-ops-sidebar")), true);
+await page.screenshot({ path: "tmp/planner-verification/persistent-navigation.png" });
+await page.getByRole("button", { name: "Overview", exact: true }).click();
+await page.getByRole("heading", { name: "Operations overview", exact: true }).waitFor();
+await page.getByText("Loading workers...", { exact: true }).waitFor({ state: "hidden" });
+assert.equal(workerWrites, 0, "Overview loading does not write candidate statuses");
+assert.equal(await page.evaluate(() => window.__utsSidebar === document.querySelector(".uts-ops-sidebar")), true);
+await page.evaluate(async () => {
+  const { supabase } = await import("/src/lib/supabase.js");
+  const { error } = await supabase.auth.signOut({ scope: "local" });
+  if (error) throw error;
+});
+await page.waitForURL("**/login");
+assert.equal(await page.locator(".uts-ops-sidebar").count(), 0);
+assert.equal(await page.locator(".quick-notes-dialog").count(), 0, "Sign-out removes private notes");
+// Candidate home belongs beside the viewed candidate's name, never in the topbar.
+await page.goto(`http://127.0.0.1:5173/admin/workers/${candidate.id}/onboarding/certs`);
+await page.locator(".candidate-workspace-name strong").getByText(candidate.name, { exact: true }).waitFor();
+const candidateHome = page.getByRole("link", { name: "Back to Candidates home", exact: true });
+assert.equal(await candidateHome.getAttribute("href"), "/admin/candidates");
+assert.equal(await page.locator(".uts-ops-topbar").getByRole("button", { name: /home/i }).count(), 0);
+const homeBox = await candidateHome.boundingBox();
+const nameBox = await page.locator(".candidate-workspace-name").boundingBox();
+assert.ok(homeBox.x + homeBox.width <= nameBox.x, "Home icon sits to the left of candidate name");
+await page.setViewportSize({ width: 390, height: 844 });
+assert.equal(await candidateHome.isVisible(), true, "Candidate home is available on mobile");
+await candidateHome.click();
+await page.waitForURL("**/admin/candidates");
+await page.getByRole("heading", { name: "Candidates", exact: true }).waitFor();
+assert.equal(await page.locator(".uts-ops-topbar").count(), 0, "No empty header on Candidates");
+assert.equal(await page.getByRole("link", { name: "Back to Candidates home", exact: true }).count(), 0);
+assert.equal(await page.locator(".uts-ops-topbar").getByRole("button", { name: /home/i }).count(), 0);
+// Cancelled touch gestures must not toggle navigation.
+await page.evaluate(() => {
+  const touch = x => new Touch({ identifier: 1, target: document.body, clientX: x, clientY: 100 });
+  window.dispatchEvent(new TouchEvent("touchstart", { touches: [touch(2)] }));
+  window.dispatchEvent(new TouchEvent("touchmove", { touches: [touch(120)], cancelable: true }));
+  window.dispatchEvent(new TouchEvent("touchcancel", { touches: [] }));
+});
+assert.equal(await page.locator(".uts-ops-sidebar.mobile-open").count(), 0);
+// An account without a usable profile must return to a usable login screen.
+denyStaff = true;
+await page.goto("http://127.0.0.1:5173/login");
+await page.getByText("No candidate profile is registered with this email address.", { exact: true }).waitFor();
+assert.equal(await page.locator(".uts-ops-sidebar").count(), 0);
+console.log("Review regressions passed: Docs footer order, cancelled touch gesture, and missing-profile login recovery.");
+console.log("Candidate navigation passed: contextual Home beside name, mobile visibility, correct directory target, no Home on directory.");
+console.log("Navigation UI passed: persistent shell, slow responses, manual width preserved, no auto-collapse, no repeated access lookups, token refresh without remount.");
 assert.deepEqual(errors, []);
 console.log(
   "Planner UI passed: route redirect, quick/full creation, assignment, dates, checklist, links, comments, private images, filters, completion, archive/undo, drag, conflict protection, retry, mobile and reload.",

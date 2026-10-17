@@ -21,7 +21,6 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import PlannerCalendar from "../components/PlannerCalendar";
 import PlannerCandidatePanel from "../components/PlannerCandidatePanel";
 import OnboardingStepTabs from "../components/OnboardingStepTabs";
@@ -1311,7 +1310,7 @@ export default function PlannerPage() {
   }
   return (
     <>
-      <UtsTopNavBar />
+
       <main className="planner-page">
         <div className="planner-shell">
           <header className="planner-header">

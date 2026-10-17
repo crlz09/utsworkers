@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { FileText, Inbox, Loader2, RefreshCw, Upload, X } from "lucide-react";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import OnboardingStepTabs from "../components/OnboardingStepTabs";
 import CandidateWorkspaceTabs from "../components/CandidateWorkspaceTabs";
 import { supabase } from "../lib/supabase";
@@ -896,7 +895,7 @@ export default function ScreeningOnboardingPage() {
     });
   return (
     <div className="screening-page">
-      <UtsTopNavBar />
+
       {workerId && <CandidateWorkspaceTabs />}
       <main className="screening-shell">
         <header className="screening-page-header">

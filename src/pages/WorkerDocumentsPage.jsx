@@ -16,7 +16,6 @@ import { supabase } from "../lib/supabase";
 import { getCurrentUserAccess } from "../lib/userAccess";
 import CandidateTopBar from "../components/CandidateTopBar";
 import CandidateWorkspaceTabs from "../components/CandidateWorkspaceTabs";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import { useParams } from "react-router-dom";
 import {
   getWorkerDocumentCategoryKey,
@@ -427,7 +426,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
   return (
     <div className="worker-doc-page">
       <PageStyles />
-      {adminMode ? <><UtsTopNavBar /><CandidateWorkspaceTabs /></> : <CandidateTopBar workerName={worker?.name} adminWorkerId={adminWorkerId} />}
+      {adminMode ? <><CandidateWorkspaceTabs /></> : <CandidateTopBar workerName={worker?.name} adminWorkerId={adminWorkerId} />}
 
       <main className="worker-doc-shell">
         <section className="worker-doc-hero">

@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Eye, EyeOff, KeyRound, Lock, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { getCurrentUserAccess } from "../lib/userAccess";
+import { useAccess } from "../lib/accessContext";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { refresh } = useAccess();
 
   const [email, setEmail] = useState(
     () => new URLSearchParams(window.location.search).get("email") || "",
@@ -20,21 +21,28 @@ export default function LoginPage() {
   const [otp, setOtp] = useState("");
 
   const routeCurrentUser = useCallback(async () => {
-    const access = await getCurrentUserAccess();
-    const nextPath = access.isAdmin
-      ? "/admin"
-      : access.isClient
-        ? "/client/cts-jobs"
-        : access.isWorker
-          ? "/worker/profile"
-          : "/login";
-    if (!access.isAdmin && !access.isClient && !access.isWorker) {
-      await supabase.auth.signOut();
-      setError("No candidate profile is registered with this email address.");
-      return;
+    try {
+      const access = await refresh();
+      if (!access) throw new Error("Could not verify access. Please try again.");
+      const nextPath = access.isAdmin
+        ? "/admin"
+        : access.isClient
+          ? "/client/cts-jobs"
+          : access.isWorker
+            ? "/worker/profile"
+            : "/login";
+      if (!access.isAdmin && !access.isClient && !access.isWorker) {
+        await supabase.auth.signOut();
+        setError("No candidate profile is registered with this email address.");
+        return;
+      }
+      navigate(nextPath, { replace: true });
+    } catch (error) {
+      setError(error.message || "Could not verify access. Please try again.");
+    } finally {
+      setCheckingSession(false);
     }
-    navigate(nextPath, { replace: true });
-  }, [navigate]);
+  }, [navigate, refresh]);
 
   useEffect(() => {
     const checkSession = async () => {

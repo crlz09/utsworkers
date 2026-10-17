@@ -9,7 +9,6 @@ import {
   Upload,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import UtsTopNavBar from "../components/UtsTopNavBar";
 import CandidateAutocomplete from "../components/CandidateAutocomplete";
 import CandidateWorkspaceTabs from "../components/CandidateWorkspaceTabs";
 import OnboardingStepTabs from "../components/OnboardingStepTabs";
@@ -232,7 +231,7 @@ export default function OnboardingCertsPage() {
     ) || [];
   return (
     <div className="cert-page">
-      <UtsTopNavBar />
+
       {routeWorkerId ? <CandidateWorkspaceTabs /> : null}
       <main className="cert-shell">
         <header className="cert-page-header">
