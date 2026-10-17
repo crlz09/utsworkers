@@ -73,3 +73,25 @@ test("uploads reject oversized images and unsupported active formats", () => {
     validatePlannerImage({ type: "image/png", size: 10485760 }),
   );
 });
+
+test('calendar weeks cross month, year and daylight-saving boundaries without UTC shifts', async () => {
+  const { calendarDays } = await import('../src/lib/planner.js');
+  assert.deepEqual(calendarDays('2026-12-31', 'week'), ['2026-12-27','2026-12-28','2026-12-29','2026-12-30','2026-12-31','2027-01-01','2027-01-02']);
+  assert.equal(calendarDays('2026-03-08', 'week')[6], '2026-03-14');
+  const month = calendarDays('2026-02-20');
+  assert.equal(month.length, 42);
+  assert.equal(month[0], '2026-02-01');
+  assert.equal(new Set(month).size, 42);
+});
+test('planner alerts isolate assignments and actionable unassigned deadlines', async () => {
+  const { plannerAlerts } = await import('../src/lib/planner.js');
+  const tasks = [
+    { id: 'mine', assignee_id: 'a', status: 'pending' },
+    { id: 'theirs', assignee_id: 'b', status: 'pending', due_date: '2026-10-16' },
+    { id: 'unassigned', status: 'waiting', due_date: '2026-10-17' },
+    { id: 'future', due_date: '2026-10-18' },
+    { id: 'done', assignee_id: 'a', status: 'completed' },
+    { id: 'archived', assignee_id: 'a', archived_at: 'now' },
+  ];
+  assert.deepEqual(plannerAlerts(tasks, 'a', '2026-10-17').map(t => t.id), ['mine','unassigned']);
+});

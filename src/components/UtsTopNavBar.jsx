@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  KanbanSquare,
   BriefcaseBusiness,
   ChartNoAxesCombined,
   ChevronLeft,
@@ -20,7 +19,6 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { loadPlannerCount } from "../lib/planner";
 import utsLogo from "../assets/uts-logo.png";
 import QuickNotesShortcut from "./QuickNotesShortcut";
 
@@ -28,8 +26,7 @@ const NAV_ITEMS = [
   { label: "Overview", path: "/admin", icon: LayoutDashboard, section: "overview" },
   { label: "Candidates", path: "/admin/candidates", icon: UsersRound, section: "candidates" },
   { label: "Docs", path: "/admin/docs", icon: FileText, adminOnly: true },
-  { label: "Onboarding", path: "/admin/onboarding", icon: ClipboardList },
-  { label: "Planner", path: "/admin/planner", icon: KanbanSquare },
+  { label: "Onboarding", path: "/admin/onboarding/planner", icon: ClipboardList },
   { label: "Projects", path: "/cts-jobs", icon: BriefcaseBusiness },
   { label: "Hours", path: "/hours", icon: Clock3 },
   { label: "Billing", path: "/invoice", icon: FileText },
@@ -50,7 +47,6 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   const navigate = useNavigate();
   const location = useLocation();
   const isRegister = location.pathname.startsWith("/register");
-  const isAdminArea = location.pathname.startsWith("/admin");
   const isCandidateWorkspace = location.pathname === "/admin/candidates"
     || location.pathname.startsWith("/admin/workers/");
   const isDocsWorkspace = location.pathname === "/admin/docs";
@@ -59,7 +55,6 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     || location.pathname.startsWith("/admin/onboarding")
     || location.pathname === "/admin/candidates"
     || location.pathname.startsWith("/admin/workers/");
-  const [plannerCount, setPlannerCount] = useState(0);
   const [canViewActivity, setCanViewActivity] = useState(false);
   const [canViewDocs, setCanViewDocs] = useState(false);
   const [collapsed, setCollapsed] = useState(readStoredCollapsedState);
@@ -182,22 +177,17 @@ export default function UtsTopNavBar({ rightSlot = null }) {
       try {
         const { data } = await supabase.auth.getSession();
         if (!data.session) return;
-        const [count, permissionResult] = await Promise.all([
-          loadPlannerCount(supabase),
-          supabase.from("admin_permissions").select("can_edit_workers, can_delete_workers").eq("user_id", data.session.user.id).maybeSingle(),
-        ]);
+        const permissionResult = await supabase.from("admin_permissions").select("can_edit_workers, can_delete_workers").eq("user_id", data.session.user.id).maybeSingle();
         if (active) {
-          setPlannerCount(count);
           setCanViewActivity(!!permissionResult.data?.can_delete_workers);
           setCanViewDocs(!!permissionResult.data?.can_edit_workers || !!permissionResult.data?.can_delete_workers);
         }
       } catch {
-        if (active) setPlannerCount(0);
+        /* Permission lookup will retry on navigation. */
       }
     };
     void loadCount();
-    window.addEventListener("uts-planner-changed", loadCount);
-    return () => { active = false; window.removeEventListener("uts-planner-changed", loadCount); };
+    return () => { active = false; };
   }, [isRegister, location.pathname]);
 
   const handleSearch = (event) => {
@@ -387,7 +377,9 @@ export default function UtsTopNavBar({ rightSlot = null }) {
               ? location.pathname === "/admin" && adminQuery.get("view") !== "candidates"
               : item.section === "candidates"
                 ? location.pathname === "/admin/candidates" || location.pathname.startsWith("/admin/workers/")
-                : location.pathname.startsWith(item.path);
+                : item.label === "Onboarding"
+                  ? location.pathname.includes("/onboarding") || location.pathname === "/admin/planner"
+                  : location.pathname.startsWith(item.path);
             return (
               <button key={`${item.label}-${item.path}`} type="button" className={`uts-ops-nav-btn ${active ? "active" : ""}`} onClick={() => goToNavItem(item.path)} aria-label={item.label} title={item.label}>
                 <Icon size={19} /><span>{item.label}</span>
@@ -399,7 +391,6 @@ export default function UtsTopNavBar({ rightSlot = null }) {
           <UserPlus size={18} /><span>New candidate</span>
         </button>
         <div className="uts-ops-sidebar-foot">
-          <QuickNotesShortcut className="uts-ops-nav-btn" showLabel onClick={() => goTo("/admin/planner?notes=1")} />
           <button className="uts-ops-nav-btn" type="button" onClick={() => goToNavItem("/admin/legacy")} aria-label="Legacy dashboard" title="Legacy dashboard"><LayoutDashboard size={18} /><span>Legacy dashboard</span></button>
           <button className="uts-ops-nav-btn" type="button" onClick={handleLogout} aria-label="Sign out" title="Sign out"><LogOut size={18} /><span>Sign out</span></button>
         </div>
@@ -413,6 +404,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         tabIndex={mobileOpen ? 0 : -1}
       />
 
+      {!showWorkspaceHeader && canViewDocs ? <div style={{ position: "fixed", top: 16, right: 20, zIndex: 1000 }}><QuickNotesShortcut /></div> : null}
       {!showWorkspaceHeader ? (
         <button className="uts-ops-icon-btn uts-ops-floating-menu" type="button" onClick={() => setMobileOpen((value) => !value)} aria-label="Open navigation">
           {mobileOpen ? <X size={19} /> : <Menu size={19} />}
@@ -433,13 +425,8 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         </form> : null}
         <div className="uts-ops-top-actions">
           {rightSlot}
-          {isAdminArea ? <QuickNotesShortcut onClick={() => goTo("/admin/planner?notes=1")} /> : null}
-          {isAdminArea ? (
-            <button className="uts-ops-icon-btn" type="button" onClick={() => goTo("/admin/planner")} title="Planner" aria-label={`Planner${plannerCount ? `, ${plannerCount} pending` : ""}`}>
-              <KanbanSquare size={18} />
-              {plannerCount ? <span className="uts-ops-badge">{plannerCount > 99 ? "99+" : plannerCount}</span> : null}
-            </button>
-          ) : null}
+          {canViewDocs ? <QuickNotesShortcut /> : null}
+
         </div>
       </header> : null}
     </>

@@ -25,7 +25,7 @@ export function matchesPlannerFilter(
   if (filter === "unassigned" && task.assignee_id) return false;
   if (filter === "today" && dueState(task, today) !== "today") return false;
   if (filter === "overdue" && dueState(task, today) !== "overdue") return false;
-  return `${task.title} ${task.description}`
+  return `${task.title} ${task.description} ${task.worker?.name || ""} ${task.job?.level_type || ""}`
     .toLowerCase()
     .includes(query.trim().toLowerCase());
 }
@@ -51,4 +51,28 @@ export function validatePlannerImage(file) {
     throw new Error("Choose a JPG, PNG, WebP or GIF image.");
   if (file.size > 10 * 1024 * 1024)
     throw new Error("Each image must be 10 MB or smaller.");
+}
+
+export function calendarDays(anchor, mode = 'month') {
+  const start = new Date(`${anchor}T12:00:00`);
+  if (mode === 'month') start.setDate(1);
+  start.setDate(start.getDate() - start.getDay());
+  return Array.from({ length: mode === 'week' ? 7 : 42 }, (_, index) => {
+    const day = new Date(start);
+    day.setDate(day.getDate() + index);
+    return localDateKey(day);
+  });
+}
+export const ONBOARDING_CHECKLIST = [
+  'Review candidate profile and complete vetting',
+  'Verify required identity documents',
+  'Review project-required certifications',
+  'Complete screening and review results',
+  'Submit candidate for CTS review',
+  'Confirm CTS approval and onboarding handoff',
+];
+export function plannerAlerts(tasks, userId, today = localDateKey()) {
+  return tasks.filter(t => !t.archived_at && t.status !== 'completed' &&
+    (t.assignee_id === userId || !t.assignee_id) &&
+    (t.assignee_id === userId || (t.due_date && t.due_date <= today)));
 }

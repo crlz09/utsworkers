@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import GlobalQuickNotes from "./components/GlobalQuickNotes";
 import { AdminRoute, ClientRoute, WorkerRoute } from "./components/AccessRoute";
 
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
@@ -46,8 +47,15 @@ function RouteFallback() {
   );
 }
 
+function PlannerRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/admin/onboarding/planner${location.search}`} replace />;
+}
+
 export default function App() {
   return (
+    <>
+    <GlobalQuickNotes />
     <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/admin/docs" element={<AdminRoute><AdminDocsPage /></AdminRoute>} />
@@ -224,7 +232,7 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/planner"
+          path="/admin/onboarding/planner"
           element={
             <AdminRoute>
               <PlannerPage />
@@ -239,8 +247,10 @@ export default function App() {
             </AdminRoute>
           }
         />
-        <Route path="/admin/notifications" element={<Navigate to="/admin/planner" replace />} />
+        <Route path="/admin/planner" element={<PlannerRedirect />} />
+        <Route path="/admin/notifications" element={<Navigate to="/admin/onboarding/planner" replace />} />
       </Routes>
     </Suspense>
+    </>
   );
 }

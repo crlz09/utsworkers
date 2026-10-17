@@ -6,7 +6,7 @@ import {
   useState,
   useLayoutEffect,
 } from "react";
-import { useSearchParams } from "react-router-dom";
+import { createPortal } from "react-dom";
 import {
   Archive,
   Check,
@@ -17,6 +17,8 @@ import {
   RotateCcw,
   Search,
   StickyNote,
+  Minus,
+  GripVertical,
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -72,8 +74,10 @@ function NoteAttribution({ note }) {
 }
 
 export default function QuickNotes({ userId }) {
-  const [params, setParams] = useSearchParams();
-  const open = params.get("notes") === "1";
+  const [open, setOpen] = useState(() => new URLSearchParams(window.location.search).get("notes") === "1");
+  const [position, setPosition] = useState(null);
+  const [portalTarget, setPortalTarget] = useState(document.body);
+  const drag = useRef(null);
   const dialog = useRef(null);
   const noteInput = useRef(null);
   const formattingSelection = useRef(null);
@@ -146,17 +150,53 @@ export default function QuickNotes({ userId }) {
     };
   }, [load, userId]);
   useEffect(() => {
-    if (open && !dialog.current.open) dialog.current.showModal();
-    else if (!open && dialog.current.open) dialog.current.close();
-  }, [open]);
+    const show = () => setOpen(true);
+    window.addEventListener("uts-open-quick-notes", show);
+    return () => window.removeEventListener("uts-open-quick-notes", show);
+  }, []);
+  useEffect(() => {
+    // A modal makes DOM outside it inert. Host the floating controls inside the
+    // active modal while it is open, retaining all note/draft state here.
+    const syncHost = () => {
+      const modals = [...document.querySelectorAll("dialog:modal")];
+      const target = modals.at(-1) || document.body;
+      setPortalTarget(previous => previous === target ? previous : target);
+    };
+    syncHost();
+    const observer = new MutationObserver(syncHost);
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] });
+    return () => observer.disconnect();
+  }, []);
+  useLayoutEffect(() => {
+    const panel = dialog.current;
+    // Popovers live in the browser top layer, above page overlays and dialogs.
+    if (open) panel.showPopover();
+    else if (panel.matches(":popover-open")) panel.hidePopover();
+  }, [open, portalTarget]);
+  useEffect(() => {
+    const onResize = () => setPosition(null);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  function startDrag(event) {
+    if (event.target.closest("button,input,textarea,a") || event.button !== 0) return;
+    const rect = dialog.current.getBoundingClientRect();
+    drag.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  function moveDrag(event) {
+    if (!drag.current) return;
+    const rect = dialog.current.getBoundingClientRect();
+    setPosition({
+      x: Math.max(8, Math.min(window.innerWidth - rect.width - 8, event.clientX - drag.current.x)),
+      y: Math.max(8, Math.min(window.innerHeight - 70, event.clientY - drag.current.y)),
+    });
+  }
   function toggleOpen(value) {
     if (busyRef.current) return;
     if (!value && dirty && !window.confirm("Discard unsaved note changes?"))
       return;
-    const next = new URLSearchParams(params);
-    if (value) next.set("notes", "1");
-    else next.delete("notes");
-    setParams(next, { replace: true });
+    setOpen(value);
     if (!value) {
       setSelected(null);
       setEditing(false);
@@ -279,36 +319,29 @@ export default function QuickNotes({ userId }) {
   }
   const latest = selected ? notes.find((n) => n.id === selected.id) : null;
   const changed = selected && latest && latest.revision !== selected.revision;
-  return (
+  return createPortal(
     <>
-      <button
-        className="planner-secondary quick-notes-trigger"
-        onClick={() => toggleOpen(true)}
-        aria-label={`Quick notes${unread ? `, ${unread} unread` : ""}`}
-      >
-        <StickyNote size={17} /> Quick notes
-        {unread > 0 && (
-          <span className="quick-notes-badge">
-            {unread > 99 ? "99+" : unread}
-          </span>
-        )}
-      </button>
-      <dialog
+      <div
         ref={dialog}
         className="quick-notes-dialog"
+        popover="manual"
+        role="dialog"
+        aria-modal="false"
+        style={position ? { left: position.x, top: position.y, right: "auto", maxHeight: `calc(100dvh - ${position.y + 8}px)` } : undefined}
         aria-labelledby="quick-notes-title"
-        onCancel={(event) => {
-          event.preventDefault();
-          toggleOpen(false);
-        }}
-        onClick={(event) => {
-          if (event.target === dialog.current) toggleOpen(false);
+        onClick={event => event.stopPropagation()}
+        onSubmit={event => event.stopPropagation()}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === "Escape") { event.stopPropagation(); toggleOpen(false); }
         }}
       >
         <div className="quick-notes-inner">
-          <header>
+          <header className="quick-notes-drag-handle" onPointerDown={startDrag} onPointerMove={moveDrag}
+            onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
+            <GripVertical size={16} aria-hidden="true" />
             <div>
-              <span className="planner-eyebrow">SHARED WITH YOUR TEAM</span>
+              <span className="quick-notes-eyebrow">SHARED WITH YOUR TEAM</span>
               <h2 id="quick-notes-title">
                 <StickyNote size={24} /> Quick notes
                 {unread > 0 && (
@@ -317,8 +350,9 @@ export default function QuickNotes({ userId }) {
               </h2>
               <p>A shared scratchpad for ideas, updates and handoffs.</p>
             </div>
+            <button className="quick-notes-icon" aria-label="Minimize quick notes" onClick={() => setOpen(false)} title="Minimize and keep draft"><Minus size={20} /></button>
             <button
-              className="planner-icon"
+              className="quick-notes-icon"
               aria-label="Close quick notes"
               disabled={busy}
               onClick={() => toggleOpen(false)}
@@ -327,7 +361,7 @@ export default function QuickNotes({ userId }) {
             </button>
           </header>
           {error && (
-            <div className="planner-error" role="alert">
+            <div className="quick-notes-error" role="alert">
               {error}
               <button disabled={busy} onClick={() => void load()}>
                 Refresh
@@ -365,7 +399,7 @@ export default function QuickNotes({ userId }) {
               )}
               {editing ? (
                 <form className="quick-note-editor" onSubmit={save}>
-                  <label className="planner-field">
+                  <label className="quick-notes-field">
                     Title <span>(optional)</span>
                     <input
                       aria-label="Note title"
@@ -384,7 +418,7 @@ export default function QuickNotes({ userId }) {
                   <div className="quick-note-format-toolbar">
                     <button
                       type="button"
-                      className="planner-secondary"
+                      className="quick-notes-secondary"
                       aria-label="Bullet list"
                       title="Toggle bullet list for the selected lines"
                       disabled={busy}
@@ -405,7 +439,7 @@ export default function QuickNotes({ userId }) {
                     </button>
                     <span>Select lines to add or remove bullets</span>
                   </div>
-                  <label className="planner-field">
+                  <label className="quick-notes-field">
                     Note
                     <textarea
                       ref={noteInput}
@@ -442,7 +476,7 @@ export default function QuickNotes({ userId }) {
                   </label>
                   <div className="quick-note-editor-actions">
                     <button
-                      className="planner-secondary"
+                      className="quick-notes-secondary"
                       type="button"
                       disabled={busy}
                       onClick={() => {
@@ -458,7 +492,7 @@ export default function QuickNotes({ userId }) {
                       Cancel
                     </button>
                     <button
-                      className="planner-primary"
+                      className="quick-notes-primary"
                       disabled={
                         busy ||
                         !draft.body.trim() ||
@@ -466,7 +500,7 @@ export default function QuickNotes({ userId }) {
                       }
                     >
                       {busy ? (
-                        <Loader2 size={15} className="planner-spin" />
+                        <Loader2 size={15} className="quick-notes-spin" />
                       ) : (
                         <Check size={15} />
                       )}{" "}
@@ -493,7 +527,7 @@ export default function QuickNotes({ userId }) {
                   <NoteAttribution note={selected} />
                   <div className="quick-note-full-actions">
                     <button
-                      className="planner-secondary"
+                      className="quick-notes-secondary"
                       disabled={busy}
                       onClick={() => {
                         setDraft({
@@ -506,7 +540,7 @@ export default function QuickNotes({ userId }) {
                       Edit note
                     </button>
                     <button
-                      className="planner-secondary"
+                      className="quick-notes-secondary"
                       disabled={busy}
                       onClick={() =>
                         void archive(selected, Boolean(selected.archived_at))
@@ -548,7 +582,7 @@ export default function QuickNotes({ userId }) {
                   </button>
                 </div>
                 <button
-                  className="planner-primary"
+                  className="quick-notes-primary"
                   disabled={loading || busy}
                   onClick={() => {
                     setSelected(null);
@@ -579,7 +613,7 @@ export default function QuickNotes({ userId }) {
                 )}
               </div>
               {undo && (
-                <div className="planner-undo">
+                <div className="quick-notes-undo">
                   <span>Note archived</span>
                   <button
                     disabled={busy}
@@ -588,7 +622,7 @@ export default function QuickNotes({ userId }) {
                     Undo
                   </button>
                   <button
-                    className="planner-icon"
+                    className="quick-notes-icon"
                     aria-label="Dismiss note undo"
                     onClick={() => setUndo(null)}
                   >
@@ -598,7 +632,7 @@ export default function QuickNotes({ userId }) {
               )}
               <div className="quick-notes-list">
                 {loading ? (
-                  <p className="planner-muted">Loading notes…</p>
+                  <p className="quick-notes-muted">Loading notes…</p>
                 ) : visible.length ? (
                   visible.map((note) => (
                     <article
@@ -672,7 +706,8 @@ export default function QuickNotes({ userId }) {
             </>
           )}
         </div>
-      </dialog>
-    </>
+      </div>
+    </>,
+    portalTarget,
   );
 }

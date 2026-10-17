@@ -1,9 +1,63 @@
 # UTS Planner
 
-The shared operations planner is available at `/admin/planner`. The previous
-`/admin/notifications` URL redirects here. Both navigation bars use the Planner
-icon and show the number of active, incomplete tasks. The main sidebar also has
-a Planner entry.
+The shared operations planner is the first tab in **Onboarding → Planner,
+Screening, Certs**, at `/admin/onboarding/planner`. The previous `/admin/planner`
+and `/admin/notifications` URLs redirect here. The sidebar's Onboarding entry
+opens Planner; there is no separate sidebar entry or top-right Planner icon.
+
+## Calendar, recruitment and onboarding
+
+The default view is now an interactive month calendar, with a week option,
+previous/next controls, Today, date-specific creation, drag rescheduling and an
+unscheduled tray. Board and List remain available. Assignee and status filters
+combine with the existing ownership/deadline filters and search. Search also
+matches linked candidate names and project titles.
+
+Choose **Weekly** in a task and set a due date. Completing the occurrence creates
+one successor seven days after that occurrence's due date. It copies assignment,
+candidate, project, priority and checklist text, resetting checklist completion.
+Comments and attachments stay on the completed occurrence. Reopening and completing
+the same occurrence never duplicates its successor. This is completion-driven
+recurrence: future instances are not pre-generated. Stop a series by setting its
+open occurrence to Does not repeat, or archiving it.
+
+**Notifications** shows your open assignments plus unassigned tasks due today or
+overdue. These are derived in-app alerts refreshed through the existing realtime,
+polling and focus refresh. They resolve when the underlying task is completed or
+archived; email, push delivery and dismiss/read receipts are not part of these alerts.
+
+Link a candidate to display a readiness panel backed by the existing
+`worker_documents`, certificate metadata and latest `candidate_screenings` record.
+Required document checks reuse the two-sided document rules. Certificate indicators
+mean a file is present, not that validity or project requirements have been verified.
+The panel links to candidate details, documents, certificates, screening and the CTS
+form. **Add onboarding checklist** adds the standard steps without duplicating them.
+Checklist completion remains a manual team attestation, independent of readiness.
+
+Link a CTS project as well to submit the existing `cts_job_candidates` relationship
+for internal review. The candidate must already belong to that project. The workflow
+is Not submitted → Pending → Approved or Changes requested → Pending on resubmission.
+Change requests require a note. Actor IDs and timestamps are stamped by the database,
+and updates use `updated_at` to reject concurrent changes. All existing planner team
+members may submit and review, including their own submission. This internal approval
+does not submit externally, change placement, or certify that documents are valid.
+Use the existing CTS form/Jotform and project placement workflows for those actions.
+
+## Architecture and database design
+
+The foundation review found that assignments, statuses, checklists, comments,
+attachments, team membership, candidate documents and screening already had working
+storage and permission models. They are reused rather than copied into a second
+candidate or document store. Existing task IDs and quick notes are preserved.
+
+`planner_calendar_workflows` adds recurrence fields to `planner_tasks`, a unique
+parent reference for successor idempotency, and `planner_cts_reviews` referencing
+an existing CTS candidate/project relationship. Foreign keys retain referential
+integrity. Review RLS uses the same `can_manage_cts_jobs()` permission as the planner;
+clients, candidate accounts and anonymous users cannot access it. Explicit grants
+allow team reads/inserts/updates, with no authenticated delete grant. Trigger
+functions use invoker rights and an empty search path, and cannot be called directly.
+Existing task/document/storage RLS remains in effect.
 
 ## Working with tasks
 
@@ -18,15 +72,16 @@ a Planner entry.
 
 Task status is independent of candidate status. Moving or completing a task does
 not change a candidate's recruiting lifecycle. Existing recruiting events and
-notification history remain available for future automation; this version does
-not automatically create tasks or send scheduled deadline messages.
+notification history remain available. Weekly successors are created on completion;
+this version does not send scheduled deadline messages.
 
 ## Persistence and access
 
-Apply both migrations:
+Planner migrations:
 
 - `20261009200438_team_planner.sql`
 - `20261009201116_planner_live_updates.sql`
+- `20261017175215_planner_calendar_workflows.sql`
 
 `planner_tasks`, `planner_comments` and `planner_attachments` use RLS and explicit
 Data API grants. Access requires the same worker-edit or worker-delete permission
@@ -63,8 +118,18 @@ reads and writes for accounts outside the team. No test tasks were retained.
 
 ## Shared quick notes
 
-**Quick notes** opens a shared scratchpad from the planner header or navigation.
-The navigation shortcut opens `/admin/planner?notes=1`. Team members can create,
+**Quick notes** is an independent floating workspace mounted outside the page
+routes. Open it from the single top-right shortcut available on every page for
+authorized team members. There is no bottom floating launcher or sidebar shortcut. Opening it never navigates
+to Planner. The panel remains interactive above page overlays and task dialogs;
+it does not block navigation. Drag its header to move it, minimize to keep an
+unsaved draft, or close with the existing unsaved-change protection. Open state
+and drafts survive navigation between pages in the same browser window. Saved
+notes and individual unread state continue to sync across windows/devices through
+the existing database, realtime subscriptions and polling. Signing out removes
+the workspace. Its styling no longer depends on loading the Planner page.
+
+Team members can create,
 read, edit, archive, undo an archive, and restore notes. Titles are optional;
 notes support up to 10,000 characters. Search and an Unread filter help locate
 notes.
@@ -93,3 +158,20 @@ to add/remove bullets. Enter continues a bullet; Enter on an empty bullet exits
 the list. Shift+Enter inserts a plain newline. Saved notes render bullets as
 semantic lists, while previews display bullet symbols. Notes remain plain text
 in storage, so existing notes and author/read tracking continue to work.
+
+## Calendar release verification
+
+The calendar migration was applied to the linked Supabase project on October 17,
+2026. `supabase/tests/planner_calendar_workflows.sql` verifies successor date and
+checklist reset, duplicate prevention, due-date validation, review transitions,
+server attribution, and outside-team/anonymous access denial in a rolled-back
+transaction. Node tests cover month/week boundaries, daylight saving and alert
+ownership. Browser checks use mocked APIs for calendar/week navigation, dated task
+creation, CTS submit/change-request/resubmit/approve, mobile overflow, and the
+existing planner and quick-note regression flows. Screenshots are under
+`tmp/planner-verification/calendar-{desktop,mobile}.png`.
+
+The navigation update is verified by browser checks asserting the tab order and
+absence of sidebar/top-right Planner actions. The same checks edit a note while
+navigating Planner → Certs → Planner, minimize/reopen without losing the draft,
+drag the panel, and open it above a task modal.

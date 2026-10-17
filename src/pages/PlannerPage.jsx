@@ -22,10 +22,14 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import UtsTopNavBar from "../components/UtsTopNavBar";
-import QuickNotes from "../components/QuickNotes";
+import PlannerCalendar from "../components/PlannerCalendar";
+import PlannerCandidatePanel from "../components/PlannerCandidatePanel";
+import OnboardingStepTabs from "../components/OnboardingStepTabs";
 import { supabase } from "../lib/supabase";
 import {
   PLANNER_COLUMNS,
+  ONBOARDING_CHECKLIST,
+  plannerAlerts,
   dueState,
   localDateKey,
   matchesPlannerFilter,
@@ -41,6 +45,7 @@ const newDraft = (status = "pending") => ({
   status,
   priority: "normal",
   due_date: "",
+  recurrence: "none",
   assignee_id: "",
   worker_id: "",
   job_id: "",
@@ -80,6 +85,7 @@ function taskPayload(draft) {
     status: draft.status,
     priority: draft.priority,
     due_date: draft.due_date || null,
+    recurrence: draft.recurrence || "none",
     assignee_id: draft.assignee_id || null,
     worker_id: draft.worker_id || null,
     job_id: draft.job_id || null,
@@ -105,6 +111,7 @@ function TaskDialog({ task, members, onClose, onSaved, onArchive }) {
       ? {
           ...task,
           due_date: task.due_date || "",
+          recurrence: task.recurrence || "none",
           assignee_id: task.assignee_id || "",
           worker_id: task.worker_id || "",
           job_id: task.job_id || "",
@@ -484,6 +491,7 @@ function TaskDialog({ task, members, onClose, onSaved, onArchive }) {
               <input
                 aria-label="Due date"
                 type="date"
+                required={draft.recurrence === "weekly"}
                 value={draft.due_date}
                 onChange={(e) => patch({ due_date: e.target.value })}
               />
@@ -501,6 +509,9 @@ function TaskDialog({ task, members, onClose, onSaved, onArchive }) {
               </select>
             </label>
           </div>
+          {draft.worker_id && <PlannerCandidatePanel key={`${draft.worker_id}:${draft.job_id}`} workerId={draft.worker_id} jobId={draft.job_id} />}
+          <label className="planner-field">Repeat<select aria-label="Repeat" value={draft.recurrence} onChange={e => patch({ recurrence: e.target.value })}><option value="none">Does not repeat</option><option value="weekly">Weekly · next task created on completion</option></select></label>
+          {draft.recurrence === "weekly" && <p>A due date is required. Completing this occurrence creates the next task seven days later with a fresh checklist. Comments and images stay with this occurrence.</p>}
           <label className="planner-field">
             Notes
             <textarea
@@ -520,6 +531,7 @@ function TaskDialog({ task, members, onClose, onSaved, onArchive }) {
                 {draft.checklist.length}
               </span>
             </h3>
+            <button type="button" onClick={() => patch({ checklist: [...draft.checklist, ...ONBOARDING_CHECKLIST.filter(text => !draft.checklist.some(item => item.text === text)).map(text => ({ id: crypto.randomUUID(), text, done: false }))].slice(0, 100) })}>Add onboarding checklist</button>
             {draft.checklist.map((item) => (
               <div className="planner-check-item" key={item.id}>
                 <input
@@ -877,7 +889,10 @@ export default function PlannerPage() {
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
-  const [view, setView] = useState("board");
+  const [view, setView] = useState("calendar");
+  const [assigneeFilter, setAssigneeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [showAlerts, setShowAlerts] = useState(false);
   const [archiveView, setArchiveView] = useState(false);
   const [dialogTask, setDialogTask] = useState(null);
   const [quickColumn, setQuickColumn] = useState("");
@@ -1001,10 +1016,13 @@ export default function PlannerPage() {
       tasks.filter(
         (t) =>
           Boolean(t.archived_at) === archiveView &&
-          matchesPlannerFilter(t, { query, filter, userId, today }),
+          matchesPlannerFilter(t, { query, filter, userId, today }) &&
+          (!assigneeFilter || t.assignee_id === assigneeFilter) &&
+          (!statusFilter || t.status === statusFilter),
       ),
-    [tasks, archiveView, query, filter, userId, today],
+    [tasks, archiveView, query, filter, userId, today, assigneeFilter, statusFilter],
   );
+  const alerts = plannerAlerts(tasks, userId, today);
   const filters = [
     ["all", "All tasks", activeTasks.length],
     [
@@ -1082,6 +1100,7 @@ export default function PlannerPage() {
           column[targetIndex]?.position,
         ),
       });
+      if (status === "completed" && task.recurrence === "weekly") await load();
       setNotice(
         `Moved to ${PLANNER_COLUMNS.find((c) => c.id === status).label}`,
       );
@@ -1297,17 +1316,16 @@ export default function PlannerPage() {
         <div className="planner-shell">
           <header className="planner-header">
             <div>
-              <span className="planner-eyebrow">YOUR TEAM'S WORKSPACE</span>
+              <span className="planner-eyebrow">RECRUITMENT & OPERATIONS</span>
               <h1>
-                <ClipboardList size={30} /> Planner
+                <CalendarDays size={30} /> Team planner
               </h1>
               <p>
-                One place for next steps, follow-ups and everything your team
-                needs to get done.
+                Plan the week, prepare candidates and move onboarding forward.
               </p>
             </div>
             <div className="planner-header-actions">
-              <QuickNotes userId={userId} />
+              <button className="planner-secondary" aria-expanded={showAlerts} onClick={() => setShowAlerts(!showAlerts)}>Notifications · {alerts.length}</button>
               <div className="planner-team">
                 {members.slice(0, 4).map((m) => (
                   <span
@@ -1329,6 +1347,8 @@ export default function PlannerPage() {
               </button>
             </div>
           </header>
+          <OnboardingStepTabs />
+          {showAlerts && <section className="planner-alerts" aria-label="Planner notifications"><h2>Your open assignments & due follow-ups</h2><p>In-app notifications update while the planner is open. Includes your open tasks and unassigned tasks due today or overdue.</p>{alerts.length ? alerts.map(task => <button key={task.id} onClick={() => openTask(task)}>{task.title} · {dueState(task, today) || "Assigned to you"} {task.due_date && formatDate(task.due_date)}</button>) : <p>You are up to date.</p>}</section>}
           <div className="planner-toolbar">
             <div className="planner-filters">
               {filters.map(([key, label, count]) => (
@@ -1346,6 +1366,8 @@ export default function PlannerPage() {
               ))}
             </div>
             <div className="planner-tools">
+              <select aria-label="Filter by assignee" value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)}><option value="">All assignees</option>{members.map(m => <option key={m.user_id} value={m.user_id}>{nameOf(m)}</option>)}</select>
+              <select aria-label="Filter by status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="">All statuses</option>{PLANNER_COLUMNS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select>
               <label className="planner-search">
                 <Search size={16} />
                 <input
@@ -1364,6 +1386,7 @@ export default function PlannerPage() {
                 )}
               </label>
               <div className="planner-view-switch">
+                <button aria-label="Calendar view" aria-pressed={view === "calendar"} onClick={() => setView("calendar")}><CalendarDays size={18} /></button>
                 <button
                   aria-label="Board view"
                   aria-pressed={view === "board"}
@@ -1447,10 +1470,12 @@ export default function PlannerPage() {
                 <span>
                   {archiveView
                     ? "Restore a task to return it to the board."
-                    : "Drag cards to organize · Click a title to add details"}
+                    : view === "calendar"
+                      ? "Schedule follow-ups · Open a task to review candidate readiness"
+                      : "Drag cards to organize · Click a title to add details"}
                 </span>
               </div>
-              {view === "list" || archiveView ? (
+              {view === "calendar" && !archiveView ? <PlannerCalendar tasks={visible} busy={!!busyId} onOpen={openTask} onCreate={day => openTask({ ...newDraft(), due_date: day })} onReschedule={(task, day) => void mutate(task.id, async () => { await updateTask(task, { due_date: day }); setNotice("Task rescheduled"); })} /> : view === "list" || archiveView ? (
                 <div className="planner-list">
                   {visible.length ? (
                     [...visible]

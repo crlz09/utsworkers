@@ -52,7 +52,7 @@ export default function QuickNotesShortcut({
       className={`${className} quick-notes-nav-shortcut`}
       title="Quick notes"
       aria-label={`Quick notes${count ? `, ${count} unread` : ""}`}
-      onClick={onClick}
+      onClick={onClick || (() => window.dispatchEvent(new Event("uts-open-quick-notes")))}
     >
       <StickyNote size={18} />
       {showLabel && <span>Quick notes</span>}

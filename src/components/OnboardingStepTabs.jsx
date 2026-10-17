@@ -1,5 +1,5 @@
 import { NavLink, useParams } from "react-router-dom";
-import { FileCheck2, FlaskConical } from "lucide-react";
+import { CalendarDays, FileCheck2, FlaskConical } from "lucide-react";
 import "./OnboardingStepTabs.css";
 
 export default function OnboardingStepTabs() {
@@ -9,6 +9,9 @@ export default function OnboardingStepTabs() {
     : "/admin/onboarding";
   return (
     <nav className="onboarding-step-tabs" aria-label="Onboarding steps">
+      <NavLink to="/admin/onboarding/planner">
+        <CalendarDays size={18} /> Planner
+      </NavLink>
       <NavLink to={base} end>
         <FlaskConical size={18} /> Screening
       </NavLink>

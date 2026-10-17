@@ -28,6 +28,7 @@ const project = {
   id: "00000000-0000-4000-8000-000000000003",
   level_type: "Electrician",
 };
+let ctsReview = null;
 let counter = 10;
 const uuid = () =>
   `00000000-0000-4000-8000-${String(counter++).padStart(12, "0")}`;
@@ -297,14 +298,66 @@ await context.route(`https://${host}/**`, async (route) => {
   if (table === "workers")
     return fulfill(url.searchParams.has("name") ? [candidate] : []);
   if (table === "cts_jobs") return fulfill([project]);
+  if (table === "cts_job_candidates") return fulfill({ id: "candidate-project", candidate_status: "sourced" });
+  if (table === "planner_cts_reviews") {
+    if (req.method() === "POST" || req.method() === "PATCH") {
+      ctsReview = { ...ctsReview, ...body, id: "review", updated_at: new Date().toISOString() };
+    }
+    return fulfill(ctsReview);
+  }
   if (table === "client_users") return fulfill(null);
   return fulfill([]);
 });
 const page = await context.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
 await page.goto("http://127.0.0.1:5173/admin/notifications");
-await page.waitForURL("**/admin/planner");
-await page.getByRole("heading", { name: "Planner", exact: true }).waitFor();
+await page.waitForURL("**/admin/onboarding/planner");
+await page.getByRole("heading", { name: "Team planner", exact: true }).waitFor();
+assert.deepEqual(await page.getByRole("navigation", { name: "Onboarding steps" }).getByRole("link").allTextContents(), [" Planner", " Screening", " Certs"]);
+assert.equal(await page.locator(".quick-notes-launcher, .quick-notes-trigger").count(), 0);
+assert.equal(await page.locator(".quick-notes-nav-shortcut").count(), 1);
+assert.equal(await page.locator(".uts-ops-nav").getByRole("button", { name: "Planner", exact: true }).count(), 0);
+assert.equal(await page.locator(".uts-ops-top-actions").getByRole("button", { name: /^Planner/ }).count(), 0);
+await page.getByRole("region", { name: "Task calendar" }).waitFor();
+assert.equal(await page.locator(".planner-day").count(), 42);
+await page.getByLabel("Filter by status").selectOption("in_progress");
+assert.equal(await page.locator(".planner-calendar-event").count(), 1);
+await page.getByLabel("Filter by status").selectOption("");
+const nextDay = new Date(today);
+nextDay.setDate(nextDay.getDate() + 1);
+const nextKey = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, "0")}-${String(nextDay.getDate()).padStart(2, "0")}`;
+const calendarCall = page.locator(".planner-calendar-event").filter({ hasText: "Call recent registrations" });
+await calendarCall.waitFor();
+const calendarTransfer = await page.evaluateHandle(() => new DataTransfer());
+await calendarCall.dispatchEvent("dragstart", { dataTransfer: calendarTransfer });
+await Promise.all([
+  page.waitForResponse(response => response.url().includes("/planner_tasks?") && response.request().method() === "PATCH"),
+  page.locator(".planner-day").filter({ has: page.locator(`time[datetime="${nextKey}"]`) }).dispatchEvent("drop", { dataTransfer: calendarTransfer }),
+]);
+assert.equal(tasks.find(t => t.title === "Call recent registrations").due_date, nextKey);
+await page.waitForFunction(key => [...document.querySelectorAll(`time[datetime="${key}"]`)].some(el => el.parentElement.parentElement.textContent.includes("Call recent registrations")), nextKey);
+await calendarCall.dispatchEvent("dragstart", { dataTransfer: calendarTransfer });
+await Promise.all([
+  page.waitForResponse(response => response.url().includes("/planner_tasks?") && response.request().method() === "PATCH"),
+  page.locator(".planner-day").filter({ has: page.locator(`time[datetime="${dateKey}"]`) }).dispatchEvent("drop", { dataTransfer: calendarTransfer }),
+]);
+assert.equal(tasks.find(t => t.title === "Call recent registrations").due_date, dateKey);
+await page.getByLabel("Calendar range").selectOption("week");
+assert.equal(await page.locator(".planner-day").count(), 7);
+await page.getByLabel("Calendar range").selectOption("month");
+await page.getByRole("button", { name: `Add task on ${dateKey}`, exact: true }).click();
+assert.equal(await page.getByRole("dialog").getByLabel("Due date", { exact: true }).inputValue(), dateKey);
+await page.getByRole("dialog").getByRole("button", { name: "Close task" }).click();
+mkdirSync("tmp/planner-verification", { recursive: true });
+await page.screenshot({ path: "tmp/planner-verification/calendar-desktop.png", fullPage: true });
+await page.setViewportSize({ width: 390, height: 844 });
+await page.screenshot({ path: "tmp/planner-verification/calendar-mobile.png", fullPage: true });
+assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "Calendar must not overflow the mobile page");
+await page.setViewportSize({ width: 1600, height: 1050 });
+await page.getByRole("button", { name: /Notifications ·/ }).click();
+await page.getByRole("region", { name: "Planner notifications" }).waitFor();
+await page.getByRole("button", { name: /Notifications ·/ }).click();
+await page.getByRole("button", { name: "Board view", exact: true }).click();
 await page
   .getByRole("button", { name: "Call recent registrations", exact: true })
   .waitFor();
@@ -337,6 +390,15 @@ await dialog
   .click();
 await dialog.getByLabel("Project", { exact: true }).fill("Electric");
 await dialog.getByRole("button", { name: "Electrician", exact: true }).click();
+await dialog.getByRole("button", { name: "Submit for review", exact: true }).click();
+await dialog.getByRole("button", { name: "Approve", exact: true }).waitFor();
+await dialog.getByLabel("Review note").fill("Confirm project requirements");
+await dialog.getByRole("button", { name: "Request changes", exact: true }).click();
+await dialog.getByRole("button", { name: "Resubmit for review", exact: true }).click();
+await dialog.getByRole("button", { name: "Approve", exact: true }).click();
+await dialog.getByText("approved", { exact: true }).waitFor();
+assert.equal(ctsReview.status, "approved");
+await dialog.getByLabel("Repeat", { exact: true }).selectOption("weekly");
 await dialog.locator("input[type=file]").setInputFiles({
   name: "first-image.png",
   mimeType: "image/png",
@@ -493,10 +555,11 @@ await dialog.getByLabel("Task title", { exact: true }).fill("Mobile task");
 await dialog.getByRole("button", { name: "Create task", exact: true }).click();
 await page.getByRole("button", { name: "Mobile task", exact: true }).waitFor();
 await page.reload();
+await page.getByRole("button", { name: "List view", exact: true }).click();
 await page.getByRole("button", { name: "Mobile task", exact: true }).waitFor();
 // Shared quick notes: opening the panel must not mark the list as read.
 await page.setViewportSize({ width: 1600, height: 1050 });
-await page.locator(".quick-notes-trigger").click();
+await page.locator(".uts-ops-top-actions .quick-notes-nav-shortcut").click();
 const noteDialog = page.getByRole("dialog", { name: /Quick notes/ });
 await noteDialog.locator(".quick-note-card").first().waitFor();
 assert.equal(noteCount(), 2);
@@ -508,7 +571,7 @@ await noteDialog
 await noteDialog.locator(".quick-note-full").waitFor();
 await page.waitForFunction(() =>
   document
-    .querySelector(".quick-notes-trigger")
+    .querySelector(".uts-ops-top-actions .quick-notes-nav-shortcut")
     .getAttribute("aria-label")
     .includes("1 unread"),
 );
@@ -553,7 +616,7 @@ await noteDialog
   .waitFor();
 await page.waitForFunction(() =>
   document
-    .querySelector(".quick-notes-trigger")
+    .querySelector(".uts-ops-top-actions .quick-notes-nav-shortcut")
     .getAttribute("aria-label")
     .includes("1 unread"),
 );
@@ -636,7 +699,7 @@ await noteDialog
   .getByRole("button", { name: "Close quick notes", exact: true })
   .click();
 await page.reload();
-await page.locator(".quick-notes-trigger").click();
+await page.locator(".uts-ops-top-actions .quick-notes-nav-shortcut").click();
 await noteDialog.locator(".quick-note-card").first().waitFor();
 assert.equal(
   await noteDialog.locator(".quick-note-card.unread").count(),
@@ -700,6 +763,44 @@ console.log(
 console.log(
   "Quick notes UI passed: shared notes, individual read receipts, edits becoming unread, author/editor dates, creation, search, conflict drafts, archive/undo, mobile and reload.",
 );
+// Floating notes preserve drafts through real route changes and minimization.
+await page.setViewportSize({ width: 1600, height: 1050 });
+await noteDialog.getByRole("button", { name: "All notes", exact: true }).click();
+await noteDialog.getByRole("button", { name: "New note", exact: true }).click();
+await noteDialog.getByLabel("Note text", { exact: true }).fill("Draft survives Onboarding tabs");
+// Move the panel away from the page navigation and verify pointer dragging.
+const handle = noteDialog.locator(".quick-notes-drag-handle > svg");
+const beforeDrag = await noteDialog.boundingBox();
+const handleBox = await handle.boundingBox();
+await page.mouse.move(handleBox.x + 5, handleBox.y + 5);
+await page.mouse.down();
+await page.mouse.move(handleBox.x - 250, handleBox.y + 190, { steps: 8 });
+await page.mouse.up();
+const afterDrag = await noteDialog.boundingBox();
+assert.ok(afterDrag.x < beforeDrag.x - 150, "Quick notes can be dragged");
+await page.getByRole("navigation", { name: "Onboarding steps" }).getByRole("link", { name: "Certs", exact: true }).click();
+await page.waitForURL("**/admin/onboarding/certs");
+await page.getByRole("heading", { name: "Certs", exact: true }).waitFor();
+assert.equal(await noteDialog.getByLabel("Note text", { exact: true }).inputValue(), "Draft survives Onboarding tabs");
+await noteDialog.getByRole("button", { name: "Minimize quick notes" }).click();
+await noteDialog.waitFor({ state: "hidden" });
+await page.locator(".uts-ops-top-actions .quick-notes-nav-shortcut").click();
+assert.equal(await noteDialog.getByLabel("Note text", { exact: true }).inputValue(), "Draft survives Onboarding tabs");
+await page.getByRole("navigation", { name: "Onboarding steps" }).getByRole("link", { name: "Planner", exact: true }).click();
+await page.getByRole("heading", { name: "Team planner", exact: true }).waitFor();
+await page.getByRole("button", { name: "New task", exact: true }).click();
+await noteDialog.waitFor();
+const layerOrder = await page.evaluate(() => {
+  const rect = document.querySelector(".quick-notes-dialog").getBoundingClientRect();
+  return !!document.elementFromPoint(rect.x + 30, rect.y + 30)?.closest(".quick-notes-dialog");
+});
+assert.equal(layerOrder, true, "Quick notes stays above the task modal");
+assert.equal(await noteDialog.getByLabel("Note text", { exact: true }).inputValue(), "Draft survives Onboarding tabs");
+await page.screenshot({ path: "tmp/planner-verification/global-quick-notes.png", fullPage: true });
+page.once("dialog", d => d.accept());
+await noteDialog.getByRole("button", { name: "Close quick notes" }).click();
+await page.getByRole("dialog").getByRole("button", { name: "Close task" }).click();
+console.log("Global notes UI passed: tab navigation, draft preservation, drag, minimize/reopen, and top layer above task modal.");
 assert.deepEqual(errors, []);
 console.log(
   "Planner UI passed: route redirect, quick/full creation, assignment, dates, checklist, links, comments, private images, filters, completion, archive/undo, drag, conflict protection, retry, mobile and reload.",
