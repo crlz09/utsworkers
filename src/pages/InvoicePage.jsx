@@ -1,3 +1,4 @@
+import { hiringTerms, invoiceHourlyRate } from "../lib/hiringModes";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, FileText, Loader2, Plus, Printer, RefreshCw, Search, Trash2, X } from "lucide-react";
 import GoToTopButton from "../components/GoToTopButton";
@@ -1354,7 +1355,7 @@ export default function InvoicePage() {
         lastDate: entry.week_ending_date,
         serviceName: DEFAULT_PRODUCT_SERVICES[0].name,
         defaultServiceId: DEFAULT_PRODUCT_SERVICES[0].id,
-        defaultRate: 1,
+        defaultRate: hiringTerms(candidate).hourlyFee,
         ctsRegularHours: 0,
         ctsOvertimeHours: 0,
         ctsDoubleTimeHours: 0,
@@ -1416,7 +1417,7 @@ export default function InvoicePage() {
         lastDate: entry.work_date,
         serviceName: DEFAULT_PRODUCT_SERVICES[0].name,
         defaultServiceId: DEFAULT_PRODUCT_SERVICES[0].id,
-        defaultRate: isCtsClient ? 1 : (parseRate(candidate.bill_rate_snapshot || candidate.rate_snapshot) || DEFAULT_PRODUCT_SERVICES[0].rate),
+        defaultRate: isCtsClient ? hiringTerms(candidate).hourlyFee : (parseRate(candidate.bill_rate_snapshot || candidate.rate_snapshot) || DEFAULT_PRODUCT_SERVICES[0].rate),
       };
 
       existing.hours += hours;
@@ -1426,9 +1427,12 @@ export default function InvoicePage() {
       grouped.set(key, existing);
     });
 
+    const placementAlreadyBilled = new Set(candidates
+      .filter(candidate => candidate.placement_fee_paid || candidate.placement_fee_billed_at)
+      .map(candidate => candidate.worker_id).filter(Boolean));
     candidates.forEach((candidate) => {
       if (String(candidate.candidate_status || "").toLowerCase() !== "placed") return;
-      if (candidate.placement_fee_paid) return;
+      if (candidate.placement_fee_paid || candidate.placement_fee_billed_at || candidate.hiring_mode === "owned" || (candidate.worker_id && placementAlreadyBilled.has(candidate.worker_id))) return;
       const job = jobsById.get(candidate.cts_job_id);
       if (!job || !selectedProjectIdSet.has(job.id)) return;
 
@@ -1444,7 +1448,7 @@ export default function InvoicePage() {
 
       const placementClientName = (job.client_name || "CTS").trim() || "CTS";
       const placementRate = placementClientName.toLowerCase() === "cts"
-        ? 50
+        ? hiringTerms(candidate).placementFee
         : (parseRate(candidate.placement_fee_amount) || parseRate(job.placement_fee_amount) || 0);
       grouped.set(`placement-${candidate.id}|${job.id}`, {
         key: `placement-${candidate.id}|${job.id}`,
@@ -1483,7 +1487,7 @@ export default function InvoicePage() {
     () => invoiceRows.map((row) => {
       const serviceId = lineServiceIds[row.key] || row.defaultServiceId || DEFAULT_PRODUCT_SERVICES[0].id;
       const service = servicesById.get(serviceId) || servicesById.get(row.defaultServiceId) || DEFAULT_PRODUCT_SERVICES[0];
-      const rate = row.ctsSource ? 1 : Number(lineRates[row.key] ?? row.defaultRate ?? service.rate ?? 0);
+      const rate = invoiceHourlyRate({ ...row, defaultRate: row.defaultRate ?? service.rate }, lineRates);
       return {
         ...row,
         serviceId,
@@ -1501,7 +1505,7 @@ export default function InvoicePage() {
     () => [...(loadedInvoiceRows || rowsWithTotals), ...manualInvoiceRows].map((row) => {
       const serviceId = lineServiceIds[row.key] || row.serviceId || row.defaultServiceId || DEFAULT_PRODUCT_SERVICES[0].id;
       const service = servicesById.get(serviceId) || servicesById.get(row.defaultServiceId) || { id: serviceId, name: row.serviceName, rate: row.rate || 0 };
-      const rate = row.ctsSource ? 1 : Number(lineRates[row.key] ?? row.rate ?? row.defaultRate ?? service.rate ?? 0);
+      const rate = invoiceHourlyRate({ ...row, defaultRate: row.defaultRate ?? service.rate }, lineRates);
       const qty = Number(row.qty ?? row.hours ?? 0);
       return {
         ...row,

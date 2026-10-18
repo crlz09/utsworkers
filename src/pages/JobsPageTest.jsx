@@ -1,3 +1,5 @@
+import useHiringModeDialog from "../components/useHiringModeDialog";
+import { hiringTerms, placementModePayload } from "../lib/hiringModes";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
@@ -1188,7 +1190,7 @@ function SortableCandidateHeader({ column, label, sortConfig, onSort }) {
   );
 }
 
-function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChange, onCandidateSave, onCandidateDelete, onPlacementPaidToggle, savingIds = {}, deletingIds = {}, sortConfig, onSort }) {
+function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateSave, onCandidateDelete, onPlacementPaidToggle, savingIds = {}, deletingIds = {}, sortConfig, onSort }) {
   if (candidates.length === 0) {
     return <div className="empty-state">No candidates found for this view.</div>;
   }
@@ -1270,7 +1272,6 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
                       className="select"
                       value={candidate.candidate_status || "sourced"}
                       onChange={(event) => {
-                        onCandidateChange(candidate.id, "candidate_status", event.target.value);
                         onCandidateSave({ ...candidate, candidate_status: event.target.value }, "candidate_status");
                       }}
                       disabled={!!savingIds[`${candidate.id}:candidate_status`]}
@@ -1285,12 +1286,13 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateChan
                       {formatStatus(candidate.candidate_status)}
                     </span>
                   )}
+                  {candidate.hiring_mode && <div className="table-muted-xs" style={{ marginTop: 6 }}><strong>{hiringTerms(candidate).label}</strong> · ${hiringTerms(candidate).hourlyFee}/hr · Employer: {hiringTerms(candidate).employer}</div>}
                   <span className={`print-select-value status-pill ${getCandidateStatusClass(candidate.candidate_status)}`}>
                     {formatStatus(candidate.candidate_status)}
                   </span>
                 </td>
                 <td className="table-muted-xs placement-fee-cell">
-                  {canAdminEdit ? (
+                  {candidate.hiring_mode === "owned" ? <span>No placement fee</span> : canAdminEdit ? (
                     candidate.placement_fee_paid ? <span className="status-pill placed">Paid</span> : String(candidate.candidate_status || "").toLowerCase() === "placed" ? <button className="mini-action-btn warning" type="button" onClick={() => onPlacementPaidToggle?.(candidate)} disabled={!!savingIds[`${candidate.id}:placement_fee_paid`]}>{savingIds[`${candidate.id}:placement_fee_paid`] ? "Saving..." : "Mark Paid"}</button> : <><span className="status-pill other">Pending</span><div style={{ marginTop: 5 }}>Available when placed</div></>
                   ) : (
                     <span className={`status-pill ${candidate.placement_fee_paid ? "placed" : "other"}`}>{candidate.placement_fee_paid ? "Paid" : "Pending"}</span>
@@ -1821,6 +1823,7 @@ function JobDetailView({
 }
 
 export default function JobsPageTest({ mode = "admin" }) {
+  const [chooseHiringMode, hiringModeDialog] = useHiringModeDialog();
   const [jobs, setJobs] = useState([]);
   const [jobCandidates, setJobCandidates] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -2039,13 +2042,23 @@ export default function JobsPageTest({ mode = "admin" }) {
   const saveCandidateField = async (row, field) => {
     if (!row?.id) return;
     if (mode === "client" && field !== "candidate_status") return;
+    let modePayload = {};
+    if (field === "candidate_status" && row.candidate_status === "placed") {
+      if (mode === "client") {
+        if (!row.hiring_mode) { setFeedback({ error: "UTS must select a hiring mode before placement.", success: "" }); return; }
+      } else {
+        const selectedMode = await chooseHiringMode(row);
+        if (!selectedMode) { await load({ preserveFeedback: true }); return; }
+        modePayload = placementModePayload(selectedMode);
+      }
+    }
     const savingKey = `${row.id}:${field}`;
     setSavingIds((prev) => ({ ...prev, [savingKey]: true }));
     setFeedback({ error: "", success: "" });
 
     let value = row[field];
     if (typeof value === "string") value = value.trim();
-    const payload = { [field]: value === "" ? null : value };
+    const payload = { [field]: value === "" ? null : value, ...modePayload };
 
     if (field === "candidate_status") {
       payload.placed_at = value === "placed" && !row.placed_at ? new Date().toISOString() : row.placed_at || null;
@@ -2057,10 +2070,10 @@ export default function JobsPageTest({ mode = "admin" }) {
       return;
     }
 
-    const { error } = await supabase.from("cts_job_candidates").update(payload).eq("id", row.id);
+    const { data: savedCandidate, error } = await supabase.from("cts_job_candidates").update(payload).eq("id", row.id).eq("updated_at", row.updated_at).select("*").maybeSingle();
     setSavingIds((prev) => ({ ...prev, [savingKey]: false }));
-    if (error) {
-      setFeedback({ error: error.message || "Could not save candidate.", success: "" });
+    if (error || !savedCandidate) {
+      setFeedback({ error: error?.message || "This candidate was updated elsewhere. Refresh and try again.", success: "" });
       return;
     }
 
@@ -2088,7 +2101,7 @@ export default function JobsPageTest({ mode = "admin" }) {
 
   const togglePlacementFeePaid = async (candidate) => {
     if (mode !== "admin" || !candidate?.id) return;
-    if (candidate.placement_fee_paid) return;
+    if (candidate.placement_fee_paid || candidate.hiring_mode === "owned") return;
     if (String(candidate.candidate_status || "").toLowerCase() !== "placed") {
       setFeedback({ error: "The placement fee can only be marked paid while the candidate is Placed.", success: "" });
       return;
@@ -2121,15 +2134,22 @@ export default function JobsPageTest({ mode = "admin" }) {
     const worker = workers.find((item) => item.id === workerId);
     if (!worker) return false;
 
+    let placement = {};
+    if (candidateStatus === "placed") {
+      const selectedMode = await chooseHiringMode(worker);
+      if (!selectedMode) return false;
+      placement = placementModePayload(selectedMode);
+    }
     setAddingCandidate(true);
     setFeedback({ error: "", success: "" });
-    const paidAssignment = jobCandidates.find((candidate) => candidate.worker_id === worker.id && candidate.placement_fee_paid);
+    const paidAssignment = placement.hiring_mode === "owned" ? null : jobCandidates.find((candidate) => candidate.worker_id === worker.id && candidate.placement_fee_paid);
     const payload = {
       cts_job_id: activeView.jobId,
       worker_id: worker.id,
       name_snapshot: worker.name || worker.email || worker.phone || "Unnamed worker",
       phone_snapshot: worker.phone || null,
       candidate_status: candidateStatus || "sourced",
+      ...placement,
       sort_order: jobCandidates.filter((candidate) => candidate.cts_job_id === activeView.jobId).length + 1,
       submitted_at: null,
       placed_at: candidateStatus === "placed" ? new Date().toISOString() : null,
@@ -2227,11 +2247,12 @@ export default function JobsPageTest({ mode = "admin" }) {
       const worker = candidate.worker || {};
       const projectLabel = [job.level_type, job.city, job.state].filter(Boolean).join(" ");
       const modifiedDateValues = getSearchableDateValues(candidate.updated_at || candidate.created_at);
-      const feeLabel = candidate.placement_fee_paid ? "paid placement fee paid fee paid" : "pending placement fee pending fee unpaid";
+      const feeLabel = candidate.hiring_mode === "owned" ? "owned no placement fee" : candidate.placement_fee_paid ? "paid placement fee paid fee paid" : "pending placement fee pending fee unpaid";
       const searchableValues = [
         candidate.name_snapshot,
         candidate.phone_snapshot,
         candidate.candidate_status,
+        candidate.hiring_mode,
         formatStatus(candidate.candidate_status),
         feeLabel,
         worker.name,
@@ -2266,8 +2287,8 @@ export default function JobsPageTest({ mode = "admin" }) {
       if (status === "placed") metrics.placed += 1;
       if (status === "rejected") metrics.rejected += 1;
       if (status === "on_hold") metrics.onHold += 1;
-      if (candidate.placement_fee_paid) metrics.paid += 1;
-      else if (status === "placed") metrics.pending += 1;
+      if (candidate.hiring_mode !== "owned" && candidate.placement_fee_paid) metrics.paid += 1;
+      else if (status === "placed" && candidate.hiring_mode !== "owned") metrics.pending += 1;
     });
     return metrics;
   }, [searchableCandidates]);
@@ -2280,7 +2301,7 @@ export default function JobsPageTest({ mode = "admin" }) {
     if (activeView.type === "candidate" && activeView.status === "all" && placementFeeFilter === "paid" && !candidate.placement_fee_paid) return false;
     if (activeView.type === "candidate" && activeView.status === "all" && placementFeeFilter === "pending") {
       const status = String(candidate.candidate_status || "sourced").toLowerCase();
-      if (candidate.placement_fee_paid || status !== "placed") return false;
+      if (candidate.hiring_mode === "owned" || candidate.placement_fee_paid || status !== "placed") return false;
     }
     return true;
   }), [activeView, candidateStatusFilter, placementFeeFilter, searchableCandidates]);
@@ -2365,7 +2386,7 @@ export default function JobsPageTest({ mode = "admin" }) {
     const slug = activeTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "candidates";
     downloadCsv(
       `cts-jobs-${slug}.csv`,
-      ["Name", "Phone", "Email", "Profile", "Project", "Location", "Status", "Placement Fee", "Placement Fee Invoice", "Last Modified"],
+      ["Name", "Phone", "Email", "Profile", "Project", "Location", "Status", "Hiring mode", "Placement Fee", "Placement Fee Invoice", "Last Modified"],
       viewCandidates.map((candidate) => [
         getCandidateName(candidate),
         getCandidatePhone(candidate),
@@ -2374,7 +2395,8 @@ export default function JobsPageTest({ mode = "admin" }) {
         getCandidateProjectName(candidate),
         getCandidateProjectLocation(candidate),
         formatStatus(candidate.candidate_status),
-        candidate.placement_fee_paid ? "Paid" : "Pending",
+        candidate.hiring_mode ? hiringTerms(candidate).label : "",
+        candidate.hiring_mode === "owned" ? "Not applicable" : candidate.placement_fee_paid ? "Paid" : "Pending",
         candidate.placement_fee_invoice_number || "",
         formatDateTime(candidate.updated_at || candidate.created_at),
       ])
@@ -2386,6 +2408,7 @@ export default function JobsPageTest({ mode = "admin" }) {
   return (
     <>
       <PageStyles />
+      {hiringModeDialog}
       {isClientMode ? <UtsClientTopBar /> : null}
       <main className="jobs-test-shell">
         <section className="glass-card hero-card">

@@ -1,0 +1,13 @@
+.hiring-mode-dialog { width: min(720px, calc(100vw - 32px)); max-height: 90dvh; overflow: auto; border: 1px solid #dce4ef; border-radius: 16px; padding: 24px; color: #24344d; font-family: Inter, ui-sans-serif, system-ui, sans-serif; box-shadow: 0 20px 90px #0f172a40; }
+.hiring-mode-dialog::backdrop { background: #0f172a88; }
+.hiring-mode-dialog h2 { margin: 0 0 10px; font-size: 22px; }
+.hiring-mode-dialog p { color: #64748b; line-height: 1.6; }
+.hiring-mode-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+.hiring-mode-options button { display: flex; flex-direction: column; gap: 12px; padding: 20px; text-align: left; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; color: inherit; cursor: pointer; font: inherit; }
+.hiring-mode-options button:hover { border-color: #2563eb; background: #eff6ff; }
+.hiring-mode-options strong { font-size: 22px; }
+.hiring-mode-options span { font-size: 13px; line-height: 1.6; }
+.hiring-mode-options b { font-size: 14px; }
+.hiring-mode-options button:focus-visible, .hiring-mode-cancel:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.hiring-mode-cancel { padding: 10px 16px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #475569; cursor: pointer; }
+@media (max-width: 600px) { .hiring-mode-options { grid-template-columns: 1fr; } }

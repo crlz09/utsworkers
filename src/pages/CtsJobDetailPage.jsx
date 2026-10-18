@@ -1,3 +1,5 @@
+import useHiringModeDialog from "../components/useHiringModeDialog";
+import { hiringTerms, placementModePayload } from "../lib/hiringModes";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate, useParams } from "react-router-dom";
@@ -325,7 +327,7 @@ function AddCandidateModal({ open, onClose, workers, loadingWorkers, onAddCandid
                     <div className="snapshot-box"><div className="field-label">On System (CTS)</div><select className="mini-select" value={draft.on_system_cts ? "yes" : "no"} onChange={(e) => updateDraft(worker.id, "on_system_cts", e.target.value === "yes")}><option value="no">No</option><option value="yes">Yes</option></select></div>
                     <div className="snapshot-box"><div className="field-label">Rate</div><input className="mini-input" value={draft.rate_snapshot} onChange={(e) => updateDraft(worker.id, "rate_snapshot", e.target.value)} placeholder="35.00" /></div>
                     <div className="snapshot-box"><div className="field-label">Per Diem</div><input className="mini-input" value={draft.per_diem_snapshot} onChange={(e) => updateDraft(worker.id, "per_diem_snapshot", e.target.value)} placeholder="$10/HR or $125/day" /></div>
-                    <div className="snapshot-box"><div className="field-label">Stage</div><select className="mini-select" value={draft.candidate_status} onChange={(e) => updateDraft(worker.id, "candidate_status", e.target.value)}><option value="sourced">Sourced</option><option value="contacted">Contacted</option><option value="interested">Interested</option><option value="interviewed">Interviewed</option><option value="submitted">Submitted</option><option value="placed">Placed</option><option value="rejected">Rejected</option><option value="on_hold">On Hold</option></select></div>
+                    <div className="snapshot-box"><div className="field-label">Stage</div><select className="mini-select" value={draft.candidate_status} onChange={(e) => updateDraft(worker.id, "candidate_status", e.target.value)}><option value="sourced">Sourced</option><option value="placed">Placed</option><option value="rejected">Rejected</option><option value="on_hold">On Hold</option></select></div>
                     <div className="snapshot-box"><div className="field-label">Location Snapshot</div><input className="mini-input" value={deriveLocationLabel(worker)} readOnly /></div>
                   </div>
 
@@ -344,6 +346,7 @@ function AddCandidateModal({ open, onClose, workers, loadingWorkers, onAddCandid
 }
 
 export default function CtsJobDetailPage() {
+  const [chooseHiringMode, hiringModeDialog] = useHiringModeDialog();
   const { jobId } = useParams();
   const navigate = useNavigate();
   const [job, setJob] = useState(null);
@@ -517,6 +520,12 @@ export default function CtsJobDetailPage() {
 
   const addCandidateToJob = async (worker, draft, currentJobState) => {
     if (!currentJobState) return;
+    let placement = {};
+    if (draft.candidate_status === "placed") {
+      const selectedMode = await chooseHiringMode(worker);
+      if (!selectedMode) return;
+      placement = placementModePayload(selectedMode);
+    }
     const payload = {
       cts_job_id: currentJobState.id,
       worker_id: worker.id,
@@ -530,6 +539,7 @@ export default function CtsJobDetailPage() {
       rate_snapshot: draft.rate_snapshot === "" || draft.rate_snapshot === null ? null : Number(draft.rate_snapshot),
       per_diem_snapshot: draft.per_diem_snapshot?.trim() || null,
       candidate_status: draft.candidate_status || "sourced",
+      ...placement,
       notes: draft.notes?.trim() || null,
       sort_order: jobCandidates.length + 1,
       submitted_at: draft.candidate_status === "submitted" ? new Date().toISOString() : null,
@@ -556,6 +566,12 @@ export default function CtsJobDetailPage() {
   };
 
   const saveCandidateField = async (row, field) => {
+    let modePayload = {};
+    if (field === "candidate_status" && row.candidate_status === "placed") {
+      const selectedMode = await chooseHiringMode(row);
+      if (!selectedMode) { await load({ preserveFeedback: true }); return; }
+      modePayload = placementModePayload(selectedMode);
+    }
     const savingKey = `${row.id}:${field}`;
     setSavingIds((prev) => ({ ...prev, [savingKey]: true }));
     setFeedback({ error: "", success: "" });
@@ -563,7 +579,7 @@ export default function CtsJobDetailPage() {
     let value = row[field];
     if (typeof value === "string") value = value.trim();
 
-    const payload = { [field]: value === "" ? null : value };
+    const payload = { [field]: value === "" ? null : value, ...modePayload };
 
     if (field === "rate_snapshot") {
       payload[field] = value === "" || value === null || value === undefined ? null : Number(value);
@@ -584,11 +600,11 @@ export default function CtsJobDetailPage() {
       return;
     }
 
-    const { error } = await supabase.from("cts_job_candidates").update(payload).eq("id", row.id);
+    const { data: savedCandidate, error } = await supabase.from("cts_job_candidates").update(payload).eq("id", row.id).eq("updated_at", row.updated_at).select("*").maybeSingle();
     setSavingIds((prev) => ({ ...prev, [savingKey]: false }));
 
-    if (error) {
-      setFeedback({ error: error.message || "Could not save field.", success: "" });
+    if (error || !savedCandidate) {
+      setFeedback({ error: error?.message || "This candidate was updated elsewhere. Refresh and try again.", success: "" });
       return;
     }
 
@@ -652,6 +668,7 @@ export default function CtsJobDetailPage() {
   return (
     <>
       <PageStyles />
+      {hiringModeDialog}
 
       <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%)" }}>
         <div className="page-shell">
@@ -721,7 +738,7 @@ export default function CtsJobDetailPage() {
 
             <div className="toolbar-grid">
               <div className="field"><label className="field-label">Search</label><input className="input" value={candidateSearch} onChange={(e) => setCandidateSearch(e.target.value)} placeholder="Name, class, phone, location..." /></div>
-              <div className="field"><label className="field-label">Candidate Status</label><select className="select" value={candidateStatusFilter} onChange={(e) => setCandidateStatusFilter(e.target.value)}><option value="">All</option><option value="sourced">Sourced</option><option value="contacted">Contacted</option><option value="interested">Interested</option><option value="interviewed">Interviewed</option><option value="submitted">Submitted</option><option value="placed">Placed</option><option value="rejected">Rejected</option><option value="on_hold">On Hold</option></select></div>
+              <div className="field"><label className="field-label">Candidate Status</label><select className="select" value={candidateStatusFilter} onChange={(e) => setCandidateStatusFilter(e.target.value)}><option value="">All</option><option value="sourced">Sourced</option><option value="placed">Placed</option><option value="rejected">Rejected</option><option value="on_hold">On Hold</option></select></div>
               <div className="field"><label className="field-label">Quick Summary</label><div className="input" style={{ display: "flex", alignItems: "center" }}>{placedCount} placed / {job.qty ?? 0} requested</div></div>
               <div className="field"><label className="field-label">Action</label><button className="btn dark" type="button" onClick={openPicker}><Plus size={16} />Add More Candidates</button></div>
             </div>
@@ -766,7 +783,8 @@ export default function CtsJobDetailPage() {
                         <td>
                           <div style={{ display: "grid", gap: 8 }}>
                             <span className="status-pill" style={getCandidateStatusStyle(row.candidate_status)}>{row.candidate_status}</span>
-                            <InlineEditableField row={row} field="candidate_status" value={row.candidate_status} type="select" options={[{ value: "sourced", label: "Sourced" }, { value: "contacted", label: "Contacted" }, { value: "interested", label: "Interested" }, { value: "interviewed", label: "Interviewed" }, { value: "submitted", label: "Submitted" }, { value: "placed", label: "Placed" }, { value: "rejected", label: "Rejected" }, { value: "on_hold", label: "On Hold" }]} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:candidate_status`]} />
+                            {row.hiring_mode && <div>{hiringTerms(row).label} · ${hiringTerms(row).hourlyFee}/hr · Employer: {hiringTerms(row).employer}</div>}
+                            <InlineEditableField row={row} field="candidate_status" value={row.candidate_status} type="select" options={[{ value: "sourced", label: "Sourced" }, { value: "placed", label: "Placed" }, { value: "rejected", label: "Rejected" }, { value: "on_hold", label: "On Hold" }]} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:candidate_status`]} />
                           </div>
                         </td>
                         <td className="notes-cell"><InlineEditableField row={row} field="notes" value={row.notes} type="textarea" placeholder="CTS submission notes..." editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:notes`]} /></td>
