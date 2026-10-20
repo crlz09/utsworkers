@@ -1,3 +1,4 @@
+import WorkerDocumentPreview from "../components/WorkerDocumentPreview";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Download,
@@ -562,6 +563,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
                       </div>
                     </div>
                     <div className="worker-doc-row-actions" style={{ display: "flex", gap: 7, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                      {adminMode ? <WorkerDocumentPreview document={document} disabled={busyDocumentId === document.id} /> : null}
                       <button className="worker-doc-button" type="button" disabled={busyDocumentId === document.id} onClick={() => handleDownload(document)} aria-label={`Download ${document.file_name}`}>
                         <Download size={15} /> Download
                       </button>

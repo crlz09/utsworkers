@@ -1,3 +1,4 @@
+import WorkerDocumentPreview from "../components/WorkerDocumentPreview";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAccess } from "../lib/accessContext";
@@ -1708,6 +1709,7 @@ function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openRemin
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <WorkerDocumentPreview document={doc} disabled={downloadingId === doc.id} />
                 <button
                   type="button"
                   onClick={() => handleDownload(doc)}
