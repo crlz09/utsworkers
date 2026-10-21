@@ -4,6 +4,8 @@ export const WORKER_DOCUMENT_TYPES = [
   { value: "employment_authorization_card", label: "Employment Authorization Card" },
   { value: "social_security_card", label: "Social Security Card" },
   { value: "osha_card", label: "OSHA Card" },
+  { value: "aerial_lift_training", label: "Aerial Lift Training" },
+  { value: "fall_protection", label: "Fall Protection" },
   { value: "other", label: "Other" },
 ];
 

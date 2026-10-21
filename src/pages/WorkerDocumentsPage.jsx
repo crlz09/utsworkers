@@ -483,7 +483,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
                     className="worker-doc-input"
                     value={otherDescription}
                     maxLength={120}
-                    placeholder="Example: Fall Protection"
+                    placeholder="Example: LOTO Training"
                     onChange={(event) => setOtherDescription(event.target.value)}
                   />
                 </label>
