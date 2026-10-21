@@ -72,6 +72,8 @@ function PageStyles() {
       .worker-doc-field { display: grid; gap: 7px; }
       .worker-doc-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .worker-doc-side { display: grid; gap: 8px; padding: 14px; border: 1px solid #dbeafe; border-radius: 15px; background: #f8fbff; }
+      .worker-doc-side.drop-active { border: 2px dashed #2563eb; padding: 13px; background: #dbeafe; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
+      .worker-doc-side small { overflow-wrap: anywhere; }
       .worker-doc-label { color: #475569; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
       .worker-doc-input { width: 100%; min-height: 48px; border: 1px solid #cbd5e1; border-radius: 13px; padding: 11px 13px; background: white; color: #0f172a; outline: none; }
       .worker-doc-input:focus { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
@@ -122,6 +124,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
   const [worker, setWorker] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [documentFiles, setDocumentFiles] = useState({ front: null, back: null });
+  const [dragSide, setDragSide] = useState("");
   const [documentType, setDocumentType] = useState("state_id_or_driver_license");
   const [otherDescription, setOtherDescription] = useState("");
   const [loading, setLoading] = useState(true);
@@ -173,6 +176,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
   };
 
   const changeDocumentType = (nextType) => {
+    setDragSide("");
     setDocumentType(nextType);
     setDocumentFiles({ front: null, back: null });
     setError("");
@@ -225,20 +229,46 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
     return () => { active = false; };
   }, [adminMode, adminWorkerId, loadDocuments]);
 
-  const chooseFile = (side, event) => {
-    const file = event.target.files?.[0] || null;
-
+  const selectFile = (side, file) => {
+    if (uploading) return;
     setSuccess("");
     if (file && (!ACCEPTED_TYPES.includes(file.type) || file.size > MAX_FILE_SIZE)) {
       setDocumentFiles((previous) => ({ ...previous, [side]: null }));
       setError(`${file.name} is not an accepted PDF, image, or Word file under 10 MB.`);
-      event.target.value = "";
+      const input = side === "front" ? frontFileInputRef.current : backFileInputRef.current;
+      if (input) input.value = "";
       return;
     }
 
     setError("");
     setDocumentFiles((previous) => ({ ...previous, [side]: file }));
   };
+
+  const dropZoneProps = (side) => ({
+    onDragOver: (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = uploading ? "none" : "copy";
+      if (!uploading && Array.from(event.dataTransfer.types).includes("Files")) setDragSide(side);
+    },
+    onDragLeave: (event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setDragSide("");
+    },
+    onDrop: (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setDragSide("");
+      if (uploading) return;
+      const files = Array.from(event.dataTransfer.files);
+      if (files.length !== 1) {
+        setSuccess("");
+        setError("Drop one file at a time in each upload box.");
+        return;
+      }
+      const input = side === "front" ? frontFileInputRef.current : backFileInputRef.current;
+      if (input) input.value = "";
+      selectFile(side, files[0]);
+    },
+  });
 
   const handleUpload = async () => {
     if (!worker?.id || !hasRequiredFiles) return;
@@ -472,7 +502,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
               </div>
               <label className="worker-doc-field">
                 <span className="worker-doc-label">Document type</span>
-                <select className="worker-doc-input" value={documentType} onChange={(event) => changeDocumentType(event.target.value)}>
+                <select className="worker-doc-input" value={documentType} disabled={uploading} onChange={(event) => changeDocumentType(event.target.value)}>
                   {WORKER_DOCUMENT_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
@@ -489,15 +519,17 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
                 </label>
               ) : null}
               <div className={supportsBothSides ? "worker-doc-sides" : "worker-doc-field"}>
-                <label className="worker-doc-side">
+                <label className={`worker-doc-side${dragSide === "front" ? " drop-active" : ""}`} {...dropZoneProps("front")}>
                   <span className="worker-doc-label">{supportsBothSides ? "Front (required)" : "Document (required)"}</span>
-                  <input ref={frontFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("front", event)} />
+                  <span style={{ color: "#64748b", fontSize: 13 }}>Drag and drop a file here, or choose a file below.</span>
+                  <input ref={frontFileInputRef} disabled={uploading} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => selectFile("front", event.target.files?.[0] || null)} />
                   {documentFiles.front ? <small style={{ color: "#475569" }}>{documentFiles.front.name} · {formatFileSize(documentFiles.front.size)}</small> : null}
                 </label>
                 {supportsBothSides ? (
-                  <label className="worker-doc-side">
+                  <label className={`worker-doc-side${dragSide === "back" ? " drop-active" : ""}`} {...dropZoneProps("back")}>
                     <span className="worker-doc-label">{requiresBothSides ? "Back (required)" : "Back (optional)"}</span>
-                    <input ref={backFileInputRef} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => chooseFile("back", event)} />
+                    <span style={{ color: "#64748b", fontSize: 13 }}>Drag and drop a file here, or choose a file below.</span>
+                    <input ref={backFileInputRef} disabled={uploading} className="worker-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => selectFile("back", event.target.files?.[0] || null)} />
                     {documentFiles.back ? <small style={{ color: "#475569" }}>{documentFiles.back.name} · {formatFileSize(documentFiles.back.size)}</small> : null}
                   </label>
                 ) : null}
