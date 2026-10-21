@@ -26,7 +26,7 @@ import {
   TWO_SIDED_WORKER_DOCUMENT_TYPES,
   WORKER_DOCUMENT_TYPES,
 } from "../lib/workerDocuments";
-import { getMissingCandidatePdfDocuments, sanitizeDownloadName } from "../lib/candidateDocumentBundle";
+import { sanitizeDownloadName } from "../lib/candidateDocumentBundle";
 
 const BUCKET_NAME = "worker-documents";
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -91,6 +91,9 @@ function PageStyles() {
       .worker-doc-reminder-option { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #dbe4f0; border-radius: 12px; background: white; cursor: pointer; }
       .worker-doc-reminder-option input { width: 17px; height: 17px; }
       .worker-doc-reminder-meta { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .worker-doc-pdf-dialog { width: min(600px, calc(100% - 32px)); max-height: 85dvh; padding: 24px; border: 1px solid #cbd5e1; border-radius: 22px; background: white; color: #0f172a; font: inherit; }
+      .worker-doc-pdf-dialog::backdrop { background: rgba(15,23,42,.55); }
+      .worker-doc-pdf-list { display: grid; gap: 8px; max-height: 45dvh; overflow-y: auto; margin: 16px 0; }
       @media (max-width: 760px) {
         .worker-doc-header-inner, .worker-doc-shell { width: min(100% - 24px, 1080px); }
         .worker-doc-brand img { height: 44px; }
@@ -125,6 +128,9 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
   const [uploading, setUploading] = useState(false);
   const [busyDocumentId, setBusyDocumentId] = useState("");
   const [bundleBusy, setBundleBusy] = useState("");
+  const pdfDialogRef = useRef(null);
+  const [selectedPdfIds, setSelectedPdfIds] = useState([]);
+  const selectedPdfDocuments = documents.filter((document) => selectedPdfIds.includes(document.id));
   const [reminderOpen, setReminderOpen] = useState(false);
   const [reminderTypes, setReminderTypes] = useState([]);
   const [sendingReminder, setSendingReminder] = useState(false);
@@ -350,8 +356,8 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
     }
   };
 
-  const downloadAvailableDocuments = async () => {
-    const results = await Promise.all(documents.map(async (document) => {
+  const downloadAvailableDocuments = async (includedDocuments = documents) => {
+    const results = await Promise.all(includedDocuments.map(async (document) => {
       const { data, error: downloadError } = await supabase.storage.from(BUCKET_NAME).download(document.file_path);
       if (downloadError) throw new Error(`${document.file_name}: ${downloadError.message}`);
       return { document, blob: data };
@@ -376,21 +382,24 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
     }
   };
 
-  const handleGeneratePdf = async () => {
+  const openPdfSelection = () => {
     if (!documents.length || bundleBusy) return;
-    const missingDocuments = getMissingCandidatePdfDocuments(documents);
-    if (missingDocuments.length) {
-      setSuccess("");
-      setError(`No se puede crear el archivo. Falta ${missingDocuments.join(", ")} por cargar.`);
-      return;
-    }
+    setSelectedPdfIds(documents.filter((document) => !/^bios?$/i.test(getWorkerDocumentLabel(document.document_type).trim())).map((document) => document.id));
+    setError("");
+    setSuccess("");
+    pdfDialogRef.current.showModal();
+  };
+
+  const handleGeneratePdf = async () => {
+    if (!selectedPdfDocuments.length || bundleBusy) return;
     setBundleBusy("pdf");
     setError("");
     setSuccess("");
     try {
-      const sources = await downloadAvailableDocuments();
+      const sources = await downloadAvailableDocuments(selectedPdfDocuments);
       const { createCandidateDocumentsPdf } = await import("../lib/candidateDocumentPdf");
       await createCandidateDocumentsPdf(worker?.name, sources);
+      pdfDialogRef.current.close();
       setSuccess(`${sanitizeDownloadName(worker?.name, "candidate")}_documents.pdf generated successfully.`);
     } catch (pdfError) {
       setError(pdfError.message || "Could not generate the PDF.");
@@ -515,7 +524,7 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
                   <button className="worker-doc-button" type="button" disabled={!documents.length || Boolean(bundleBusy)} onClick={handleDownloadAll}>
                     {bundleBusy === "zip" ? <Loader2 size={15} className="spin" /> : <FileArchive size={15} />} Download All
                   </button>
-                  <button className="worker-doc-button primary" type="button" disabled={!documents.length || Boolean(bundleBusy)} onClick={handleGeneratePdf}>
+                  <button className="worker-doc-button primary" type="button" disabled={!documents.length || Boolean(bundleBusy)} onClick={openPdfSelection}>
                     {bundleBusy === "pdf" ? <Loader2 size={15} className="spin" /> : <Files size={15} />} Generate PDF
                   </button>
                 </div> : <Paperclip size={22} color="#64748b" />}
@@ -577,6 +586,26 @@ export default function WorkerDocumentsPage({ adminMode = false }) {
             </section>
           </div>
         )}
+        {adminMode && <dialog ref={pdfDialogRef} className="worker-doc-pdf-dialog" aria-labelledby="pdf-selection-title" aria-describedby="pdf-selection-description" onCancel={(event) => { if (bundleBusy) event.preventDefault(); }}>
+          <h2 id="pdf-selection-title" style={{ margin: 0 }}>Choose documents for PDF</h2>
+          <p id="pdf-selection-description" style={{ color: "#64748b" }}>Select at least one document. No specific document or front/back pair is required. BIO is unchecked by default.</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" className="worker-doc-button" disabled={Boolean(bundleBusy)} onClick={() => setSelectedPdfIds(documents.map((document) => document.id))}>Select all</button>
+            <button type="button" className="worker-doc-button" disabled={Boolean(bundleBusy)} onClick={() => setSelectedPdfIds([])}>Clear selection</button>
+          </div>
+          <div className="worker-doc-pdf-list">
+            {documents.map((document) => <label key={document.id} className="worker-doc-reminder-option">
+              <input type="checkbox" disabled={Boolean(bundleBusy)} checked={selectedPdfIds.includes(document.id)} onChange={(event) => setSelectedPdfIds((previous) => event.target.checked ? [...previous, document.id] : previous.filter((id) => id !== document.id))} />
+              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}><strong>{document.document_name || document.file_name}</strong><span style={{ display: "block", color: "#64748b", fontSize: 13 }}>{getWorkerDocumentLabel(document.document_type)}{document.document_name ? ` · ${document.file_name}` : ""}</span></span>
+            </label>)}
+          </div>
+          <p aria-live="polite">{selectedPdfDocuments.length} selected{!selectedPdfDocuments.length ? " — select at least one document to continue." : ""}</p>
+          {error && <p role="alert" className="worker-doc-feedback error">{error}</p>}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button type="button" className="worker-doc-button" disabled={Boolean(bundleBusy)} onClick={() => pdfDialogRef.current.close()}>Cancel</button>
+            <button type="button" className="worker-doc-button primary" disabled={!selectedPdfDocuments.length || Boolean(bundleBusy)} onClick={handleGeneratePdf}>{bundleBusy === "pdf" ? <><Loader2 size={15} className="spin" /> Generating...</> : "Generate PDF"}</button>
+          </div>
+        </dialog>}
       </main>
     </div>
   );

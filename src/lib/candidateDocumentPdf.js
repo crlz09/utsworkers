@@ -49,7 +49,18 @@ const drawSource = async (targetPdf, page, source, box, font) => {
   let embedded;
   let embeddedType = "";
   if (type.includes("pdf")) {
-    const sourcePdf = await PDFDocument.load(bytes);
+    let sourcePdf;
+    try {
+      // An empty user password decrypts PDFs protected only by owner permissions.
+      // ignoreEncryption alone would leave encrypted page streams unreadable.
+      sourcePdf = await PDFDocument.load(bytes, { password: "" });
+    } catch (error) {
+      const name = source.document.file_name || "PDF document";
+      const detail = /password/i.test(error.message || "")
+        ? "This PDF requires a password. Upload a copy without password protection and try again."
+        : "This PDF could not be read. Upload a valid PDF and try again.";
+      throw new Error(`Could not include "${name}". ${detail}`, { cause: error });
+    }
     const sourcePage = sourcePdf.getPages()[0];
     if (sourcePage) {
       embedded = await targetPdf.embedPage(sourcePage);
@@ -103,6 +114,7 @@ export const createCandidateDocumentsZip = async (workerName, sources) => {
 };
 
 export const buildCandidateDocumentsPdf = async (workerName, sources) => {
+  if (!sources.length) throw new Error("Select at least one document to generate a PDF.");
   const sourceById = new Map(sources.map((source) => [source.document.id, source]));
   const sections = buildCandidatePdfSections(sources.map((source) => source.document));
   const pdf = await PDFDocument.create();

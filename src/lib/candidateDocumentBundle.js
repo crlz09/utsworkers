@@ -33,35 +33,20 @@ const getPair = (grouped, category) => {
   };
 };
 
-export const getMissingCandidatePdfDocuments = (documents) => {
-  const grouped = groupByCategory(documents);
-  const requirements = [
-    { label: "State ID or Driver License", pair: getPair(grouped, CATEGORY.id) },
-    { label: "Social Security Card", pair: getPair(grouped, CATEGORY.socialSecurity) },
-  ];
-
-  return requirements.flatMap(({ label, pair }) => {
-    const missingSides = [!pair.front ? "front" : "", !pair.back ? "back" : ""].filter(Boolean);
-    return missingSides.length ? [`${label} (${missingSides.join(" and ")})`] : [];
-  });
-};
-
 export const buildCandidatePdfSections = (documents) => {
   const grouped = groupByCategory(documents);
   const id = getPair(grouped, CATEGORY.id);
   const authorization = getPair(grouped, CATEGORY.authorization);
   const socialSecurity = getPair(grouped, CATEGORY.socialSecurity);
   const consumed = new Set([
-    ...(grouped.get(CATEGORY.id) || []),
-    ...(grouped.get(CATEGORY.authorization) || []),
-    ...(grouped.get(CATEGORY.socialSecurity) || []),
-  ].map((document) => document.id));
+    id.front, id.back, authorization.front, authorization.back, socialSecurity.front, socialSecurity.back,
+  ].filter(Boolean).map((document) => document.id));
 
   const sections = [
     { title: "State ID or Driver License", documents: [id.front, id.back].filter(Boolean), paired: true },
   ];
-  if (authorization.front && authorization.back) {
-    sections.push({ title: "Work Authorization Card", documents: [authorization.front, authorization.back], paired: true });
+  if (authorization.front || authorization.back) {
+    sections.push({ title: "Work Authorization Card", documents: [authorization.front, authorization.back].filter(Boolean), paired: true });
   }
   sections.push({ title: "Social Security Card", documents: [socialSecurity.front, socialSecurity.back].filter(Boolean), paired: true });
 
@@ -81,7 +66,7 @@ export const buildCandidatePdfSections = (documents) => {
     documents: [document],
     paired: false,
   }));
-  return sections;
+  return sections.filter((section) => section.documents.length);
 };
 
 export const sanitizeDownloadName = (value, fallback = "document") => {
