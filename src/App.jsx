@@ -53,6 +53,11 @@ function PlannerRedirect() {
   return <Navigate to={`/admin/onboarding/planner${location.search}`} replace />;
 }
 
+function CandidatesRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/admin/candidate${location.search}${location.hash}`} replace />;
+}
+
 export default function App() {
   return (
     <AccessProvider>
@@ -60,8 +65,10 @@ export default function App() {
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route element={<AdminRoute><OperationsLayout /></AdminRoute>}>
-            <Route path="/admin" element={<AdminPage />} />
-            <Route path="/admin/candidates" element={<CandidatesHomePage />} />
+            <Route path="/admin" element={<CandidatesRedirect />} />
+            <Route path="/admin/overview" element={<AdminPage />} />
+            <Route path="/admin/candidate" element={<CandidatesHomePage />} />
+            <Route path="/admin/candidates" element={<CandidatesRedirect />} />
             <Route path="/admin/docs" element={<AdminDocsPage />} />
             <Route path="/admin/onboarding/planner" element={<PlannerPage />} />
             <Route path="/admin/onboarding" element={<ScreeningOnboardingPage />} />
@@ -81,7 +88,7 @@ export default function App() {
             <Route path="/invoice" element={<InvoicePage />} />
             <Route path="/breakdown" element={<BreakdownPage />} />
           </Route>
-          <Route path="/admin/legacy" element={<Navigate to="/admin" replace />} />
+          <Route path="/admin/legacy" element={<Navigate to="/admin/candidate" replace />} />
           <Route path="/worker/profile" element={<WorkerRoute><CandidateProfilePage /></WorkerRoute>} />
           <Route path="/worker/documents" element={<WorkerRoute><WorkerDocumentsPage /></WorkerRoute>} />
           <Route path="/worker/hours" element={<WorkerRoute><Navigate to="/worker/profile" replace /></WorkerRoute>} />
@@ -93,7 +100,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/interviews/*" element={<Navigate to="/admin" replace />} />
+          <Route path="/interviews/*" element={<Navigate to="/admin/candidate" replace />} />
           <Route path="/cts-jobs-test" element={<Navigate to="/cts-jobs" replace />} />
           <Route path="/admin/planner" element={<PlannerRedirect />} />
           <Route path="/admin/notifications" element={<Navigate to="/admin/onboarding/planner" replace />} />

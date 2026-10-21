@@ -8,9 +8,9 @@ function AccessGate({ children, role }) {
   if (!access?.user) return <Navigate to="/login" replace />;
   if (role === "admin" && !access.isAdmin)
     return <Navigate to={access.isClient ? "/client/cts-jobs" : "/login"} replace />;
-  if (role === "client" && !access.isClient) return <Navigate to="/admin" replace />;
+  if (role === "client" && !access.isClient) return <Navigate to="/admin/candidate" replace />;
   if (role === "worker") {
-    if (access.isAdmin) return <Navigate to="/admin" replace />;
+    if (access.isAdmin) return <Navigate to="/admin/candidate" replace />;
     if (access.isClient) return <Navigate to="/client/cts-jobs" replace />;
     if (!access.isWorker) return <Navigate to="/login" replace />;
   }

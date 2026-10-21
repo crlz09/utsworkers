@@ -69,7 +69,7 @@ export default function CandidateWorkspaceTabs() {
           <div className="candidate-workspace-title">
             <div className="candidate-workspace-identity">
               <div className="candidate-workspace-heading">
-                <Link className="candidate-workspace-home" to="/admin/candidates" aria-label="Back to Candidates home" title="Back to Candidates home"><Home size={19} aria-hidden="true" /></Link>
+                <Link className="candidate-workspace-home" to="/admin/candidate" aria-label="Back to Candidates home" title="Back to Candidates home"><Home size={19} aria-hidden="true" /></Link>
               <div className="candidate-workspace-name">
                 <strong>{candidate?.name || "Candidate workspace"}</strong>
                 <span>Candidate record</span>

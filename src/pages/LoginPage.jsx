@@ -25,7 +25,7 @@ export default function LoginPage() {
       const access = await refresh();
       if (!access) throw new Error("Could not verify access. Please try again.");
       const nextPath = access.isAdmin
-        ? "/admin"
+        ? "/admin/candidate"
         : access.isClient
           ? "/client/cts-jobs"
           : access.isWorker

@@ -63,7 +63,7 @@ export default function CandidateTopBar({ workerName = "Candidate portal", admin
       `}</style>
       <header className="candidate-bar">
         <div className="candidate-bar-inner">
-          <div className="candidate-brand" onClick={() => navigate(adminMode ? "/admin" : "/worker/profile")} role="button" tabIndex={0}>
+          <div className="candidate-brand" onClick={() => navigate(adminMode ? "/admin/candidate" : "/worker/profile")} role="button" tabIndex={0}>
             <img src="/logo.png" alt="UTS" />
             <div className="candidate-brand-copy" style={{ minWidth: 0 }}>
               <div style={{ color: "#bfdbfe", fontSize: 10, fontWeight: 850, letterSpacing: ".1em" }}>{adminMode ? "ADMIN · CANDIDATE PROFILE" : "CANDIDATE PORTAL"}</div>
@@ -81,7 +81,7 @@ export default function CandidateTopBar({ workerName = "Candidate portal", admin
               );
             })}
           </nav>
-          <button className="candidate-logout" type="button" onClick={adminMode ? () => navigate("/admin") : logout}>
+          <button className="candidate-logout" type="button" onClick={adminMode ? () => navigate("/admin/candidate") : logout}>
             {adminMode ? <ArrowLeft size={16} /> : <LogOut size={16} />} <span>{adminMode ? "Dashboard" : "Sign out"}</span>
           </button>
         </div>

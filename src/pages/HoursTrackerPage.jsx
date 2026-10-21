@@ -995,7 +995,7 @@ export default function HoursTrackerPage() {
               <div className="summary-chip"><strong>{summary.pending + summary.missing}</strong><span>Pending</span></div>
               <div className="summary-chip"><strong>{summary.approved}</strong><span>Approved</span></div>
             </div>
-            <button className="btn" type="button" onClick={() => navigate("/admin")}><ArrowLeft size={15} /> Admin</button>
+            <button className="btn" type="button" onClick={() => navigate("/admin/candidate")}><ArrowLeft size={15} /> Admin</button>
             <label className="btn dark" aria-disabled={importing}>
               {importing ? <Loader2 className="spin" size={15} /> : <Upload size={15} />} Import CTS XLSX
               <input type="file" accept=".xlsx,.xls" hidden disabled={importing} onChange={handleImportFile} />

@@ -24,13 +24,13 @@ import { useAccess } from "../lib/accessContext";
 import QuickNotesShortcut from "./QuickNotesShortcut";
 
 const NAV_ITEMS = [
-  { label: "Overview", path: "/admin", icon: LayoutDashboard, section: "overview" },
-  { label: "Candidates", path: "/admin/candidates", icon: UsersRound, section: "candidates" },
+  { label: "Candidates", path: "/admin/candidate", icon: UsersRound, section: "candidates" },
   { label: "Onboarding", path: "/admin/onboarding/planner", icon: ClipboardList },
   { label: "Projects", path: "/cts-jobs", icon: BriefcaseBusiness },
   { label: "Hours", path: "/hours", icon: Clock3 },
   { label: "Billing", path: "/invoice", icon: FileText },
   { label: "Reports", path: "/breakdown", icon: ChartNoAxesCombined },
+  { label: "Overview", path: "/admin/overview", icon: LayoutDashboard, section: "overview" },
   { label: "Activity", path: "/admin/activity", icon: History, supervisorOnly: true },
 ];
 
@@ -45,7 +45,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
   const navigate = useNavigate();
   const location = useLocation();
   const isRegister = location.pathname.startsWith("/register");
-  const showWorkspaceHeader = location.pathname === "/admin" || Boolean(rightSlot);
+  const showWorkspaceHeader = location.pathname === "/admin/overview" || Boolean(rightSlot);
   const { access } = useAccess();
   const canViewActivity = !!access?.permissions?.can_delete_workers;
   const canViewDocs = !!access?.isAdmin;
@@ -152,34 +152,34 @@ export default function UtsTopNavBar({ rightSlot = null }) {
 
   const handleSearch = (event) => {
     event.preventDefault();
-    if (location.pathname !== "/admin") return;
+    if (location.pathname !== "/admin/overview") return;
     const params = new URLSearchParams(location.search);
     const query = globalSearch.trim();
     if (query) params.set("q", query); else params.delete("q");
     setMobileOpen(false);
-    navigate(params.size ? `/admin?${params}` : "/admin");
+    navigate(params.size ? `/admin/overview?${params}` : "/admin/overview");
   };
 
   const handleGlobalSearchChange = (event) => {
     const value = event.target.value;
     setGlobalSearch(value);
-    if (location.pathname !== "/admin") return;
+    if (location.pathname !== "/admin/overview") return;
     const params = new URLSearchParams(location.search);
     if (value.trim()) params.set("q", value.trim()); else params.delete("q");
-    navigate(params.size ? `/admin?${params}` : "/admin", { replace: true });
+    navigate(params.size ? `/admin/overview?${params}` : "/admin/overview", { replace: true });
   };
 
   const clearGlobalSearch = () => {
     setGlobalSearch("");
-    if (location.pathname !== "/admin") return;
+    if (location.pathname !== "/admin/overview") return;
     const params = new URLSearchParams(location.search);
     params.delete("q");
-    navigate(params.size ? `/admin?${params}` : "/admin", { replace: true });
+    navigate(params.size ? `/admin/overview?${params}` : "/admin/overview", { replace: true });
   };
 
   const goTo = (path) => {
     setMobileOpen(false);
-    if (path === "/admin/candidates") setGlobalSearch("");
+    if (path === "/admin/candidate") setGlobalSearch("");
     navigate(path);
   };
 
@@ -221,12 +221,10 @@ export default function UtsTopNavBar({ rightSlot = null }) {
     );
   }
 
-  const adminQuery = new URLSearchParams(location.search);
-
   return (
     <>
       <aside className={`uts-ops-sidebar ${mobileOpen ? "mobile-open" : ""}`} aria-label="Main navigation">
-        <div className="uts-ops-brand" onClick={() => goToNavItem("/admin")} title="Overview">
+        <div className="uts-ops-brand" onClick={() => goToNavItem("/admin/candidate")} title="Candidates home">
           <img src={utsLogo} alt="UTS" />
           <div className="uts-ops-brand-copy"><strong>UNIVERSAL TALENT</strong><span>Operations workspace</span></div>
         </div>
@@ -238,9 +236,9 @@ export default function UtsTopNavBar({ rightSlot = null }) {
           {NAV_ITEMS.filter((item) => (!item.supervisorOnly || canViewActivity) && (!item.adminOnly || canViewDocs)).map((item) => {
             const Icon = item.icon;
             const active = item.section === "overview"
-              ? location.pathname === "/admin" && adminQuery.get("view") !== "candidates"
+              ? location.pathname === "/admin/overview"
               : item.section === "candidates"
-                ? location.pathname === "/admin/candidates" || (location.pathname.startsWith("/admin/workers/") && !location.pathname.includes("/onboarding"))
+                ? location.pathname === "/admin/candidate" || (location.pathname.startsWith("/admin/workers/") && !location.pathname.includes("/onboarding"))
                 : item.label === "Onboarding"
                   ? location.pathname.includes("/onboarding") || location.pathname === "/admin/planner"
                   : location.pathname.startsWith(item.path);
@@ -282,7 +280,7 @@ export default function UtsTopNavBar({ rightSlot = null }) {
         <button className="uts-ops-icon-btn uts-ops-mobile-menu" type="button" onClick={() => setMobileOpen((value) => !value)} aria-label="Open navigation">
           {mobileOpen ? <X size={19} /> : <Menu size={19} />}
         </button>
-        {location.pathname === "/admin" ? <form className="uts-global-search" onSubmit={handleSearch} role="search">
+        {location.pathname === "/admin/overview" ? <form className="uts-global-search" onSubmit={handleSearch} role="search">
           <Search size={18} />
           <input ref={globalSearchInputRef} value={globalSearch} onChange={handleGlobalSearchChange} placeholder="Search candidates by name, email or phone..." aria-label="Search candidates" />
           {globalSearch ? <button className="uts-search-clear" type="button" onClick={clearGlobalSearch} aria-label="Clear search" title="Clear search"><X size={15} /></button> : null}
