@@ -990,6 +990,7 @@ export default function HoursTrackerPage() {
             </p>
           </div>
           <div className="top-actions">
+            <button className="btn dark" type="button" onClick={() => navigate("/hours/cts-weekly")}>UTS WEEK ENDING</button>
             <div className="summary-strip" aria-label="Weekly timesheet summary">
               <div className="summary-chip"><strong>{formatHours(summary.totalHours)}</strong><span>Total hours</span></div>
               <div className="summary-chip"><strong>{summary.pending + summary.missing}</strong><span>Pending</span></div>

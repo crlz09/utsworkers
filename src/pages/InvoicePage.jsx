@@ -1,4 +1,5 @@
 import { hiringTerms, invoiceHourlyRate } from "../lib/hiringModes";
+import { Link } from "react-router-dom";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, FileText, Loader2, Plus, Printer, RefreshCw, Search, Trash2, X } from "lucide-react";
 import GoToTopButton from "../components/GoToTopButton";
@@ -1990,6 +1991,7 @@ export default function InvoicePage() {
             </p>
           </div>
           <div className="invoice-actions">
+            <Link className="invoice-btn dark" to="/invoice/cts-weekly">UTS WEEK ENDING · Facturar</Link>
             <button className="invoice-btn" type="button" onClick={refreshData} disabled={loading}>
               <RefreshCw size={15} /> Refresh
             </button>
