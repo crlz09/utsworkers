@@ -5,7 +5,7 @@ const text = (v) => String(v ?? '').trim();
 const norm = (v) => text(v).toUpperCase().replace(/\s+/g, ' ');
 const validNumber = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 export function blankWeeklyReport() {
-  return { weekEnding: '', fee: 5, entries: [], adjustments: [], sourceTotal: null, sourceFilename: '', sourceHash: '', notes: '', warnings: [] };
+  return { weekEnding: '', fee: 5, entries: [], adjustments: [], deductions: [], sourceTotal: null, sourceFilename: '', sourceHash: '', notes: '', warnings: [] };
 }
 export function weeklyInvoiceLines(report) {
   const lines = [];
@@ -18,14 +18,17 @@ export function weeklyInvoiceLines(report) {
     if (e.perDiemDays > 0 && e.perDiemRate > 0) lines.push({ line_type: 'hours', product_service_name: 'Per diem', worker_name: e.name, project_name: e.contractor, details: `Week ending ${report.weekEnding}`, qty: e.perDiemDays, rate: e.perDiemRate, amount: moneyValue(e.perDiemDays * e.perDiemRate) });
   }
   for (const a of report.adjustments) if (a.amount > 0) lines.push({ line_type: 'hours', product_service_name: 'Reimbursement / additional charge', worker_name: '', project_name: a.description, details: `Week ending ${report.weekEnding}`, qty: 1, rate: a.amount, amount: moneyValue(a.amount) });
+  for (const d of report.deductions || []) if (d.amount > 0) lines.push({ line_type: 'manual', product_service_name: 'Deduction / credit to CTS', worker_name: '', project_name: d.description, details: `${d.description} · Week ending ${report.weekEnding}`, qty: 1, rate: -d.amount, amount: -moneyValue(d.amount) });
   return lines;
 }
 export function weeklyReportTotals(report) {
   const lines = weeklyInvoiceLines(report);
   const total = lines.reduce((s, l) => s + cents(l.amount), 0) / 100;
+  const deductions = lines.reduce((sum, line) => sum + (line.amount < 0 ? -cents(line.amount) : 0), 0) / 100;
+  const subtotal = moneyValue(total + deductions);
   const regular = report.entries.reduce((s, e) => s + Number(e.regular || 0), 0);
   const overtime = report.entries.reduce((s, e) => s + Number(e.overtime || 0), 0);
-  return { total, regular, overtime, hours: regular + overtime, fee: moneyValue((regular + overtime) * report.fee), difference: report.sourceTotal == null ? 0 : moneyValue(total - report.sourceTotal) };
+  return { total, subtotal, deductions, regular, overtime, hours: regular + overtime, fee: moneyValue((regular + overtime) * report.fee), difference: report.sourceTotal == null ? 0 : moneyValue(total - report.sourceTotal) };
 }
 export function validateWeeklyReport(report) {
   const errors = [];
@@ -40,19 +43,20 @@ export function validateWeeklyReport(report) {
     if (e.rate < report.fee) errors.push(`Fila ${i + 1}: CTS RATE no puede ser menor que el fee.`);
   }
   for (const a of report.adjustments) if (!text(a.description) || !validNumber(a.amount)) errors.push('Cada cargo adicional necesita descripción e importe no negativo.');
-  if (!errors.length && weeklyReportTotals(report).total <= 0) errors.push('El total a facturar debe ser mayor que cero.');
+  for (const d of report.deductions || []) if (!text(d.description) || !validNumber(d.amount)) errors.push('Cada deducción necesita descripción e importe positivo o cero.');
+  if (!errors.length && weeklyReportTotals(report).total <= 0) errors.push('El total neto debe ser mayor que cero; revisa las deducciones.');
   if (report.sourceTotal != null && !validNumber(report.sourceTotal)) errors.push('El total del archivo no es válido.');
-  if (!errors.length && Math.abs(weeklyReportTotals(report).difference) > 0.01 && !text(report.notes)) errors.push('El total difiere del Excel. Explica el ajuste en las notas antes de guardar.');
+  if (!errors.length && Math.abs(weeklyReportTotals(report).difference) > 0.01 && Math.abs(weeklyReportTotals(report).difference + weeklyReportTotals(report).deductions) > 0.01 && !text(report.notes)) errors.push('El total difiere del Excel. Explica el ajuste en las notas antes de guardar.');
   return errors;
 }
 function parseDate(value) {
   const m = text(value).match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
   return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : '';
 }
-function numeric(v, label, optional = false) {
+function numeric(v, label, optional = false, signed = false) {
   if (optional && (v == null || v === '')) return 0;
-  const n = typeof v === 'string' ? Number(v.replace(/[$,]/g, '')) : v;
-  if (!validNumber(n)) throw new Error(`${label}: valor numérico inválido.`);
+  const n = typeof v === 'string' ? Number(v.replace(/[$,]/g, '').replace(/^\((.*)\)$/, '-$1')) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n) || (!signed && n < 0)) throw new Error(`${label}: valor numérico inválido.`);
   return n;
 }
 export function parseWeeklyReport(rows, filename = '', fee = 5) {
@@ -78,7 +82,8 @@ export function parseWeeklyReport(rows, filename = '', fee = 5) {
         if (r[col] != null && Math.abs(numeric(r[col], `Fila ${i + 1}`) - moneyValue(expected)) > 0.01) report.warnings.push(`${e.name}: un importe de la fila ${i + 1} no coincide con las horas y tarifas.`);
       }
     } else if (typeof r[8] === 'string' && text(r[8]) && r[9] != null && !norm(r[8]).startsWith('TOTAL')) {
-      report.adjustments.push({ description: text(r[8]), amount: numeric(r[9], `Cargo fila ${i + 1}`) });
+      const amount = numeric(r[9], `Cargo fila ${i + 1}`, false, true);
+      (amount < 0 ? report.deductions : report.adjustments).push({ description: text(r[8]), amount: Math.abs(amount) });
     }
   }
   if (!report.entries.length) throw new Error('No se encontraron empleados en el reporte.');

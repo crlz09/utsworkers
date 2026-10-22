@@ -1492,7 +1492,7 @@ export default function InvoicePage() {
       return {
         ...row,
         serviceId,
-        serviceName: service.name,
+        serviceName: row.savedLineId ? row.serviceName : service.name,
         rate,
         amount: Number(row.qty ?? row.hours ?? 0) * rate,
       };
@@ -1511,7 +1511,7 @@ export default function InvoicePage() {
       return {
         ...row,
         serviceId,
-        serviceName: service.name,
+        serviceName: row.savedLineId ? row.serviceName : service.name,
         rate,
         qty,
         amount: qty * rate,
@@ -1785,7 +1785,7 @@ export default function InvoicePage() {
       candidateName: line.worker_name || "Unnamed worker",
       workerEmail: line.worker_email || "",
       workerPhone: line.worker_phone || "",
-      projectName: line.line_type === "manual" ? (line.details || line.project_name || "") : (line.project_name || "Untitled project"),
+      projectName: line.line_type === "manual" ? (line.project_name || line.details || "") : (line.project_name || "Untitled project"),
       projectLocation: line.details || "",
       jobCode: "",
       savedDetails: line.details || "",

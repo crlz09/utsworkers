@@ -19,7 +19,7 @@ test('UTS WEEK ENDING reconciles corrected CTS invoice without adding the fee tw
   assert.equal(r.weekEnding, '2026-10-18');
   assert.equal(r.warnings.length, 0);
   const t = weeklyReportTotals(r);
-  assert.deepEqual(t, {total:17408.25,regular:280,overtime:147.75,hours:427.75,fee:2138.75,difference:0});
+  assert.deepEqual(t, {total:17408.25,subtotal:17408.25,deductions:0,regular:280,overtime:147.75,hours:427.75,fee:2138.75,difference:0});
   const lines = weeklyInvoiceLines(r);
   assert.equal(lines[0].rate,35);
   assert.equal(lines[1].rate,50);
@@ -59,4 +59,49 @@ test('CSV escapes embedded quotes, newlines and spreadsheet formulas', () => {
   const r=parseWeeklyReport(fixture()); r.entries[0].name='=HYPERLINK("test")';
   const csv=invoiceCsv(weeklyInvoiceLines(r));
   assert.ok(csv.includes('"\'=HYPERLINK(""test"")"'));
+});
+
+
+test('training deductions reduce the invoice, preserve the fee and export negative amounts', () => {
+  const r = parseWeeklyReport(fixture());
+  r.deductions.push({ description: 'Training owed to CTS', amount: 300 });
+  const totals = weeklyReportTotals(r);
+  assert.equal(totals.subtotal, 17408.25);
+  assert.equal(totals.deductions, 300);
+  assert.equal(totals.total, 17108.25);
+  assert.equal(totals.fee, 2138.75);
+  assert.deepEqual(validateWeeklyReport(r), []);
+  const line = weeklyInvoiceLines(r).at(-1);
+  assert.equal(line.line_type, 'manual');
+  assert.equal(line.rate, -300);
+  assert.equal(line.amount, -300);
+  assert.equal(line.project_name, 'Training owed to CTS');
+  assert.ok(invoiceCsv([line]).includes('"-300"'));
+});
+test('negative Excel footer amounts import as deductions instead of extra charges', () => {
+  const rows = fixture();
+  rows.at(-2)[9] = -300;
+  rows.at(-1)[9] = 17108.25;
+  const r = parseWeeklyReport(rows);
+  assert.deepEqual(r.deductions, [{ description: 'TRAINING', amount: 300 }]);
+  assert.equal(weeklyReportTotals(r).total, 17108.25);
+  assert.equal(weeklyReportTotals(r).difference, 0);
+  assert.deepEqual(validateWeeklyReport(r), []);
+  rows.at(-2)[9] = '($300.00)';
+  assert.equal(parseWeeklyReport(rows).deductions[0].amount, 300);
+});
+test('old reports with no deductions remain unchanged', () => {
+  const r = parseWeeklyReport(fixture());
+  delete r.deductions;
+  assert.equal(weeklyReportTotals(r).total, 17408.25);
+  assert.deepEqual(validateWeeklyReport(r), []);
+});
+test('deductions require a description and positive input; the net invoice remains positive', () => {
+  const r = parseWeeklyReport(fixture());
+  r.deductions = [{ description: '', amount: -300 }];
+  assert.ok(validateWeeklyReport(r).some((e) => e.includes('deducción')));
+  r.deductions = [{ description: 'Training', amount: 17408.25 }];
+  assert.ok(validateWeeklyReport(r).some((e) => e.includes('total neto')));
+  r.deductions = [{ description: 'Training', amount: 100 }, { description: 'Other credit', amount: 50.25 }];
+  assert.equal(weeklyReportTotals(r).total, 17258);
 });
