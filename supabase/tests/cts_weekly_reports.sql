@@ -14,6 +14,10 @@ begin
  perform public.save_cts_weekly_report(r,1,p);
  if (select total from public.cts_weekly_reports where id=r) <> 1825 then raise exception 'Deduction did not reduce report total'; end if;
  i := public.invoice_cts_weekly_report(r,2,'{"invoice_number":"__CTS_WEEKLY_TEST__","client_name":"TEST ONLY","invoice_date":"2098-10-18","due_date":"","total":1}'::jsonb);
+ if (select invoice_number from public.invoices where id=i) <> 'UTS-CTS-20981018' then raise exception 'Server accepted an editable invoice number'; end if;
+ if (select due_date from public.invoices where id=i) <> '2098-10-25'::date then raise exception 'Default due date is not seven days later'; end if;
+ if (select date_from from public.invoices where id=i) <> '2098-10-12'::date then raise exception 'Wrong week period'; end if;
+ if not exists(select 1 from public.invoice_line_items where invoice_id=i and details='Week Period: 10/12/2098 - 10/18/2098') then raise exception 'Missing week period details'; end if;
  if (select total from public.invoices where id=i) <> 1825 then raise exception 'Client overrode invoice total'; end if;
  select count(*) into n from public.invoice_line_items where invoice_id=i;
  if n<>4 then raise exception 'Expected regular, OT, reimbursement and deduction lines'; end if;
@@ -24,4 +28,4 @@ begin
  begin update public.cts_weekly_reports set payload=p where id=r; raise exception 'Direct update bypassed invoice lock'; exception when raise_exception then if sqlerrm <> 'Invoiced reports are locked' then raise; end if; end;
 end $$;
 rollback;
-select 'CTS weekly report save, duplicate prevention, optimistic locking, invoice snapshot, deductions, totals, and invoice lock passed; all test data rolled back' as verification;
+select 'CTS weekly report save, duplicate prevention, optimistic locking, invoice snapshot, deductions, deterministic numbers, seven-day due dates, week periods, totals, and invoice lock passed; all test data rolled back' as verification;

@@ -1,3 +1,4 @@
+import { weekPeriodLabel } from './ctsWeeklyInvoice.js';
 // UTS WEEK ENDING: RATE includes the flat fee; G contains OT wages, L the OT fee.
 export const cents = (value) => Math.round((Number(value) + Number.EPSILON) * 100);
 export const moneyValue = (value) => cents(value) / 100;
@@ -10,15 +11,15 @@ export function blankWeeklyReport() {
 export function weeklyInvoiceLines(report) {
   const lines = [];
   for (const e of report.entries) {
-    if (e.regular > 0) lines.push({ line_type: 'hours', product_service_name: 'Regular hours', worker_name: e.name, project_name: e.contractor, details: `Week ending ${report.weekEnding}`, qty: e.regular, rate: e.rate, amount: moneyValue(e.regular * e.rate) });
+    if (e.regular > 0) lines.push({ line_type: 'hours', product_service_name: 'Regular hours', worker_name: e.name, project_name: e.contractor, details: `Week Period: ${weekPeriodLabel(report.weekEnding)}`, qty: e.regular, rate: e.rate, amount: moneyValue(e.regular * e.rate) });
     if (e.overtime > 0) {
       const rate = moneyValue((e.rate - report.fee) * 1.5 + report.fee);
-      lines.push({ line_type: 'hours', product_service_name: 'Overtime hours', worker_name: e.name, project_name: e.contractor, details: `Week ending ${report.weekEnding}`, qty: e.overtime, rate, amount: moneyValue(e.overtime * rate) });
+      lines.push({ line_type: 'hours', product_service_name: 'Overtime hours', worker_name: e.name, project_name: e.contractor, details: `Week Period: ${weekPeriodLabel(report.weekEnding)}`, qty: e.overtime, rate, amount: moneyValue(e.overtime * rate) });
     }
-    if (e.perDiemDays > 0 && e.perDiemRate > 0) lines.push({ line_type: 'hours', product_service_name: 'Per diem', worker_name: e.name, project_name: e.contractor, details: `Week ending ${report.weekEnding}`, qty: e.perDiemDays, rate: e.perDiemRate, amount: moneyValue(e.perDiemDays * e.perDiemRate) });
+    if (e.perDiemDays > 0 && e.perDiemRate > 0) lines.push({ line_type: 'hours', product_service_name: 'Per diem', worker_name: e.name, project_name: e.contractor, details: `Week Period: ${weekPeriodLabel(report.weekEnding)}`, qty: e.perDiemDays, rate: e.perDiemRate, amount: moneyValue(e.perDiemDays * e.perDiemRate) });
   }
-  for (const a of report.adjustments) if (a.amount > 0) lines.push({ line_type: 'hours', product_service_name: 'Reimbursement / additional charge', worker_name: '', project_name: a.description, details: `Week ending ${report.weekEnding}`, qty: 1, rate: a.amount, amount: moneyValue(a.amount) });
-  for (const d of report.deductions || []) if (d.amount > 0) lines.push({ line_type: 'manual', product_service_name: 'Deduction / credit to CTS', worker_name: '', project_name: d.description, details: `${d.description} · Week ending ${report.weekEnding}`, qty: 1, rate: -d.amount, amount: -moneyValue(d.amount) });
+  for (const a of report.adjustments) if (a.amount > 0) lines.push({ line_type: 'hours', product_service_name: 'Reimbursement / additional charge', worker_name: '', project_name: a.description, details: `Week Period: ${weekPeriodLabel(report.weekEnding)}`, qty: 1, rate: a.amount, amount: moneyValue(a.amount) });
+  for (const d of report.deductions || []) if (d.amount > 0) lines.push({ line_type: 'manual', product_service_name: 'Deduction / credit to CTS', worker_name: '', project_name: d.description, details: `${d.description} · Week Period: ${weekPeriodLabel(report.weekEnding)}`, qty: 1, rate: -d.amount, amount: -moneyValue(d.amount) });
   return lines;
 }
 export function weeklyReportTotals(report) {
