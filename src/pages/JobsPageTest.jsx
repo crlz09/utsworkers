@@ -1,5 +1,5 @@
 import CandidateCompensationEditor, { CandidateCompensationInputs } from "../components/CandidateCompensationEditor";
-import { candidateCompensationPayload, profileRateForAssignment } from "../lib/candidateCompensation";
+import { candidateCompensationPayload, profileRateForAssignment, perDiemValue } from "../lib/candidateCompensation";
 import useHiringModeDialog from "../components/useHiringModeDialog";
 import { hiringTerms, placementModePayload } from "../lib/hiringModes";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -583,7 +583,7 @@ function PageStyles() {
       .cts-candidate-table td { padding: 18px 14px; }
       .cts-candidate-table td { line-height: 1.45; }
       .cts-candidate-table .select { min-width: 108px; }
-      .cts-candidate-table th:nth-child(6) .sortable-header-button { max-width: 94px; align-items: flex-start; }
+      .cts-candidate-table th:nth-child(7) .sortable-header-button { max-width: 94px; align-items: flex-start; }
       .placement-fee-cell { overflow-wrap: anywhere; }
       .placement-fee-invoice { margin-top: 7px; display: grid; gap: 1px; line-height: 1.3; }
       .placement-fee-invoice-number { color: #64748b; }
@@ -1202,18 +1202,18 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateSave
     <div className="table-scroll">
       <table className="cts-candidate-table">
         <colgroup>
-          <col style={{ width: mode === "admin" ? "23%" : "27%" }} />
-          <col style={{ width: mode === "admin" ? "18%" : "21%" }} />
-          {mode === "admin" ? <><col style={{ width: "10%" }} /><col style={{ width: "10%" }} /></> : null}
-          <col style={{ width: mode === "admin" ? "13%" : "15%" }} />
-          <col style={{ width: mode === "admin" ? "12%" : "14%" }} />
+          <col style={{ width: mode === "admin" ? "20%" : "27%" }} />
+          <col style={{ width: mode === "admin" ? "15%" : "21%" }} />
+          {mode === "admin" ? <><col style={{ width: "10%" }} /><col style={{ width: "10%" }} /><col style={{ width: "10%" }} /></> : null}
+          <col style={{ width: mode === "admin" ? "11%" : "15%" }} />
+          <col style={{ width: mode === "admin" ? "10%" : "14%" }} />
           <col style={{ width: mode === "admin" ? "14%" : "23%" }} />
         </colgroup>
         <thead>
           <tr>
             <SortableCandidateHeader column="name" label="Name" sortConfig={sortConfig} onSort={onSort} />
             <SortableCandidateHeader column="project" label="Project" sortConfig={sortConfig} onSort={onSort} />
-            {mode === "admin" ? <><th>Rate per hour</th><th>Hiring method</th></> : null}
+            {mode === "admin" ? <><th>Rate per hour</th><th>Per Diem</th><th>Hiring method</th></> : null}
             <SortableCandidateHeader column="status" label="Status" sortConfig={sortConfig} onSort={onSort} />
             <SortableCandidateHeader column="placement_fee" label={<><span>Placement</span><br /><span>Fee</span></>} sortConfig={sortConfig} onSort={onSort} />
             <SortableCandidateHeader column="last_modified" label="Last Modified" sortConfig={sortConfig} onSort={onSort} />
@@ -1255,7 +1255,7 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateSave
                     <div className="table-muted-xs" style={{ marginTop: 5 }}>{projectLocation}</div>
                   ) : null}
                 </td>
-                {canAdminEdit ? <>{["rate_snapshot", "payment_type"].map((field) => <td key={field}><CandidateCompensationEditor field={field} key={`${candidate.id}:${candidate.updated_at}:${field}`} candidate={candidate} onSave={onCandidateSave} saving={!!savingIds[`${candidate.id}:compensation`]} /></td>)}</> : null}
+                {canAdminEdit ? <>{["rate_snapshot", "per_diem_snapshot", "payment_type"].map((field) => <td key={field}><CandidateCompensationEditor field={field} key={`${candidate.id}:${candidate.updated_at}:${field}`} candidate={candidate} onSave={onCandidateSave} saving={!!savingIds[`${candidate.id}:${field === "per_diem_snapshot" ? field : "compensation"}`]} /></td>)}</> : null}
                 <td>
                   {canEditStatus ? (
                     <select
@@ -2061,6 +2061,8 @@ export default function JobsPageTest({ mode = "admin" }) {
     }
     const payload = field === "compensation" ? compensation : { [field]: value === "" ? null : value, ...modePayload };
 
+    if (field === "per_diem_snapshot") payload[field] = perDiemValue(row[field]);
+
     if (field === "candidate_status") {
       payload.placed_at = value === "placed" && !row.placed_at ? new Date().toISOString() : row.placed_at || null;
     }
@@ -2155,6 +2157,7 @@ export default function JobsPageTest({ mode = "admin" }) {
       phone_snapshot: worker.phone || null,
       candidate_status: candidateStatus || "sourced",
       ...compensation,
+      per_diem_snapshot: perDiemValue(payDetails.per_diem_snapshot),
       ...placement,
       sort_order: jobCandidates.filter((candidate) => candidate.cts_job_id === activeView.jobId).length + 1,
       submitted_at: null,
@@ -2387,7 +2390,7 @@ export default function JobsPageTest({ mode = "admin" }) {
     const slug = activeTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "candidates";
     downloadCsv(
       `cts-jobs-${slug}.csv`,
-      ["Name", "Phone", "Email", "Profile", "Project", "Location", "Status", "Hiring mode", ...(mode === "admin" ? ["Rate per hour", "Hiring method"] : []), "Placement Fee", "Placement Fee Invoice", "Last Modified"],
+      ["Name", "Phone", "Email", "Profile", "Project", "Location", "Status", "Hiring mode", ...(mode === "admin" ? ["Rate per hour", "Per Diem", "Hiring method"] : []), "Placement Fee", "Placement Fee Invoice", "Last Modified"],
       viewCandidates.map((candidate) => [
         getCandidateName(candidate),
         getCandidatePhone(candidate),
@@ -2397,7 +2400,7 @@ export default function JobsPageTest({ mode = "admin" }) {
         getCandidateProjectLocation(candidate),
         formatStatus(candidate.candidate_status),
         candidate.hiring_mode ? hiringTerms(candidate).label : "",
-        ...(mode === "admin" ? [candidate.rate_snapshot ?? "", candidate.payment_type || ""] : []),
+        ...(mode === "admin" ? [candidate.rate_snapshot ?? "", perDiemValue(candidate.per_diem_snapshot), candidate.payment_type || ""] : []),
         candidate.hiring_mode === "owned" ? "Not applicable" : candidate.placement_fee_paid ? "Paid" : "Pending",
         candidate.placement_fee_invoice_number || "",
         formatDateTime(candidate.updated_at || candidate.created_at),

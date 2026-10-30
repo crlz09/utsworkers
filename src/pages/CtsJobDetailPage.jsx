@@ -1,5 +1,5 @@
 import CandidateCompensationEditor from "../components/CandidateCompensationEditor";
-import { candidateCompensationPayload, profileRateForAssignment } from "../lib/candidateCompensation";
+import { candidateCompensationPayload, profileRateForAssignment, perDiemValue } from "../lib/candidateCompensation";
 import useHiringModeDialog from "../components/useHiringModeDialog";
 import { hiringTerms, placementModePayload } from "../lib/hiringModes";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -330,8 +330,8 @@ function AddCandidateModal({ open, onClose, workers, loadingWorkers, onAddCandid
                     <div className="snapshot-box"><div className="field-label">English</div><input className="mini-input" value={draft.english_snapshot} onChange={(e) => updateDraft(worker.id, "english_snapshot", e.target.value)} placeholder="40% / Bilingual / English" /></div>
                     <div className="snapshot-box"><div className="field-label">On System (CTS)</div><select className="mini-select" value={draft.on_system_cts ? "yes" : "no"} onChange={(e) => updateDraft(worker.id, "on_system_cts", e.target.value === "yes")}><option value="no">No</option><option value="yes">Yes</option></select></div>
                     <div className="snapshot-box"><div className="field-label">Rate per hour ($)</div><input className="mini-input" type="number" min="0.01" step="0.01" aria-label="Rate per hour ($)" value={draft.rate_snapshot} onChange={(e) => updateDraft(worker.id, "rate_snapshot", e.target.value)} placeholder="35.00" /></div>
+                    <div className="snapshot-box"><div className="field-label">Per Diem</div><input className="mini-input" value={draft.per_diem_snapshot} onChange={(e) => updateDraft(worker.id, "per_diem_snapshot", e.target.value)} placeholder="NO" /></div>
                     <div className="snapshot-box"><label className="field-label">Hiring method<select className="mini-select" value={draft.payment_type || ""} onChange={(e) => updateDraft(worker.id, "payment_type", e.target.value)}><option value="">Select W2 / 1099</option><option value="W2">W2</option><option value="1099">1099</option></select></label></div>
-                    <div className="snapshot-box"><div className="field-label">Per Diem</div><input className="mini-input" value={draft.per_diem_snapshot} onChange={(e) => updateDraft(worker.id, "per_diem_snapshot", e.target.value)} placeholder="$10/HR or $125/day" /></div>
                     <div className="snapshot-box"><div className="field-label">Stage</div><select className="mini-select" value={draft.candidate_status} onChange={(e) => updateDraft(worker.id, "candidate_status", e.target.value)}><option value="sourced">Sourced</option><option value="placed">Placed</option><option value="rejected">Rejected</option><option value="on_hold">On Hold</option></select></div>
                     <div className="snapshot-box"><div className="field-label">Location Snapshot</div><input className="mini-input" value={deriveLocationLabel(worker)} readOnly /></div>
                   </div>
@@ -545,7 +545,7 @@ export default function CtsJobDetailPage() {
       english_snapshot: draft.english_snapshot || null,
       on_system_cts: !!draft.on_system_cts,
       ...compensation,
-      per_diem_snapshot: draft.per_diem_snapshot?.trim() || null,
+      per_diem_snapshot: perDiemValue(draft.per_diem_snapshot),
       candidate_status: draft.candidate_status || "sourced",
       ...placement,
       notes: draft.notes?.trim() || null,
@@ -601,6 +601,8 @@ export default function CtsJobDetailPage() {
     if (field === "on_system_cts") {
       payload[field] = !!row[field];
     }
+
+    if (field === "per_diem_snapshot") payload[field] = perDiemValue(row[field]);
 
     if (field === "candidate_status") {
       payload.submitted_at = row.candidate_status === "submitted" && !row.submitted_at ? new Date().toISOString() : row.submitted_at || null;
@@ -767,7 +769,7 @@ export default function CtsJobDetailPage() {
                 <table className="assigned-table">
                   <thead>
                     <tr>
-                      <th className="sticky-name-col">Name</th><th>Phone</th><th>Class</th><th>Local / Travelers</th><th>Location</th><th>English</th><th>On System (CTS)</th><th>Rate per hour</th><th>Hiring method</th><th>Per Diem</th><th>Stage</th><th>Notes</th><th>Actions</th>
+                      <th className="sticky-name-col">Name</th><th>Phone</th><th>Class</th><th>Local / Travelers</th><th>Location</th><th>English</th><th>On System (CTS)</th><th>Rate per hour</th><th>Per Diem</th><th>Hiring method</th><th>Stage</th><th>Notes</th><th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -780,8 +782,7 @@ export default function CtsJobDetailPage() {
                         <td><InlineEditableField row={row} field="location_snapshot" value={row.location_snapshot} editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:location_snapshot`]} /></td>
                         <td><InlineEditableField row={row} field="english_snapshot" value={row.english_snapshot} placeholder="40% / Bilingual" editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:english_snapshot`]} /></td>
                         <td><InlineEditableField row={row} field="on_system_cts" value={row.on_system_cts} type="boolean" editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:on_system_cts`]} /></td>
-                        {["rate_snapshot", "payment_type"].map((field) => <td key={field}><CandidateCompensationEditor field={field} key={`${row.id}:${row.updated_at}:${field}`} candidate={row} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:compensation`]} /></td>)}
-                        <td><InlineEditableField row={row} field="per_diem_snapshot" value={row.per_diem_snapshot} placeholder="$10/HR" editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:per_diem_snapshot`]} /></td>
+                        {["rate_snapshot", "per_diem_snapshot", "payment_type"].map((field) => <td key={field}><CandidateCompensationEditor field={field} key={`${row.id}:${row.updated_at}:${field}`} candidate={row} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:${field === "per_diem_snapshot" ? field : "compensation"}`]} /></td>)}
                         <td>
                           <div style={{ display: "grid", gap: 8 }}>
                             <span className="status-pill" style={getCandidateStatusStyle(row.candidate_status)}>{row.candidate_status}</span>

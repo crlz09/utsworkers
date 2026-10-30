@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { candidateCompensationPayload, profileRateForAssignment } from '../src/lib/candidateCompensation.js';
+import { candidateCompensationPayload, profileRateForAssignment, perDiemValue } from '../src/lib/candidateCompensation.js';
 
 test('new sourced candidates require a valid hourly rate and payment preference', () => {
   for (const payment_type of ['W2', '1099']) {
@@ -25,5 +25,14 @@ test('profile rate prefills numeric and existing dollar/hour formats without gue
   }
   for (const value of [null, '', '30-35', 'negotiable', '-10', '0']) {
     assert.equal(profileRateForAssignment(value), '');
+  }
+});
+
+test('per diem defaults to NO and retains assignment amounts and units', () => {
+  for (const value of [null, undefined, '', '  ', 'no', 'NO', 0, '0.00', '$0']) {
+    assert.equal(perDiemValue(value), 'NO');
+  }
+  for (const value of ['125', '125.50', '$10/HR', '$125/day']) {
+    assert.equal(perDiemValue(` ${value} `), value);
   }
 });

@@ -16,3 +16,9 @@ export function profileRateForAssignment(value) {
   const raw = String(value ?? "").trim().replace(/^\$\s*/, "").replace(/\s*(?:\/\s*(?:hr|hour)|per hour)\s*$/i, "").trim();
   return /^\d+(\.\d{1,2})?$/.test(raw) && Number(raw) > 0 ? String(Number(raw)) : "";
 }
+
+// Per diem belongs to the CTS assignment; retain existing amount/unit formats.
+export function perDiemValue(value) {
+  const text = String(value ?? "").trim();
+  return !text || /^no$/i.test(text) || /^\$?0+(?:\.0+)?$/.test(text) ? "NO" : text;
+}
