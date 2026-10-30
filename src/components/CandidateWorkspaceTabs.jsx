@@ -30,7 +30,6 @@ export default function CandidateWorkspaceTabs() {
     { label: "Details", path: `/admin/workers/${workerId}/details`, icon: LayoutDashboard },
     { label: "Profile", path: `/admin/workers/${workerId}/profile`, icon: UserRound },
     { label: "Documents", path: `/admin/workers/${workerId}/documents`, icon: FileText },
-    { label: "Onboarding", path: `/admin/workers/${workerId}/onboarding`, icon: ClipboardList },
     { label: "Bio", path: `/admin/workers/${workerId}/bio`, icon: FilePenLine },
     { label: "CTS JotForm", path: `/admin/workers/${workerId}/cts-form`, icon: ClipboardList },
   ];
@@ -86,7 +85,7 @@ export default function CandidateWorkspaceTabs() {
           <nav className="candidate-workspace-tabs" aria-label="Candidate record sections">
             {tabs.map((tab) => {
               const Icon = tab.icon;
-              const active = tab.path.endsWith("/onboarding") ? location.pathname.startsWith(tab.path) : location.pathname === tab.path;
+              const active = location.pathname === tab.path;
               return (
                 <button key={tab.path} type="button" className={`candidate-workspace-tab${active ? " active" : ""}`} onClick={() => navigate(tab.path)}>
                   <Icon size={17} /> {tab.label}

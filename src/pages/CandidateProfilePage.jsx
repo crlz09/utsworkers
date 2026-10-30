@@ -1,3 +1,4 @@
+import { candidateCompensationPayload, profileRateForAssignment } from "../lib/candidateCompensation";
 import React, { useEffect, useState } from "react";
 import {
   Award,
@@ -23,7 +24,7 @@ import { findLocationIdByState, lookupUsZipCode, normalizeZipCode } from "../lib
 import { useParams } from "react-router-dom";
 
 const emptyForm = {
-  name: "", phone: "", email: "", address: "", zip_code: "", city: "", state: "",
+  rate: "", name: "", phone: "", email: "", address: "", zip_code: "", city: "", state: "",
   trade_id: "", location_id: "", total_experience_years: 0,
   commercial_experience_years: 0, industrial_experience_years: 0,
   residential_experience_years: 0, strengths: "", needs_improvement: "",
@@ -130,6 +131,7 @@ export default function CandidateProfilePage({ adminMode = false }) {
         setError(profileResult.error?.message || "Could not load your profile.");
       } else {
         const next = { ...emptyForm, ...profileResult.data, date_of_birth: profileResult.data.date_of_birth || "", available_from: profileResult.data.available_from || "", skills: profileResult.data.skills || [], certifications: profileResult.data.certifications || [], languages: profileResult.data.languages || [], projects: profileResult.data.projects || [] };
+        next.rate = profileRateForAssignment(next.rate);
         setForm(next); setSavedForm(cloneProfile(next));
       }
       setTrades(tradesResult.data || []); setLocations(locationsResult.data || []);
@@ -176,9 +178,13 @@ export default function CandidateProfilePage({ adminMode = false }) {
   const save = async (event) => {
     event.preventDefault(); setError(""); setSuccess("");
     if (!form.name.trim() || !form.trade_id || !form.location_id) { setError("Name, trade, and location are required."); return; }
+    let rate;
+    try { rate = candidateCompensationPayload({ rate_snapshot: form.rate }).rate_snapshot; }
+    catch (error) { setError(error.message); return; }
     setSaving(true);
-    const { data, error: saveError } = await supabase.rpc(adminMode ? "update_admin_worker_portal_profile_with_dob" : "update_current_worker_portal_profile_with_dob", {
+    const { data, error: saveError } = await supabase.rpc(adminMode ? "update_admin_worker_portal_profile_with_rate" : "update_current_worker_portal_profile_with_rate", {
       ...(adminMode ? { p_worker_id: adminWorkerId } : {}),
+      p_rate: rate,
       p_name: form.name, p_phone: form.phone, p_address: form.address, p_zip_code: form.zip_code,
       p_city: form.city, p_state: form.state, p_trade_id: form.trade_id, p_location_id: form.location_id,
       p_total_experience_years: Number(form.total_experience_years || 0),
@@ -194,6 +200,7 @@ export default function CandidateProfilePage({ adminMode = false }) {
     setSaving(false);
     if (saveError) { setError(saveError.message || `Could not update ${adminMode ? "this" : "your"} profile.`); return; }
     const next = { ...emptyForm, ...data, date_of_birth: data.date_of_birth || "", available_from: data.available_from || "", skills: data.skills || [], certifications: data.certifications || [], languages: data.languages || [], projects: data.projects || [] };
+    next.rate = profileRateForAssignment(next.rate);
     setForm(next); setSavedForm(cloneProfile(next)); setEditing(false); setSuccess(adminMode ? "The candidate profile was updated successfully." : "Your profile was updated successfully.");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -226,6 +233,7 @@ export default function CandidateProfilePage({ adminMode = false }) {
 
         <CollapsibleSection icon={Sparkles} title="Professional profile" summary={`${form.trade_name || "Trade"} · ${form.total_experience_years || 0} years experience`} open={openSections.professional} onToggle={() => toggleSection("professional")}>
           <div className="candidate-profile-grid">
+            <label className="candidate-field"><span className="candidate-label">Rate per hour ($)</span><input className="candidate-input" disabled={!editing} type="number" min="0.01" step="0.01" value={form.rate ?? ""} onChange={(e) => update("rate", e.target.value)} /><small>Default for new projects. Existing project rates stay unchanged.</small></label>
             <label className="candidate-field full"><span className="candidate-label">Trade</span><select className="candidate-input" disabled={!editing} value={form.trade_id} onChange={(e) => update("trade_id", e.target.value)}><option value="">Select trade</option>{trades.map((trade)=><option key={trade.id} value={trade.id}>{trade.name}</option>)}</select></label>
             {[["total_experience_years","Total experience"],["commercial_experience_years","Commercial"],["industrial_experience_years","Industrial"],["residential_experience_years","Residential"]].map(([field,label])=><label className="candidate-field" key={field}><span className="candidate-label">{label} (years)</span><input className="candidate-input" disabled={!editing} type="number" min="0" max="60" value={form[field]} onChange={(e)=>update(field,e.target.value)} /></label>)}
             <label className="candidate-field full"><span className="candidate-label">Travel</span><span className="candidate-check-row"><input type="checkbox" disabled={!editing} checked={!!form.willing_to_travel} onChange={(e)=>update("willing_to_travel",e.target.checked)} /><span style={{ fontWeight: 750 }}>I am willing to travel</span></span></label>

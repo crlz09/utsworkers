@@ -1,3 +1,5 @@
+import CandidateCompensationEditor, { CandidateCompensationInputs } from "../components/CandidateCompensationEditor";
+import { candidateCompensationPayload, profileRateForAssignment } from "../lib/candidateCompensation";
 import useHiringModeDialog from "../components/useHiringModeDialog";
 import { hiringTerms, placementModePayload } from "../lib/hiringModes";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -422,6 +424,7 @@ function PageStyles() {
 
       .worker-result-row {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
         gap: 14px;
@@ -432,6 +435,7 @@ function PageStyles() {
       }
 
       .worker-result-info {
+        flex: 1 1 200px;
         min-width: 0;
       }
 
@@ -574,12 +578,12 @@ function PageStyles() {
       }
 
       .candidate-contact-line { display: block; overflow-wrap: anywhere; }
-      .cts-candidate-table { table-layout: fixed; min-width: 960px; }
+      .cts-candidate-table { table-layout: fixed; min-width: 1160px; }
       .cts-candidate-table th,
       .cts-candidate-table td { padding: 18px 14px; }
       .cts-candidate-table td { line-height: 1.45; }
       .cts-candidate-table .select { min-width: 108px; }
-      .cts-candidate-table th:nth-child(5) .sortable-header-button { max-width: 94px; align-items: flex-start; }
+      .cts-candidate-table th:nth-child(6) .sortable-header-button { max-width: 94px; align-items: flex-start; }
       .placement-fee-cell { overflow-wrap: anywhere; }
       .placement-fee-invoice { margin-top: 7px; display: grid; gap: 1px; line-height: 1.3; }
       .placement-fee-invoice-number { color: #64748b; }
@@ -1039,7 +1043,7 @@ function getCandidateProjectLocation(candidate) {
 }
 
 function getCandidateProfileUrl(candidate, mode = "admin") {
-  if (mode === "admin" && candidate.worker?.id) return `${window.location.origin}/admin/workers/${candidate.worker.id}/details`;
+  if (mode === "admin" && candidate.worker?.id) return `${window.location.origin}/admin/workers/${candidate.worker.id}/profile`;
   return candidate.worker?.public_profile_slug ? `${window.location.origin}/profile/${candidate.worker.public_profile_slug}` : "";
 }
 
@@ -1111,15 +1115,14 @@ function SearchToolbar({
   );
 }
 
-function MasterMetrics({ metrics, statusFilter, feeFilter, onStatusFilter, onFeeFilter, onClear }) {
+function MasterMetrics({ metrics, statusFilter, ownedFilter, onStatusFilter, onOwnedFilter, onClear }) {
   const cards = [
-    { key: "all", label: "Matching records", value: metrics.total, active: !statusFilter && !feeFilter, onClick: onClear },
+    { key: "all", label: "Matching records", value: metrics.total, active: !statusFilter && !ownedFilter, onClick: onClear },
     { key: "sourced", label: "Sourced", value: metrics.sourced, active: statusFilter === "sourced", onClick: () => onStatusFilter(statusFilter === "sourced" ? "" : "sourced") },
     { key: "placed", label: "Placed", value: metrics.placed, active: statusFilter === "placed", onClick: () => onStatusFilter(statusFilter === "placed" ? "" : "placed") },
     ...(metrics.onHold > 0 ? [{ key: "on_hold", label: "On Hold", value: metrics.onHold, active: statusFilter === "on_hold", onClick: () => onStatusFilter(statusFilter === "on_hold" ? "" : "on_hold") }] : []),
     ...(metrics.rejected > 0 ? [{ key: "rejected", label: "Rejected", value: metrics.rejected, active: statusFilter === "rejected", onClick: () => onStatusFilter(statusFilter === "rejected" ? "" : "rejected") }] : []),
-    { key: "paid", label: "Placement fees paid", value: metrics.paid, active: feeFilter === "paid", onClick: () => onFeeFilter(feeFilter === "paid" ? "" : "paid"), tone: "paid" },
-    { key: "pending", label: "Placement fees pending", value: metrics.pending, active: feeFilter === "pending", onClick: () => onFeeFilter(feeFilter === "pending" ? "" : "pending"), tone: "pending" },
+    { key: "owned", label: "OWNED", value: metrics.owned, active: !!ownedFilter, onClick: () => onOwnedFilter(ownedFilter ? "" : "owned") },
   ];
   return <div className="master-metrics" aria-label="Master search metrics">{cards.map((card) => <button key={card.key} type="button" className={`master-metric ${card.tone || ""} ${card.active ? "active" : ""}`} onClick={card.onClick}><span className="master-metric-label">{card.label}</span><strong className="master-metric-value">{card.value}</strong></button>)}</div>;
 }
@@ -1199,18 +1202,18 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateSave
     <div className="table-scroll">
       <table className="cts-candidate-table">
         <colgroup>
-          <col style={{ width: "20%" }} />
-          <col style={{ width: "7%" }} />
-          <col style={{ width: "21%" }} />
-          <col style={{ width: "15%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "23%" }} />
+          <col style={{ width: mode === "admin" ? "23%" : "27%" }} />
+          <col style={{ width: mode === "admin" ? "18%" : "21%" }} />
+          {mode === "admin" ? <><col style={{ width: "10%" }} /><col style={{ width: "10%" }} /></> : null}
+          <col style={{ width: mode === "admin" ? "13%" : "15%" }} />
+          <col style={{ width: mode === "admin" ? "12%" : "14%" }} />
+          <col style={{ width: mode === "admin" ? "14%" : "23%" }} />
         </colgroup>
         <thead>
           <tr>
             <SortableCandidateHeader column="name" label="Name" sortConfig={sortConfig} onSort={onSort} />
-            <th>Profile</th>
             <SortableCandidateHeader column="project" label="Project" sortConfig={sortConfig} onSort={onSort} />
+            {mode === "admin" ? <><th>Rate per hour</th><th>Hiring method</th></> : null}
             <SortableCandidateHeader column="status" label="Status" sortConfig={sortConfig} onSort={onSort} />
             <SortableCandidateHeader column="placement_fee" label={<><span>Placement</span><br /><span>Fee</span></>} sortConfig={sortConfig} onSort={onSort} />
             <SortableCandidateHeader column="last_modified" label="Last Modified" sortConfig={sortConfig} onSort={onSort} />
@@ -1224,7 +1227,7 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateSave
             const projectName = job.level_type || "Unlinked project";
             const projectLocation = [job.city, job.state].filter(Boolean).join(", ");
             const profileUrl = mode === "admin"
-              ? (worker.id ? `/admin/workers/${worker.id}/details` : "")
+              ? (worker.id ? `/admin/workers/${worker.id}/profile` : "")
               : (worker.public_profile_slug ? `/profile/${worker.public_profile_slug}` : "");
             const canAdminEdit = mode === "admin";
             const canEditStatus = canAdminEdit || mode === "client";
@@ -1233,25 +1236,11 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateSave
             return (
               <tr key={candidate.id}>
                 <td>
-                  <div className="candidate-name">{candidateName}</div>
+                  <div className="candidate-name">{profileUrl ? <a href={profileUrl} style={{ color: "inherit" }}>{candidateName}</a> : candidateName}</div>
                   <div className="candidate-contact">
                     <span className="candidate-contact-line">{candidate.phone_snapshot || worker.phone || "No phone"}</span>
                     <span className="candidate-contact-line">{worker.email || "No email"}</span>
                   </div>
-                </td>
-                <td className="profile-action-cell">
-                  {profileUrl ? (
-                    <button
-                      className="btn white profile-action-btn"
-                      type="button"
-                      onClick={() => window.open(profileUrl, "_blank", "noopener,noreferrer")}
-                      title={mode === "admin" ? "Open candidate details" : "Open public profile"}
-                    >
-                      <ExternalLink size={16} />
-                    </button>
-                  ) : (
-                    "—"
-                  )}
                 </td>
                 <td>
                   <button
@@ -1266,6 +1255,7 @@ function CandidateTable({ candidates, onOpenJob, mode = "admin", onCandidateSave
                     <div className="table-muted-xs" style={{ marginTop: 5 }}>{projectLocation}</div>
                   ) : null}
                 </td>
+                {canAdminEdit ? <>{["rate_snapshot", "payment_type"].map((field) => <td key={field}><CandidateCompensationEditor field={field} key={`${candidate.id}:${candidate.updated_at}:${field}`} candidate={candidate} onSave={onCandidateSave} saving={!!savingIds[`${candidate.id}:compensation`]} /></td>)}</> : null}
                 <td>
                   {canEditStatus ? (
                     <select
@@ -1377,8 +1367,9 @@ function JobsTable({ jobs, candidateCounts, onOpenJob }) {
 }
 
 
-function AddCandidateModal({ open, workers, onAddCandidate, onClose, adding }) {
+function AddCandidateModal({ open, workers, onAddCandidate, onClose, adding, error }) {
   const [workerSearch, setWorkerSearch] = useState("");
+  const [payDrafts, setPayDrafts] = useState({});
 
   useEffect(() => {
     if (!open) return undefined;
@@ -1401,9 +1392,10 @@ function AddCandidateModal({ open, workers, onAddCandidate, onClose, adding }) {
 
   const submit = async (workerId) => {
     if (!workerId || adding) return;
-    const added = await onAddCandidate(workerId);
+    const added = await onAddCandidate(workerId, "sourced", payDrafts[workerId] || { rate_snapshot: profileRateForAssignment(workers.find((worker) => worker.id === workerId)?.rate) });
     if (!added) return;
     setWorkerSearch("");
+    setPayDrafts({});
     onClose();
   };
 
@@ -1438,6 +1430,7 @@ function AddCandidateModal({ open, workers, onAddCandidate, onClose, adding }) {
           <button className="mini-action-btn" type="button" onClick={onClose} disabled={adding}><X size={14} />Close</button>
         </div>
 
+        {error ? <p role="alert" style={{ color: "#b91c1c" }}>{error}</p> : null}
         <div className="add-candidate-scroll">
           <div className="add-candidate-search">
             <div className="search-box">
@@ -1453,18 +1446,21 @@ function AddCandidateModal({ open, workers, onAddCandidate, onClose, adding }) {
 
           <div className="worker-results" aria-live="polite">
             {filteredWorkers.length ? filteredWorkers.map((worker) => (
-              <div className="worker-result-row" key={worker.id}>
+              <form className="worker-result-row" key={worker.id} onSubmit={(event) => { event.preventDefault(); submit(worker.id); }}>
                 <div className="worker-result-info">
                   <div className="worker-result-name">{worker.name || worker.email || worker.phone || "Unnamed worker"}</div>
                   <div className="worker-result-meta">
                     {worker.phone || "No phone"}{worker.email ? ` · ${worker.email}` : ""}
                   </div>
                 </div>
-                <button className="mini-action-btn" type="button" onClick={() => submit(worker.id)} disabled={adding}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", flex: "1 1 280px", gap: 10 }}>
+                  <CandidateCompensationInputs values={payDrafts[worker.id] || { rate_snapshot: profileRateForAssignment(worker.rate) }} onChange={(field, value) => setPayDrafts((prev) => ({ ...prev, [worker.id]: { rate_snapshot: profileRateForAssignment(worker.rate), ...prev[worker.id], [field]: value } }))} required disabled={adding} />
+                </div>
+                <button className="mini-action-btn" type="submit" disabled={adding}>
                   <Plus size={13} />
                   {adding ? "Adding..." : "Add"}
                 </button>
-              </div>
+              </form>
             )) : (
               <div className="empty-state" style={{ marginTop: 14 }}>
                 No available workers match your search.
@@ -1831,7 +1827,7 @@ export default function JobsPageTest({ mode = "admin" }) {
   const [feedback, setFeedback] = useState({ error: "", success: "" });
   const [search, setSearch] = useState("");
   const [candidateStatusFilter, setCandidateStatusFilter] = useState("");
-  const [placementFeeFilter, setPlacementFeeFilter] = useState("");
+  const [ownedFilter, setOwnedFilter] = useState("");
   const [candidateSort, setCandidateSort] = useState({ key: "last_modified", direction: "desc" });
   const [activeView, setActiveView] = useState({ type: "candidate", status: "all" });
   const [jobsListOpen, setJobsListOpen] = useState(true);
@@ -1845,14 +1841,14 @@ export default function JobsPageTest({ mode = "admin" }) {
   const [addingCandidate, setAddingCandidate] = useState(false);
   const [candidateModalOpen, setCandidateModalOpen] = useState(false);
 
-  const load = async () => {
+  const load = async ({ preserveFeedback = false } = {}) => {
     setLoading(true);
-    setFeedback({ error: "", success: "" });
+    if (!preserveFeedback) setFeedback({ error: "", success: "" });
 
     const [jobsRes, candidatesRes, workersRes] = await Promise.all([
       supabase.from("cts_jobs").select("*").order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
       supabase.from("cts_job_candidates").select("*").order("updated_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }),
-      supabase.from("workers").select("id, name, phone, email, public_profile_slug").order("name", { ascending: true }),
+      supabase.from("workers").select("id, name, phone, email, public_profile_slug, rate").order("name", { ascending: true }),
     ]);
 
     if (jobsRes.error || candidatesRes.error || workersRes.error) {
@@ -2058,7 +2054,12 @@ export default function JobsPageTest({ mode = "admin" }) {
 
     let value = row[field];
     if (typeof value === "string") value = value.trim();
-    const payload = { [field]: value === "" ? null : value, ...modePayload };
+    let compensation = {};
+    if (field === "compensation") {
+      try { compensation = candidateCompensationPayload(row); }
+      catch (error) { setSavingIds((prev) => ({ ...prev, [savingKey]: false })); setFeedback({ error: error.message, success: "" }); return false; }
+    }
+    const payload = field === "compensation" ? compensation : { [field]: value === "" ? null : value, ...modePayload };
 
     if (field === "candidate_status") {
       payload.placed_at = value === "placed" && !row.placed_at ? new Date().toISOString() : row.placed_at || null;
@@ -2093,8 +2094,9 @@ export default function JobsPageTest({ mode = "admin" }) {
       return;
     }
 
-    setFeedback({ error: "", success: "Candidate updated." });
     await load({ preserveFeedback: true });
+    setFeedback({ error: "", success: "Candidate updated." });
+    return true;
   };
 
 
@@ -2129,11 +2131,14 @@ export default function JobsPageTest({ mode = "admin" }) {
     await load({ preserveFeedback: true });
   };
 
-  const addCandidateToJob = async (workerId, candidateStatus = "sourced") => {
+  const addCandidateToJob = async (workerId, candidateStatus = "sourced", payDetails = {}) => {
     if (mode !== "admin" || activeView.type !== "job" || !activeView.jobId) return false;
     const worker = workers.find((item) => item.id === workerId);
     if (!worker) return false;
 
+    let compensation;
+    try { compensation = candidateCompensationPayload(payDetails, { required: true }); }
+    catch (error) { setFeedback({ error: error.message, success: "" }); return false; }
     let placement = {};
     if (candidateStatus === "placed") {
       const selectedMode = await chooseHiringMode(worker);
@@ -2149,6 +2154,7 @@ export default function JobsPageTest({ mode = "admin" }) {
       name_snapshot: worker.name || worker.email || worker.phone || "Unnamed worker",
       phone_snapshot: worker.phone || null,
       candidate_status: candidateStatus || "sourced",
+      ...compensation,
       ...placement,
       sort_order: jobCandidates.filter((candidate) => candidate.cts_job_id === activeView.jobId).length + 1,
       submitted_at: null,
@@ -2280,15 +2286,14 @@ export default function JobsPageTest({ mode = "admin" }) {
   }, [activeView, search, sortedCandidates]);
 
   const masterMetrics = useMemo(() => {
-    const metrics = { total: searchableCandidates.length, sourced: 0, placed: 0, rejected: 0, onHold: 0, paid: 0, pending: 0 };
+    const metrics = { total: searchableCandidates.length, sourced: 0, placed: 0, rejected: 0, onHold: 0, owned: 0 };
     searchableCandidates.forEach((candidate) => {
       const status = String(candidate.candidate_status || "sourced").toLowerCase();
       if (status === "sourced") metrics.sourced += 1;
       if (status === "placed") metrics.placed += 1;
       if (status === "rejected") metrics.rejected += 1;
       if (status === "on_hold") metrics.onHold += 1;
-      if (candidate.hiring_mode !== "owned" && candidate.placement_fee_paid) metrics.paid += 1;
-      else if (status === "placed" && candidate.hiring_mode !== "owned") metrics.pending += 1;
+      if (candidate.hiring_mode === "owned") metrics.owned += 1;
     });
     return metrics;
   }, [searchableCandidates]);
@@ -2298,13 +2303,9 @@ export default function JobsPageTest({ mode = "admin" }) {
       const status = String(candidate.candidate_status || "sourced").toLowerCase();
       if (status !== candidateStatusFilter) return false;
     }
-    if (activeView.type === "candidate" && activeView.status === "all" && placementFeeFilter === "paid" && !candidate.placement_fee_paid) return false;
-    if (activeView.type === "candidate" && activeView.status === "all" && placementFeeFilter === "pending") {
-      const status = String(candidate.candidate_status || "sourced").toLowerCase();
-      if (candidate.hiring_mode === "owned" || candidate.placement_fee_paid || status !== "placed") return false;
-    }
+    if (activeView.type === "candidate" && activeView.status === "all" && ownedFilter && candidate.hiring_mode !== "owned") return false;
     return true;
-  }), [activeView, candidateStatusFilter, placementFeeFilter, searchableCandidates]);
+  }), [activeView, candidateStatusFilter, ownedFilter, searchableCandidates]);
 
   const viewJobs = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -2386,7 +2387,7 @@ export default function JobsPageTest({ mode = "admin" }) {
     const slug = activeTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "candidates";
     downloadCsv(
       `cts-jobs-${slug}.csv`,
-      ["Name", "Phone", "Email", "Profile", "Project", "Location", "Status", "Hiring mode", "Placement Fee", "Placement Fee Invoice", "Last Modified"],
+      ["Name", "Phone", "Email", "Profile", "Project", "Location", "Status", "Hiring mode", ...(mode === "admin" ? ["Rate per hour", "Hiring method"] : []), "Placement Fee", "Placement Fee Invoice", "Last Modified"],
       viewCandidates.map((candidate) => [
         getCandidateName(candidate),
         getCandidatePhone(candidate),
@@ -2396,6 +2397,7 @@ export default function JobsPageTest({ mode = "admin" }) {
         getCandidateProjectLocation(candidate),
         formatStatus(candidate.candidate_status),
         candidate.hiring_mode ? hiringTerms(candidate).label : "",
+        ...(mode === "admin" ? [candidate.rate_snapshot ?? "", candidate.payment_type || ""] : []),
         candidate.hiring_mode === "owned" ? "Not applicable" : candidate.placement_fee_paid ? "Paid" : "Pending",
         candidate.placement_fee_invoice_number || "",
         formatDateTime(candidate.updated_at || candidate.created_at),
@@ -2520,7 +2522,7 @@ export default function JobsPageTest({ mode = "admin" }) {
                   resultType={loading ? "" : "results"}
                   showResultCount={false}
                 />
-                {activeView.type === "candidate" && activeView.status === "all" ? <MasterMetrics metrics={masterMetrics} statusFilter={candidateStatusFilter} feeFilter={placementFeeFilter} onStatusFilter={setCandidateStatusFilter} onFeeFilter={setPlacementFeeFilter} onClear={() => { setCandidateStatusFilter(""); setPlacementFeeFilter(""); }} /> : null}
+                {activeView.type === "candidate" && activeView.status === "all" ? <MasterMetrics metrics={masterMetrics} statusFilter={candidateStatusFilter} ownedFilter={ownedFilter} onStatusFilter={setCandidateStatusFilter} onOwnedFilter={setOwnedFilter} onClear={() => { setCandidateStatusFilter(""); setOwnedFilter(""); }} /> : null}
               </>
             ) : null}
 
@@ -2594,6 +2596,8 @@ export default function JobsPageTest({ mode = "admin" }) {
         saving={savingJob}
       />
       <AddCandidateModal
+        key={activeView.jobId || "none"}
+        error={feedback.error}
         open={candidateModalOpen && mode === "admin" && activeView.type === "job"}
         workers={availableWorkersForJob}
         onAddCandidate={addCandidateToJob}
