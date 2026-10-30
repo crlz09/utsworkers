@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local Gusto directory exports contain private employee matching data.
+gusto-payroll-directory*.json

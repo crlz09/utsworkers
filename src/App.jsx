@@ -16,6 +16,7 @@ const CtsJobDetailPage = lazy(() => import("./pages/CtsJobDetailPage"));
 const ClientCtsJobDetailPage = lazy(() => import("./pages/ClientCtsJobDetailPage"));
 const HoursTrackerPage = lazy(() => import("./pages/HoursTrackerPage"));
 const CtsWeeklyPage = lazy(() => import("./pages/CtsWeeklyPage"));
+const PayrollPage = lazy(() => import("./pages/PayrollPage"));
 const InvoicePage = lazy(() => import("./pages/InvoicePage"));
 const WorkerHoursPage = lazy(() => import("./pages/WorkerHoursPage"));
 const BreakdownPage = lazy(() => import("./pages/BreakdownPage"));
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="/cts-jobs" element={<JobsPageTest />} />
             <Route path="/cts-jobs/:jobId" element={<CtsJobDetailPage />} />
             <Route path="/hours" element={<HoursTrackerPage mode="admin" />} />
+            <Route path="/payroll" element={<PayrollPage />} />
             <Route path="/invoice" element={<InvoicePage />} />
             <Route path="/hours/cts-weekly" element={<CtsWeeklyPage />} />
             <Route path="/invoice/cts-weekly" element={<CtsWeeklyPage />} />

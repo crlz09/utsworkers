@@ -15,6 +15,7 @@ import {
   Search,
   UserPlus,
   UsersRound,
+  Wallet,
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { label: "Onboarding", path: "/admin/onboarding/planner", icon: ClipboardList },
   { label: "Projects", path: "/cts-jobs", icon: BriefcaseBusiness },
   { label: "Hours", path: "/hours", icon: Clock3 },
+  { label: "Payroll", path: "/payroll", icon: Wallet, supervisorOnly: true },
   { label: "Billing", path: "/invoice", icon: FileText },
   { label: "Reports", path: "/breakdown", icon: ChartNoAxesCombined },
   { label: "Overview", path: "/admin/overview", icon: LayoutDashboard, section: "overview" },
