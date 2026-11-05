@@ -72,6 +72,9 @@ verify_jwt = false
 # A dedicated sync secret is restricted to Gmail imports.
 verify_jwt = false
 
+[functions.paystub-email]
+verify_jwt = false
+
 [db.network_restrictions]
 # Enable management of network restrictions.
 enabled = false

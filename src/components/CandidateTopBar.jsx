@@ -7,6 +7,7 @@ export default function CandidateTopBar({ workerName = "Candidate portal", admin
   const navigate = useNavigate();
   const location = useLocation();
   const [canSubmitHours, setCanSubmitHours] = useState(false);
+  const [hasPaystubs, setHasPaystubs] = useState(false);
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -19,9 +20,13 @@ export default function CandidateTopBar({ workerName = "Candidate portal", admin
     if (adminMode) return () => { active = false; };
 
     const loadHoursAccess = async () => {
-      const { data, error } = await supabase.rpc("current_worker_hours_assignment");
+      const [{ data, error }, paystubs] = await Promise.all([
+        supabase.rpc("current_worker_hours_assignment"),
+        supabase.from('contractor_paystubs').select('id', { count:'exact', head:true }).limit(1),
+      ]);
       if (!active) return;
       setCanSubmitHours(!error && Array.isArray(data) && data.length > 0);
+      setHasPaystubs(!paystubs.error && paystubs.count > 0);
     };
 
     void loadHoursAccess();
@@ -36,6 +41,7 @@ export default function CandidateTopBar({ workerName = "Candidate portal", admin
     : [
         { label: "Profile", path: "/worker/profile", icon: UserRound },
         { label: "Documents", path: "/worker/documents", icon: FileText },
+        ...(hasPaystubs ? [{ label: "Paystubs", path: "/worker/paystubs", icon: FileText }] : []),
         { label: "Hours", path: "/worker/hours", icon: Clock3, disabled: !canSubmitHours },
       ];
 

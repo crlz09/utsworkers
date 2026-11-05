@@ -17,6 +17,7 @@ const ClientCtsJobDetailPage = lazy(() => import("./pages/ClientCtsJobDetailPage
 const HoursTrackerPage = lazy(() => import("./pages/HoursTrackerPage"));
 const CtsWeeklyPage = lazy(() => import("./pages/CtsWeeklyPage"));
 const PayrollPage = lazy(() => import("./pages/PayrollPage"));
+const WorkerPaystubsPage = lazy(() => import("./pages/WorkerPaystubsPage"));
 const InvoicePage = lazy(() => import("./pages/InvoicePage"));
 const WorkerHoursPage = lazy(() => import("./pages/WorkerHoursPage"));
 const BreakdownPage = lazy(() => import("./pages/BreakdownPage"));
@@ -96,6 +97,7 @@ export default function App() {
           <Route path="/admin/legacy" element={<Navigate to="/admin/candidate" replace />} />
           <Route path="/worker/profile" element={<WorkerRoute><CandidateProfilePage /></WorkerRoute>} />
           <Route path="/worker/documents" element={<WorkerRoute><WorkerDocumentsPage /></WorkerRoute>} />
+          <Route path="/worker/paystubs" element={<WorkerRoute><WorkerPaystubsPage /></WorkerRoute>} />
           <Route path="/worker/hours" element={<WorkerRoute><Navigate to="/worker/profile" replace /></WorkerRoute>} />
           <Route path="/client/cts-jobs" element={<ClientRoute><JobsPageTest mode="client" /></ClientRoute>} />
           <Route path="/client/cts-jobs/:jobId" element={<ClientRoute><ClientCtsJobDetailPage /></ClientRoute>} />
