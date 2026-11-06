@@ -95,12 +95,14 @@ function bestAssignment(sourceName, memo, assignments) {
 export function parseCtsHoursRows(sheetRows, assignments) {
   const headerRowIndex = sheetRows.findIndex((row) => {
     const labels = row.map((cell) => normalizeText(cell));
-    return labels.includes("type") && labels.includes("date") && labels.includes("memo") && labels.includes("qty");
+    return labels.includes("date") && labels.includes("memo") && labels.includes("qty")
+      && (labels.includes("type") || labels.includes("name"));
   });
-  if (headerRowIndex < 0) throw new Error("The CTS spreadsheet headers (Type, Date, Memo, Qty) were not found.");
+  if (headerRowIndex < 0) throw new Error("The CTS spreadsheet must include Date, Memo, and Qty, plus either Type or Name.");
 
   const headers = sheetRows[headerRowIndex].map((cell) => normalizeText(cell));
   const typeIndex = headers.indexOf("type");
+  const hasType = typeIndex >= 0;
   const dateIndex = headers.indexOf("date");
   const invoiceIndex = headers.indexOf("num");
   const memoIndex = headers.indexOf("memo");
@@ -110,8 +112,9 @@ export function parseCtsHoursRows(sheetRows, assignments) {
   let currentEmployee = "";
 
   sheetRows.slice(headerRowIndex + 1).forEach((row, rowOffset) => {
-    const type = normalizeText(row[typeIndex]);
-    if (type !== "invoice") {
+    // Exports without Type use dated detail rows under each employee heading.
+    const isDetailRow = hasType ? normalizeText(row[typeIndex]) === "invoice" : Boolean(row[dateIndex]);
+    if (!isDetailRow) {
       const employeeCell = row.find((cell) => typeof cell === "string" && cell.includes(",") && !/^total\s/i.test(cell.trim()));
       if (employeeCell) currentEmployee = employeeCell.trim();
       return;
@@ -124,12 +127,13 @@ export function parseCtsHoursRows(sheetRows, assignments) {
 
     const cleanMemo = baseMemo(memo);
     const invoiceNumber = String(row[invoiceIndex] || "").replace(/\.0$/, "").trim();
-    const key = [currentEmployee, weekEnding, invoiceNumber, cleanMemo].join("|");
+    const customer = String(row[customerIndex] || "").trim();
+    const key = [currentEmployee, weekEnding, hasType ? invoiceNumber : customer, cleanMemo].join("|");
     const existing = grouped.get(key) || {
       source_row_key: String(rowOffset + headerRowIndex + 2),
       source_employee_name: currentEmployee,
       source_memo: cleanMemo,
-      source_customer: String(row[customerIndex] || "").trim(),
+      source_customer: customer,
       source_invoice_number: invoiceNumber,
       week_ending_date: weekEnding,
       regular_hours: 0,
