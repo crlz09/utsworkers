@@ -7,7 +7,7 @@ import { buildCtsJotformPrefillUrl } from "../lib/ctsJotform";
 import { supabase } from "../lib/supabase";
 
 const PREFILL_ERRORS = {
-  "missing-script": "Enable the UTS Tampermonkey script, reload this page, and try again.",
+  "missing-script": "Install or update the UTS Tampermonkey script, reload this page, and try again.",
   unavailable: "The Avionté form is unavailable. Open its Personal Information step and try again.",
 };
 

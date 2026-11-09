@@ -1,7 +1,8 @@
 import { getFullStateName, US_STATE_ABBREVIATIONS } from "./addressLookup.js";
 import { splitName } from "./ctsJotform.js";
 
-export const CTS_FORM_URL = "https://hire.myavionte.com/sonar/v2/careers/integrations/standalone/general?bId=C49sQn8w92E&jbId=aYxC4tDzp1Q&rpid=general";
+// Direct apply URL loaded by the CTS careers widget for this posting.
+export const CTS_FORM_URL = "https://hire.myavionte.com/app/careers/#/jobs/C49sQn8w92E/r6_4z5-tWGg/HuWz6tnkpSg/direct";
 
 function getCtsContactFields(candidate) {
   const { first, last } = splitName(candidate.name);

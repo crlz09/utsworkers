@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         UTS CTS Form Autofill
 // @namespace    https://github.com/crlz09/utsworkers
-// @version      1.0.0
+// @version      1.1.0
 // @description  Fill the CTS Avionté form from the selected UTS candidate.
-// @match        https://hire.myavionte.com/sonar/v2/careers/integrations/standalone/general*
+// @match        https://hire.myavionte.com/app/careers/*
 // @run-at       document-start
 // @sandbox      DOM
 // @grant        none
@@ -12,12 +12,13 @@
 (() => {
   "use strict";
 
-  const query = new URLSearchParams(location.search);
+  const directRoute = "#/jobs/C49sQn8w92E/r6_4z5-tWGg/HuWz6tnkpSg/direct";
+  const personalRoute = "#/job/HuWz6tnkpSg/personal/";
+  const isPersonalStep = () => location.hash === personalRoute;
   if (
     window.parent === window || window.parent !== window.top ||
-    location.pathname !== "/sonar/v2/careers/integrations/standalone/general" ||
-    query.get("bId") !== "C49sQn8w92E" || query.get("jbId") !== "aYxC4tDzp1Q" ||
-    query.get("rpid") !== "general"
+    location.pathname !== "/app/careers/" ||
+    (location.hash !== directRoute && !isPersonalStep())
   ) return;
 
   const channel = "uts-cts-prefill-v1";
@@ -33,12 +34,6 @@
     mobile: 'input[name*="_app_mobilephone_"]',
     email: 'input[name*="_app_email_"]',
   };
-
-  function getFormDocument() {
-    const doc = document.getElementById("compas-jobs-iframe")?.contentDocument;
-    return doc?.location.pathname === "/app/careers/" &&
-      doc.location.hash.startsWith("#/job/general/personal/") ? doc : null;
-  }
 
   async function waitFor(find, timeout) {
     const end = Date.now() + timeout;
@@ -70,24 +65,24 @@
   }
 
   async function fill(values) {
-    const doc = await waitFor(() => {
-      const form = getFormDocument();
-      return form?.querySelector(firstNameSelector)?.getClientRects().length ? form : null;
+    const firstName = await waitFor(() => {
+      if (!isPersonalStep()) return null;
+      const field = document.querySelector(firstNameSelector);
+      return field?.getClientRects().length ? field : null;
     }, 6500);
-    if (!doc) return "unavailable";
+    if (!firstName) return "unavailable";
 
-    let changed = selectEmpty(doc.querySelector("#formlyFullLineOffice_id"), "UTS");
-    const country = doc.querySelector(countrySelector);
-    changed += selectEmpty(country, values.Country);
+    const country = document.querySelector(countrySelector);
+    let changed = selectEmpty(country, values.Country);
     for (const [key, selector] of Object.entries(textSelectors)) {
-      const field = doc.querySelector(selector);
+      const field = document.querySelector(selector);
       if (values[key] && !field?.value.trim()) changed += writeField(field, values[key], "input");
     }
 
     if (values.state && values.Country && selectedLabel(country) === values.Country.toLowerCase()) {
       const state = await waitFor(() => {
-        if (getFormDocument() !== doc || selectedLabel(country) !== values.Country.toLowerCase()) return null;
-        const select = doc.querySelector(stateSelector);
+        if (!isPersonalStep() || selectedLabel(country) !== values.Country.toLowerCase()) return null;
+        const select = document.querySelector(stateSelector);
         return select?.options.length > 1 ? select : null;
       }, 3000);
       changed += selectEmpty(state, values.state);
