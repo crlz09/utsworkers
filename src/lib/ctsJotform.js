@@ -1,6 +1,6 @@
 const CTS_JOTFORM_FORM_URL = "https://form.jotform.com/261095938583167";
 
-function splitName(fullName) {
+export function splitName(fullName) {
   const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length <= 1) return { first: parts[0] || "", last: "" };
   return { first: parts[0], last: parts.slice(1).join(" ") };
@@ -11,7 +11,7 @@ function setIfPresent(params, key, value) {
   if (normalizedValue) params.set(key, normalizedValue);
 }
 
-function formatDateOfBirth(value) {
+export function formatDateOfBirth(value) {
   const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return match ? `${match[2]}/${match[3]}/${match[1]}` : value;
 }

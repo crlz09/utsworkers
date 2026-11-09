@@ -463,7 +463,7 @@ export default function CtsJobDetailPage() {
     if (!workers.length) await loadWorkers();
   };
 
-  const openPrefilledCtsForm = (candidate) => {
+  const openCtsJotformBackup = (candidate) => {
     const prefilledUrl = buildCtsJotformPrefillUrl(candidate, job);
     window.open(prefilledUrl, "_blank", "noopener,noreferrer");
   };
@@ -793,7 +793,8 @@ export default function CtsJobDetailPage() {
                         <td className="notes-cell"><InlineEditableField row={row} field="notes" value={row.notes} type="textarea" placeholder="CTS submission notes..." editingKey={editingFieldKey} setEditingKey={setEditingFieldKey} onChange={updateCandidateField} onSave={saveCandidateField} saving={!!savingIds[`${row.id}:notes`]} /></td>
                         <td className="actions-cell">
                           <div className="row-actions">
-                            <button className="icon-btn" type="button" onClick={() => openPrefilledCtsForm(row)} title="Open the CTS form with available candidate details prefilled"><ExternalLink size={14} />CTS Form</button>
+                            {row.worker_id && <button className="icon-btn" type="button" onClick={() => navigate(`/admin/workers/${row.worker_id}/cts-form`)}><ExternalLink size={14} />CTS Form</button>}
+                            <button className="icon-btn" type="button" onClick={() => openCtsJotformBackup(row)} title="Open the backup JotForm with candidate and job details"><ExternalLink size={14} />JotForm backup</button>
                             <button className="icon-btn" type="button" onClick={() => removeCandidate(row)} disabled={!!deleteIds[row.id]}>{deleteIds[row.id] ? <Loader2 className="spin" size={14} /> : <Trash2 size={14} />}Remove</button>
                           </div>
                         </td>

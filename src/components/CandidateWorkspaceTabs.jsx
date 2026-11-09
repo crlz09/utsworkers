@@ -31,7 +31,7 @@ export default function CandidateWorkspaceTabs() {
     { label: "Profile", path: `/admin/workers/${workerId}/profile`, icon: UserRound },
     { label: "Documents", path: `/admin/workers/${workerId}/documents`, icon: FileText },
     { label: "Bio", path: `/admin/workers/${workerId}/bio`, icon: FilePenLine },
-    { label: "CTS JotForm", path: `/admin/workers/${workerId}/cts-form`, icon: ClipboardList },
+    { label: "CTS Form", path: `/admin/workers/${workerId}/cts-form`, icon: ClipboardList },
   ];
   const documents = candidate?.worker_documents || [];
   const documentAlerts = candidate ? [

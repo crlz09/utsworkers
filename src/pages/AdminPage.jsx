@@ -14,7 +14,6 @@ import {
   WORKER_DOCUMENT_TYPES,
 } from "../lib/workerDocuments";
 import { buildCtsBioBlob, createInitialCtsBio, sanitizeBioFileName } from "../lib/ctsBio";
-import { buildCtsJotformPrefillUrl } from "../lib/ctsJotform";
 import { matchesSearchQuery } from "../lib/search";
 import {
   findLocationIdByState,
@@ -1759,24 +1758,6 @@ function WorkerDocumentsPanel({ worker, documents, onDocumentsChanged, openRemin
   );
 }
 
-function openWorkerCtsForm(worker) {
-  const url = buildCtsJotformPrefillUrl({
-    worker_id: worker.id,
-    worker_name: worker.name,
-    worker_phone: worker.phone,
-    worker_email: worker.email,
-    worker_address: worker.address,
-    worker_city: worker.city,
-    worker_state: worker.state,
-    worker_zip_code: worker.zip_code,
-    worker_date_of_birth: worker.date_of_birth,
-    class_snapshot: worker.trades?.name,
-    worker_total_experience_years: worker.total_experience_years,
-    worker_certifications: worker.worker_certifications,
-  });
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
 function WorkerCard({
   worker,
   trades,
@@ -2091,7 +2072,7 @@ function WorkerCard({
                 icon={ExternalLink}
                 title="CTS Form"
                 aria-label="Open CTS Form"
-                onClick={() => openWorkerCtsForm(worker)}
+                onClick={() => navigate(`/admin/workers/${worker.id}/cts-form`)}
               />
               {canEditWorkers ? (
                 <>
@@ -2147,7 +2128,7 @@ function WorkerCard({
                 />
                 {actionMenuOpen ? (
                   <div style={{ position: "absolute", top: 42, right: 0, zIndex: 20, width: 230, padding: 7, display: "grid", gap: 3, border: "1px solid #dbeafe", borderRadius: 14, background: "#ffffff", boxShadow: "0 18px 45px rgba(15,23,42,.2)" }}>
-                    <button type="button" onClick={() => { setActionMenuOpen(false); openWorkerCtsForm(worker); }} style={mobileActionMenuItemStyle()}><ExternalLink size={16} /> CTS Form</button>
+                    <button type="button" onClick={() => { setActionMenuOpen(false); navigate(`/admin/workers/${worker.id}/cts-form`); }} style={mobileActionMenuItemStyle()}><ExternalLink size={16} /> CTS Form</button>
                     {canEditWorkers ? (
                       <>
                         <button type="button" onClick={() => { setActionMenuOpen(false); navigate(`/admin/workers/${worker.id}/profile`); }} style={mobileActionMenuItemStyle()}><UserRound size={16} /> Manage candidate profile</button>
