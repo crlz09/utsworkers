@@ -1,19 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import CandidateWorkspaceTabs from "../components/CandidateWorkspaceTabs";
-import { sanitizeDownloadName } from "../lib/candidateDocumentBundle";
-import { downloadBlob } from "../lib/candidateDocumentPdf";
-import { CTS_FORM_URL, fillCtsAvionteForm, fillCtsContactPdf } from "../lib/ctsForm";
-import contactTemplateUrl from "../lib/ctsContactTemplate.pdf?url";
+import { CTS_FORM_URL, fillCtsAvionteForm } from "../lib/ctsForm";
 import { buildCtsJotformPrefillUrl } from "../lib/ctsJotform";
 import { supabase } from "../lib/supabase";
 
-const PREFILL_MESSAGES = {
-  filled: "Available fields were filled. Review the form and complete any missing details before submitting.",
-  unchanged: "No empty fields could be filled. Review the details in Avionté.",
+const PREFILL_ERRORS = {
   "missing-script": "Enable the UTS Tampermonkey script, reload this page, and try again.",
   unavailable: "The Avionté form is unavailable. Open its Personal Information step and try again.",
+};
+
+const formButtonStyle = {
+  border: 0,
+  borderRadius: 8,
+  padding: "10px 13px",
+  background: "#2f6fed",
+  color: "white",
+  font: "inherit",
+  fontSize: 14,
+  fontWeight: 800,
+  cursor: "pointer",
 };
 
 export default function CandidateCtsFormPage() {
@@ -26,8 +33,6 @@ function CandidateCtsForm({ workerId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [submission, setSubmission] = useState(null);
-  const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState("");
   const [prefillStatus, setPrefillStatus] = useState("");
   const avionteFrame = useRef(null);
   const prefillRequest = useRef(null);
@@ -83,22 +88,6 @@ function CandidateCtsForm({ workerId }) {
     worker_certifications: candidate.worker_certifications,
   }) : "", [candidate]);
 
-  const downloadContactPdf = async () => {
-    setDownloading(true);
-    setDownloadError("");
-    try {
-      const response = await fetch(contactTemplateUrl);
-      if (!response.ok) throw new Error("Could not load the CTS template.");
-      const bytes = await fillCtsContactPdf(await response.arrayBuffer(), candidate);
-      const name = sanitizeDownloadName(candidate.name, "Candidate");
-      downloadBlob(new Blob([bytes], { type: "application/pdf" }), `CTS Contact Information - ${name}.pdf`);
-    } catch {
-      setDownloadError("Could not prepare the contact PDF. Try again or enter the candidate’s details directly in Avionté.");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
   const prefillAvionte = async () => {
     const frame = avionteFrame.current?.contentWindow;
     if (!frame || prefillRequest.current) return;
@@ -124,22 +113,15 @@ function CandidateCtsForm({ workerId }) {
             <h1 style={{ margin: 0, fontSize: 20, color: "#172033" }}>CTS Form</h1>
             {candidate && (
               <>
-                <p style={{ margin: "8px 0 12px", color: "#526176", fontSize: 14 }}>
-                  Use <strong>Fill Avionté form</strong> with the UTS Tampermonkey script installed. Review the details and confirm the branch is <strong>UTS</strong>. Use <strong>Upload Resume</strong> for the candidate’s resume or CTS’s contact PDF when a resume is unavailable. Use <strong>Upload Documents</strong> for supporting files.
-                </p>
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
-                  <button type="button" onClick={prefillAvionte} disabled={prefillStatus === "loading"} style={{ border: 0, borderRadius: 8, padding: "10px 13px", background: "#2f6fed", color: "white", fontWeight: 800, cursor: "pointer" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 12 }}>
+                  <button type="button" onClick={prefillAvionte} disabled={prefillStatus === "loading"} style={formButtonStyle}>
                     {prefillStatus === "loading" ? "Filling Avionté…" : "Fill Avionté form"}
                   </button>
-                  <a href="/uts-cts-autofill.user.js" target="_blank" rel="noopener noreferrer">Get Tampermonkey script</a>
-                  <button type="button" onClick={downloadContactPdf} disabled={downloading} style={{ border: "1px solid #d6dde6", borderRadius: 8, padding: "9px 12px", background: "white", color: "#425267", fontWeight: 750, cursor: "pointer" }}>
-                    {downloading ? "Preparing contact PDF…" : "Download prefilled contact PDF"}
+                  <button type="button" onClick={() => window.open(backupUrl, "_blank", "noopener,noreferrer")} style={{ ...formButtonStyle, marginLeft: "auto" }}>
+                    Open JotForm
                   </button>
-                  <a href={CTS_FORM_URL} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><ExternalLink size={15} /> Open Avionté</a>
-                  <a href={backupUrl} target="_blank" rel="noopener noreferrer">Open JotForm backup</a>
                 </div>
-                {PREFILL_MESSAGES[prefillStatus] && <p role="status" style={{ margin: "10px 0 0", color: "#526176" }}>{PREFILL_MESSAGES[prefillStatus]}</p>}
-                {downloadError && <p role="alert" style={{ margin: "10px 0 0", color: "#b91c1c" }}>{downloadError}</p>}
+                {PREFILL_ERRORS[prefillStatus] && <p role="alert" style={{ margin: "10px 0 0", color: "#b91c1c" }}>{PREFILL_ERRORS[prefillStatus]}</p>}
               </>
             )}
           </div>
