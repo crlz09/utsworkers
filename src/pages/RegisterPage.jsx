@@ -1870,7 +1870,7 @@ export default function RegisterPage() {
                       maxLength={4}
                       pattern="[0-9]{4}"
                       value={form.ssn_last4}
-                      onChange={(e) => handleChange("ssn_last4", e.target.value)}
+                      onChange={(e) => handleChange("ssn_last4", e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
                       placeholder={text.placeholders.ssnLast4}
                       style={inputStyle()}
                     />
