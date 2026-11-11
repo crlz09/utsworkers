@@ -558,6 +558,13 @@ Deno.serve(async (req) => {
 
     const submittedName = toRequiredString(payload.name) || buildFullName(payload.first_name, payload.last_name)
     const dateOfBirth = normalizeDateOfBirth(payload.date_of_birth)
+    const ssnLast4 = toOptionalString(payload.ssn_last4)
+    if (ssnLast4 !== null && !/^[0-9]{4}$/.test(ssnLast4)) {
+      return respond(400, {
+        error: "Enter exactly 4 digits for the last 4 digits of your SSN.",
+        field: "ssn_last4",
+      })
+    }
 
     const rpcPayload = {
       p_name: submittedName,
@@ -582,6 +589,8 @@ Deno.serve(async (req) => {
       p_certification_ids: Array.isArray(payload.selectedCertificationIds) ? payload.selectedCertificationIds : [],
       p_projects: toProjectPayload(payload.projects),
       p_language_proficiencies: toLanguageProficiencies(payload.languageProficiencies),
+      p_date_of_birth: dateOfBirth,
+      p_ssn_last4: ssnLast4,
     }
 
     if (
@@ -641,10 +650,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { data, error } = await supabaseAdmin.rpc("register_worker_public", rpcPayload)
+    const { data, error } = await supabaseAdmin.rpc("register_worker_public_with_identity", rpcPayload)
 
     if (error) {
-      console.error("register_worker_public failed", error)
+      console.error("register_worker_public_with_identity failed", error)
       const isDuplicateContact =
         error.code === "23505" ||
         String(error.message || "").includes("workers_email_unique_normalized_idx") ||
@@ -673,17 +682,6 @@ Deno.serve(async (req) => {
           : error.message || "Something went wrong while saving the worker profile.",
         field: duplicateField,
       })
-    }
-
-    const { error: dateOfBirthError } = await supabaseAdmin
-      .from("workers")
-      .update({ date_of_birth: dateOfBirth })
-      .eq("id", data)
-
-    if (dateOfBirthError) {
-      console.error("Could not store worker date of birth", dateOfBirthError)
-      await supabaseAdmin.from("workers").delete().eq("id", data)
-      return respond(500, { error: "Could not save the worker date of birth. Please try again." })
     }
 
     await logAttempt(supabaseAdmin, {

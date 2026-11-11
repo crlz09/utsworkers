@@ -23,6 +23,7 @@ function getCtsContactFields(candidate) {
     ZipCode: candidate.zip_code,
     mobile: candidate.phone,
     email: candidate.email,
+    ssn_last4: /^[0-9]{4}$/.test(candidate.ssn_last4 || "") ? candidate.ssn_last4 : "",
   };
 }
 

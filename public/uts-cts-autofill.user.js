@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UTS CTS Form Autofill
 // @namespace    https://github.com/crlz09/utsworkers
-// @version      1.2.1
+// @version      1.3.0
 // @description  Fill the CTS Avionté form from the selected UTS candidate.
 // @match        https://hire.myavionte.com/app/careers/*
 // @run-at       document-start
@@ -79,6 +79,10 @@
     for (const [key, selector] of Object.entries(textSelectors)) {
       const field = document.querySelector(selector);
       if (values[key] && !field?.value.trim()) changed += writeField(field, values[key], "input");
+    }
+    const ssn = document.querySelector('input[name*="_app_ssn_"]');
+    if (/^[0-9]{4}$/.test(values.ssn_last4 || "") && ssn && !ssn.value.trim()) {
+      changed += writeField(ssn, values.ssn_last4, "input");
     }
 
     if (values.state && values.Country && selectedLabel(country) === values.Country.toLowerCase()) {

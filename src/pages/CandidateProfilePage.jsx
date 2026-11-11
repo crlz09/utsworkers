@@ -24,7 +24,7 @@ import { findLocationIdByState, lookupUsZipCode, normalizeZipCode } from "../lib
 import { useParams } from "react-router-dom";
 
 const emptyForm = {
-  rate: "", name: "", phone: "", email: "", address: "", zip_code: "", city: "", state: "",
+  rate: "", name: "", phone: "", email: "", ssn_last4: "", address: "", zip_code: "", city: "", state: "",
   trade_id: "", location_id: "", total_experience_years: 0,
   commercial_experience_years: 0, industrial_experience_years: 0,
   residential_experience_years: 0, strengths: "", needs_improvement: "",
@@ -178,11 +178,12 @@ export default function CandidateProfilePage({ adminMode = false }) {
   const save = async (event) => {
     event.preventDefault(); setError(""); setSuccess("");
     if (!form.name.trim() || !form.trade_id || !form.location_id) { setError("Name, trade, and location are required."); return; }
+    if (form.ssn_last4 && !/^[0-9]{4}$/.test(form.ssn_last4)) { setError("Enter exactly 4 digits for the last 4 digits of the SSN."); return; }
     let rate;
     try { rate = candidateCompensationPayload({ rate_snapshot: form.rate }).rate_snapshot; }
     catch (error) { setError(error.message); return; }
     setSaving(true);
-    const { data, error: saveError } = await supabase.rpc(adminMode ? "update_admin_worker_portal_profile_with_rate" : "update_current_worker_portal_profile_with_rate", {
+    const { data, error: saveError } = await supabase.rpc(adminMode ? "update_admin_worker_portal_profile_with_identity" : "update_current_worker_portal_profile_with_identity", {
       ...(adminMode ? { p_worker_id: adminWorkerId } : {}),
       p_rate: rate,
       p_name: form.name, p_phone: form.phone, p_address: form.address, p_zip_code: form.zip_code,
@@ -193,6 +194,7 @@ export default function CandidateProfilePage({ adminMode = false }) {
       p_residential_experience_years: Number(form.residential_experience_years || 0),
       p_strengths: form.strengths, p_needs_improvement: form.needs_improvement,
       p_date_of_birth: form.date_of_birth || null,
+      p_ssn_last4: form.ssn_last4 || null,
       p_available_from: form.available_from || null, p_willing_to_travel: form.willing_to_travel,
       p_languages: form.languages, p_skill_ids: form.skills.map((item) => item.id),
       p_certification_ids: form.certifications.map((item) => item.id), p_projects: form.projects,
@@ -223,7 +225,8 @@ export default function CandidateProfilePage({ adminMode = false }) {
             <label className="candidate-field"><span className="candidate-label">Email (verified login)</span><input className="candidate-input" value={form.email || ""} disabled /></label>
             <label className="candidate-field"><span className="candidate-label">Phone</span><input className="candidate-input" disabled={!editing} value={form.phone || ""} onChange={(e) => update("phone", normalizePhone(e.target.value))} /></label>
             <label className="candidate-field"><span className="candidate-label">Date of Birth (DOB)</span><input className="candidate-input" disabled={!editing} type="date" value={form.date_of_birth} onChange={(e) => update("date_of_birth", e.target.value)} /></label>
-            <label className="candidate-field full"><span className="candidate-label">Street address</span><input className="candidate-input" disabled={!editing} value={form.address || ""} onChange={(e) => update("address", e.target.value)} /></label>
+            <label className="candidate-field"><span className="candidate-label">Last 4 Digits of SSN</span><input className="candidate-input" disabled={!editing} type="text" inputMode="numeric" autoComplete="off" maxLength={4} pattern="[0-9]{4}" value={form.ssn_last4 || ""} onChange={(e) => update("ssn_last4", e.target.value)} /></label>
+            <label className="candidate-field"><span className="candidate-label">Street address</span><input className="candidate-input" disabled={!editing} value={form.address || ""} onChange={(e) => update("address", e.target.value)} /></label>
             <label className="candidate-field"><span className="candidate-label">ZIP code</span><input className="candidate-input" disabled={!editing} value={form.zip_code || ""} onChange={(e) => update("zip_code", normalizeZipCode(e.target.value))} />{editing && zipStatus ? <small style={{ color: "#64748b" }}>{zipStatus}</small> : null}</label>
             <label className="candidate-field"><span className="candidate-label">City</span><input className="candidate-input" disabled={!editing} value={form.city || ""} onChange={(e) => update("city", e.target.value)} /></label>
             <label className="candidate-field"><span className="candidate-label">State</span><input className="candidate-input" disabled={!editing} value={form.state || ""} onChange={(e) => { const state=e.target.value; setForm((previous)=>({...previous,state,location_id:findLocationIdByState(locations,state)||previous.location_id})); }} /></label>

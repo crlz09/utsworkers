@@ -37,7 +37,7 @@ const experienceFields = [
 ];
 const registrationStepFields = [
   {
-    fields: ["first_name", "last_name", "date_of_birth", "phone", "email", "address", "zip_code", "city", "state"],
+    fields: ["first_name", "last_name", "date_of_birth", "phone", "email", "ssn_last4", "address", "zip_code", "city", "state"],
   },
   {
     fields: [
@@ -80,6 +80,7 @@ const copy = {
       dateOfBirth: "Date of Birth (DOB)",
       phone: "Phone",
       email: "Email",
+      ssnLast4: "Last 4 Digits of SSN",
       address: "Street Address",
       zip: "ZIP Code",
       city: "City",
@@ -113,6 +114,7 @@ const copy = {
       dateOfBirth: "MM/DD/YYYY",
       phone: "Enter phone number",
       email: "Enter email address",
+      ssnLast4: "4 digits",
       address: "Street address",
       zip: "5-digit ZIP",
       city: "City",
@@ -153,6 +155,7 @@ const copy = {
         phoneInvalid: "Enter a valid 10-digit US phone number.",
         emailRequired: "Enter your email address.",
         emailInvalid: "Enter a valid email address, for example name@email.com.",
+        ssn_last4: "Enter exactly 4 digits for the last 4 digits of your SSN.",
         address: "Enter your street address.",
         zipRequired: "Enter your ZIP code.",
         zipInvalid: "Enter a valid 5-digit ZIP code.",
@@ -200,6 +203,7 @@ const copy = {
       dateOfBirth: "Fecha de Nacimiento (DOB)",
       phone: "Teléfono",
       email: "Correo",
+      ssnLast4: "Últimos 4 dígitos del SSN",
       address: "Dirección",
       zip: "Código ZIP",
       city: "Ciudad",
@@ -233,6 +237,7 @@ const copy = {
       dateOfBirth: "MM/DD/AAAA",
       phone: "Ingresa tu teléfono",
       email: "Ingresa tu correo",
+      ssnLast4: "4 dígitos",
       address: "Dirección completa",
       zip: "ZIP de 5 dígitos",
       city: "Ciudad",
@@ -273,6 +278,7 @@ const copy = {
         phoneInvalid: "Ingresa un teléfono válido de 10 dígitos.",
         emailRequired: "Ingresa tu correo.",
         emailInvalid: "Ingresa un correo válido, por ejemplo nombre@email.com.",
+        ssn_last4: "Ingresa exactamente los últimos 4 dígitos de tu SSN.",
         address: "Ingresa tu dirección.",
         zipRequired: "Ingresa tu código ZIP.",
         zipInvalid: "Ingresa un ZIP válido de 5 dígitos.",
@@ -302,6 +308,7 @@ const initialForm = {
   date_of_birth: "",
   phone: "",
   email: "",
+  ssn_last4: "",
   address: "",
   zip_code: "",
   city: "",
@@ -724,6 +731,7 @@ function getRegistrationFieldErrors(form, text = copy.en) {
   }
 
   if (!form.address.trim()) errors.address = fieldText.address;
+  if (!/^[0-9]{4}$/.test(form.ssn_last4)) errors.ssn_last4 = fieldText.ssn_last4;
 
   if (!zip) {
     errors.zip_code = fieldText.zipRequired;
@@ -1291,7 +1299,7 @@ export default function RegisterPage() {
         if (!savedDraft || typeof savedDraft !== "object") return;
 
         if (savedDraft.form && typeof savedDraft.form === "object") {
-          setForm({ ...initialForm, ...savedDraft.form });
+          setForm({ ...initialForm, ...savedDraft.form, ssn_last4: "" });
         }
         if (Array.isArray(savedDraft.projects) && savedDraft.projects.length > 0) {
           setProjects(savedDraft.projects.map((project) => ({ ...emptyProject(), ...project })));
@@ -1340,7 +1348,7 @@ export default function RegisterPage() {
       localStorage.setItem(
         AUTOSAVE_KEY,
         JSON.stringify({
-          form,
+          form: { ...form, ssn_last4: "" },
           projects,
           languages,
           englishProficiency,
@@ -1850,6 +1858,23 @@ export default function RegisterPage() {
                       style={inputStyle()}
                     />
                     <FieldError>{fieldErrors.email}</FieldError>
+                  </Field>
+
+                  <Field label={text.labels.ssnLast4} required>
+                    <input
+                      aria-label={text.labels.ssnLast4}
+                      type="text"
+                      required
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={4}
+                      pattern="[0-9]{4}"
+                      value={form.ssn_last4}
+                      onChange={(e) => handleChange("ssn_last4", e.target.value)}
+                      placeholder={text.placeholders.ssnLast4}
+                      style={inputStyle()}
+                    />
+                    <FieldError>{fieldErrors.ssn_last4}</FieldError>
                   </Field>
 
                   <Field label={text.labels.address} required>
