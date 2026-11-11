@@ -8,7 +8,7 @@ import { supabase } from "../lib/supabase";
 
 const PREFILL_ERRORS = {
   "missing-script": "Install or update the UTS Tampermonkey script, reload this page, and try again.",
-  unavailable: "The Avionté form is unavailable. Open its Personal Information step and try again.",
+  unavailable: "The Avionté form is unavailable. Open Personal Information or Web Test and try again.",
 };
 
 const formButtonStyle = {
@@ -44,7 +44,7 @@ function CandidateCtsForm({ workerId }) {
     const load = async () => {
       const { data, error: loadError } = await supabase
         .from("workers")
-        .select("*,trades(name),worker_certifications(certifications(name))")
+        .select("*,trades(name),worker_certifications(certifications(name)),worker_languages(language_name,proficiency_percent),worker_projects(*),worker_documents(document_type,bio_data,uploaded_at)")
         .eq("id", workerId)
         .maybeSingle();
       if (!active) return;

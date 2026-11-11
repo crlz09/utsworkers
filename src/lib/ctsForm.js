@@ -1,5 +1,8 @@
 import { getFullStateName, US_STATE_ABBREVIATIONS } from "./addressLookup.js";
 import { splitName } from "./ctsJotform.js";
+import { createInitialCtsBio } from "./ctsBio.js";
+import { findStoredCtsBio } from "./ctsBioStorage.js";
+import { profileRateForAssignment } from "./candidateCompensation.js";
 
 // Direct apply URL loaded by the CTS careers widget for this posting.
 export const CTS_FORM_URL = "https://hire.myavionte.com/app/careers/#/jobs/C49sQn8w92E/r6_4z5-tWGg/HuWz6tnkpSg/direct";
@@ -23,12 +26,55 @@ function getCtsContactFields(candidate) {
   };
 }
 
+function getCtsQuestionnaireFields(candidate) {
+  const documents = [...(candidate.worker_documents || [])].sort(
+    (a, b) => new Date(b.uploaded_at || 0) - new Date(a.uploaded_at || 0)
+  );
+  const savedBio = findStoredCtsBio(documents)?.bio_data;
+  const bio = { ...createInitialCtsBio(candidate), ...savedBio };
+  const hasExperience = ["commercial_experience_years", "industrial_experience_years", "residential_experience_years"]
+    .some((field) => Number(candidate[field]) > 0);
+  const english = candidate.worker_languages?.find((language) =>
+    String(language.language_name || "").trim().toLowerCase() === "english"
+  )?.proficiency_percent;
+  const englishPercent = Number(english);
+  const englishUpperBound = Math.max(20, Math.ceil(englishPercent / 20) * 20);
+  const englishBand = english != null && String(english).trim() !== "" &&
+    Number.isFinite(englishPercent) && englishPercent >= 0 && englishPercent <= 100
+    ? `${englishUpperBound - 20}-${englishUpperBound}`
+    : "";
+  const certifications = (candidate.worker_certifications || [])
+    .map((item) => String(item.certifications?.name || "").toLowerCase());
+  const hasCertification = (...terms) => certifications.some((name) => terms.every((term) => name.includes(term)));
+  const dob = String(candidate.date_of_birth || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  return {
+    Trade: bio.trade,
+    "Trade Experience (years)": bio.totalExperience,
+    "Commercial Experience %": savedBio?.commercialExperience ?? (hasExperience ? bio.commercialExperience : ""),
+    "Industrial Experience %": savedBio?.industrialExperience ?? (hasExperience ? bio.industrialExperience : ""),
+    "Residential Experience %": savedBio?.residentialExperience ?? (hasExperience ? bio.residentialExperience : ""),
+    "Project history": bio.projects,
+    Strengths: bio.strengths,
+    "English Proficiency": englishBand,
+    "OSHA 10?": hasCertification("osha", "10") ? "Yes" : "",
+    "Lift Cert?": hasCertification("lift") ? "Yes" : "",
+    "Fall Protection Cert?": hasCertification("fall", "protection") ? "Yes" : "",
+    Payrate: profileRateForAssignment(savedBio?.suggestedRate ?? candidate.rate),
+    "Date of Birth": dob ? `${dob[2]}/${dob[3]}/${dob[1]}` : "",
+  };
+}
+
 export function fillCtsAvionteForm(frame, candidate, signal) {
   const origin = new URL(CTS_FORM_URL).origin;
   const requestId = crypto.randomUUID();
   const channel = "uts-cts-prefill-v1";
   const values = Object.fromEntries(
     Object.entries(getCtsContactFields(candidate))
+      .map(([name, value]) => [name, String(value ?? "").trim()])
+  );
+  values.questionnaire = Object.fromEntries(
+    Object.entries(getCtsQuestionnaireFields(candidate))
       .map(([name, value]) => [name, String(value ?? "").trim()])
   );
   const post = (type, payload = {}) => frame.postMessage({ channel, requestId, type, ...payload }, origin);

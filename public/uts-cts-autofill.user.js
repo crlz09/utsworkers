@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UTS CTS Form Autofill
 // @namespace    https://github.com/crlz09/utsworkers
-// @version      1.1.0
+// @version      1.2.1
 // @description  Fill the CTS Avionté form from the selected UTS candidate.
 // @match        https://hire.myavionte.com/app/careers/*
 // @run-at       document-start
@@ -14,11 +14,13 @@
 
   const directRoute = "#/jobs/C49sQn8w92E/r6_4z5-tWGg/HuWz6tnkpSg/direct";
   const personalRoute = "#/job/HuWz6tnkpSg/personal/";
-  const isPersonalStep = () => location.hash === personalRoute;
+  const questionnaireRoute = "#/job/HuWz6tnkpSg/webtest/";
+  const isPersonalStep = () => location.hash.startsWith(personalRoute);
+  const isQuestionnaireStep = () => location.hash.startsWith(questionnaireRoute);
   if (
     window.parent === window || window.parent !== window.top ||
     location.pathname !== "/app/careers/" ||
-    (location.hash !== directRoute && !isPersonalStep())
+    (location.hash !== directRoute && !isPersonalStep() && !isQuestionnaireStep())
   ) return;
 
   const channel = "uts-cts-prefill-v1";
@@ -64,7 +66,7 @@
     return option && !option.disabled ? writeField(select, option.value, "change") : 0;
   }
 
-  async function fill(values) {
+  async function fillPersonal(values) {
     const firstName = await waitFor(() => {
       if (!isPersonalStep()) return null;
       const field = document.querySelector(firstNameSelector);
@@ -90,6 +92,49 @@
     return changed ? "filled" : "unchanged";
   }
 
+  const normalizeLabel = (label) => label.replace(/\s+/g, " ").trim().toLowerCase();
+
+  async function fillQuestionnaire(values) {
+    const questions = await waitFor(() => {
+      if (!isQuestionnaireStep()) return null;
+      const fields = document.querySelectorAll(".question");
+      return fields.length && document.querySelector(".question input, .question textarea") ? fields : null;
+    }, 6500);
+    if (!questions) return "unavailable";
+    const answers = new Map(Object.entries(values.questionnaire || {}).map(
+      ([label, value]) => [normalizeLabel(label), value]
+    ));
+    answers.set("service fee", "5");
+    let changed = 0;
+    for (const question of questions) {
+      const label = question.querySelector('[ng-bind="question.question_text"]')?.textContent || "";
+      const value = answers.get(normalizeLabel(label));
+      if (typeof value !== "string" || !value.trim()) continue;
+      const choices = Array.from(question.querySelectorAll('input[type="checkbox"], input[type="radio"]'));
+      if (choices.length) {
+        if (choices.some((choice) => choice.checked)) continue;
+        const choice = choices.find((input) => normalizeLabel(input.value) === normalizeLabel(value));
+        if (choice && !choice.disabled && choice.getClientRects().length) {
+          choice.click();
+          changed++;
+        }
+      } else {
+        const field = question.querySelector('input:not([type="hidden"]), textarea');
+        if (field && !field.value.trim()) changed += writeField(field, value, "input");
+      }
+    }
+    return changed ? "filled" : "unchanged";
+  }
+
+  const fill = (values) => isQuestionnaireStep() ? fillQuestionnaire(values) : fillPersonal(values);
+  let retainedValues;
+  window.addEventListener("hashchange", () => {
+    if (location.hash.startsWith("#/job/HuWz6tnkpSg/thankyou/")) retainedValues = null;
+    if (retainedValues && (isPersonalStep() || isQuestionnaireStep())) {
+      void fill(retainedValues).catch(() => {});
+    }
+  });
+
   let pending;
   let filling = false;
   window.addEventListener("message", async (event) => {
@@ -111,6 +156,7 @@
 
     pending = null;
     filling = true;
+    retainedValues = values;
     try {
       respond({ type: "result", status: await fill(values) });
     } catch {
