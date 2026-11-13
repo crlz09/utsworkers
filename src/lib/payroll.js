@@ -17,7 +17,7 @@ export function suggestedGustoPerson(worker, people) {
   return matches.length === 1 ? matches[0] : null;
 }
 const presentNumber = (value) => value !== '' && value != null && Number.isFinite(Number(value));
-export function payrollLine(assignment, review, draft, person, workerRegularHours = 0) {
+export function payrollAmounts(assignment, review, draft) {
   const approved = !!review && review.official_source === 'cts_weekly' && !!review.source_report_id;
   const regular = approved ? Number(review.regular_hours || 0) : 0;
   const overtime = approved ? Number(review.overtime_hours || 0) : 0;
@@ -27,6 +27,13 @@ export function payrollLine(assignment, review, draft, person, workerRegularHour
   const perDiem = draft ? draft.per_diem_total
     : presentNumber(sourcePerDiem) && Number(sourcePerDiem) > 0 ? Number(sourcePerDiem)
       : presentNumber(sourcePerDiem) && Number(sourcePerDiem) === 0 && perDiemValue(assignment.per_diem_snapshot) === 'NO' ? 0 : null;
+  const wages = approved && presentNumber(rate) && Number(rate) > 0 ? payrollMoney(regular*Number(rate) + overtime*Number(rate)*1.5 + doubleTime*Number(rate)*2) : null;
+  const total = wages != null && presentNumber(perDiem) && Number(perDiem) >= 0 ? payrollMoney(wages+Number(perDiem)) : null;
+  return { regular,overtime,doubleTime,rate,perDiem,wages,total,approved };
+}
+export function payrollLine(assignment, review, draft, person, workerRegularHours = 0) {
+  const amounts=payrollAmounts(assignment,review,draft);
+  const { approved,regular,overtime,doubleTime,rate,perDiem }=amounts;
   const issues = [];
   if (!approved) issues.push('Match row in CTS weekly report');
   if (approved && regular+overtime+doubleTime <= 0) issues.push('No payable hours');
@@ -41,9 +48,7 @@ export function payrollLine(assignment, review, draft, person, workerRegularHour
   if (draft && (draft.source_version !== (review?.version ?? null) || draft.source_report_id !== (review?.source_report_id ?? null) || draft.source_signature !== (review?.source_signature ?? null))) issues.push('CTS report changed — save draft again');
   if (review?.rate_conflict) issues.push('Multiple source rates — review assignment mapping');
   if (person?.worker_type === 'W2' && workerRegularHours > 40) issues.push('Review overtime across projects');
-  const wages = approved && presentNumber(rate) && Number(rate) > 0 ? payrollMoney(regular*Number(rate) + overtime*Number(rate)*1.5 + doubleTime*Number(rate)*2) : null;
-  const total = wages != null && presentNumber(perDiem) && Number(perDiem) >= 0 ? payrollMoney(wages+Number(perDiem)) : null;
-  return { regular,overtime,doubleTime,rate,perDiem,wages,total,issues,ready: issues.length === 0, approved };
+  return { ...amounts,issues,ready: issues.length === 0 };
 }
 export function payrollReviewCsv(rows, week) {
   const headers = ['CTS source report','Source revision','Week start','Week end','Candidate','Project','Gusto person UUID','Hiring method','REG hours','OT hours','DT hours','Rate per hour','Per Diem configured','Per Diem weekly total','Estimated wages','Estimated total','Review status','Notes'];

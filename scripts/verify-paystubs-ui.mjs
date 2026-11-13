@@ -24,6 +24,7 @@ async function contextFor(mode){
  await ctx.addInitScript(({key,user,token})=>localStorage.setItem(key,JSON.stringify({access_token:`e30.${token}.mock`,refresh_token:'mock',expires_at:Math.floor(Date.now()/1000)+3600,expires_in:3600,token_type:'bearer',user})),{key:`sb-${host.split('.')[0]}-auth-token`,user,token});
  await ctx.route(`https://${host}/**`,async route=>{
   const req=route.request(),url=new URL(req.url()),table=url.pathname.split('/').at(-1);
+  assert.ok(!/gusto|payroll_worker_links|import_payroll_gusto_directory/.test(table),'Payroll never requests Gusto integration data');
   const send=(value,count)=>route.fulfill({status:200,contentType:'application/json',headers:count==null?{}:{'content-range':`0-${Math.max(0,count-1)}/${count}`,'access-control-expose-headers':'content-range'},body:req.method()==='HEAD'?'':JSON.stringify(value)});
   if(url.pathname.includes('/auth/v1/user'))return send(user);
   if(table==='next_contractor_paystub_number')return send(`111226-${String(++nextStatementNumber).padStart(2,'0')}`);
@@ -76,7 +77,11 @@ try{
  mkdirSync('tmp/paystub-verification',{recursive:true});
  const {ctx,page}=await contextFor('admin');
  await page.goto('http://127.0.0.1:5173/payroll?week=2026-10-26');
- await page.getByRole('button',{name:'1099 paystubs',exact:true}).click();
+ await page.getByRole('heading',{name:'1099 weekly paystubs',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Pay period',exact:true}).count(),0);
+ assert.equal(await page.getByRole('button',{name:'Gusto directory',exact:true}).count(),0);
+ assert.equal(await page.getByRole('link',{name:'Open Gusto',exact:true}).count(),0);
+ assert.equal(await page.getByRole('navigation',{name:'Payroll views',exact:true}).count(),0);
  const picker=page.getByLabel('1099 contractor · placed');
  await picker.selectOption(uuid(31));
  assert.equal(await picker.locator('option').count(),2,'Only one eligible contractor plus placeholder');
