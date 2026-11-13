@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPaystubEmailHandler } from '../supabase/functions/paystub-email/handler.js';
-import { paystubEmail } from '../supabase/functions/_shared/paystub-email.js';
+import { PAYSTUB_CC, paystubEmail } from '../supabase/functions/_shared/paystub-email.js';
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 function fixture(){
  const state={user:{id:id(1)},supervisor:true,stubs:[{id:id(10),worker_id:id(20),worker_name:'Test Contractor',project_name:'Test project',period_start:'2026-10-26',period_end:'2026-11-01',is_current:true,revision:1}],workers:[{id:id(20),email:'worker@example.test'}],jobs:[],calls:[],pdfCalls:[],clock:Date.parse('2026-11-04T23:00:00Z'),fail:false};
@@ -29,7 +29,7 @@ function fixture(){
   now:()=>state.clock,
  });
  const request=async body=>{const response=await handler(new Request('https://example.test/functions/v1/paystub-email',{method:'POST',headers:{Authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify(body)}));return {status:response.status,body:await response.json()};};
- const preview=async()=> (await request({action:'preview',ids:[id(10)]})).body.previews[0];
+ const preview=async(ccSelf=false)=> (await request({action:'preview',ids:[id(10)],ccSelf})).body.previews[0];
  return {state,request,preview};
 }
 test('email review reproduces the business subject, escapes HTML, and never sends or persists a draft',async()=>{
@@ -77,4 +77,37 @@ test('batch review preserves separate recipients and rejects missing/duplicate I
  assert.equal((await request({action:'preview',ids:[id(10),id(10)]})).status,400);
  assert.equal((await request({action:'preview',ids:[id(999)]})).status,404);
  state.workers[0].email='first@example.test,other@example.test';assert.match((await preview()).blocked,/profile email/);
+});
+
+test('optional CC is reviewed, fixed to the supervisor, and protected against changed choices',async()=>{
+ const {state,request,preview}=fixture();
+ const plain=await preview();assert.deepEqual(plain.cc,[]);
+ const copied=await preview(true);assert.deepEqual(copied.cc,[PAYSTUB_CC]);assert.notEqual(plain.reviewKey,copied.reviewKey);
+ assert.equal((await request({action:'send',id:plain.id,reviewed:true,reviewKey:plain.reviewKey,ccSelf:true})).status,409);
+ assert.equal((await request({action:'send',id:copied.id,reviewed:true,reviewKey:copied.reviewKey,ccSelf:false})).status,409);
+ assert.equal((await request({action:'preview',ids:[plain.id],ccSelf:'true'})).status,400);
+ assert.equal(state.calls.length,0);
+ assert.equal((await request({action:'send',id:copied.id,reviewed:true,reviewKey:copied.reviewKey,ccSelf:true,cc:['attacker@example.test']})).status,200);
+ const payload=JSON.parse(state.calls[0].body);
+ assert.deepEqual(payload.to,['worker@example.test']);assert.deepEqual(payload.cc,[PAYSTUB_CC]);assert.equal(payload.attachments.length,1);
+});
+test('CC retries preserve the original recipients and never resend accepted paystubs',async()=>{
+ const {state,request,preview}=fixture();const p=await preview(true);
+ const body={action:'send',id:p.id,reviewed:true,reviewKey:p.reviewKey,ccSelf:true};
+ state.fail=true;assert.equal((await request(body)).status,500);
+ assert.match((await preview(false)).blocked,/settings changed/);
+ assert.equal((await request({...body,ccSelf:false})).status,409);assert.equal(state.calls.length,1);
+ state.fail=false;assert.equal((await request(body)).status,200);
+ assert.equal(state.calls[0].body,state.calls[1].body);
+ assert.deepEqual(JSON.parse(state.calls[1].body).cc,[PAYSTUB_CC]);
+ assert.equal((await request(body)).body.alreadySent,true);assert.equal(state.calls.length,2);
+});
+test('batch CC copies the supervisor on separate employee messages and avoids duplicate To/CC',async()=>{
+ const {state,request}=fixture();state.stubs.push({...state.stubs[0],id:id(11),worker_id:id(21)});state.workers.push({id:id(21),email:PAYSTUB_CC});
+ const {body}=await request({action:'preview',ids:[id(10),id(11)],ccSelf:true});
+ for(const p of body.previews)assert.equal((await request({action:'send',id:p.id,reviewed:true,reviewKey:p.reviewKey,ccSelf:true})).status,200);
+ const [employee,supervisor]=state.calls.map(c=>JSON.parse(c.body));
+ assert.deepEqual(employee.to,['worker@example.test']);assert.deepEqual(employee.cc,[PAYSTUB_CC]);
+ assert.deepEqual(supervisor.to,[PAYSTUB_CC]);assert.equal(supervisor.cc,undefined);
+ assert.equal(employee.attachments.length,1);assert.equal(supervisor.attachments.length,1);
 });

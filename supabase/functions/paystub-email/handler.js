@@ -1,4 +1,4 @@
-import { paystubEmail, PAYSTUB_REPLY_TO, validPaystubEmail } from '../_shared/paystub-email.js';
+import { paystubEmail, PAYSTUB_CC, PAYSTUB_REPLY_TO, validPaystubEmail } from '../_shared/paystub-email.js';
 import { paystubFilename } from '../_shared/paystub-document.js';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'};
 const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
@@ -20,6 +20,7 @@ export function createPaystubEmailHandler({createAdmin,config,buildPdf,fetchEmai
       const body=await request.json(),settings=config();
       if(!['preview','send'].includes(body.action))return reply(400,{error:'Invalid email action.'});
       if(!settings.apiKey||!settings.from)return reply(503,{error:'Configure the UTS email sender and Resend before emailing paystubs.'});
+      if(body.ccSelf!==undefined&&typeof body.ccSelf!=='boolean')return reply(400,{error:'Invalid CC selection.'});
       const ids=body.action==='send'?[body.id]:body.ids;
       if(!Array.isArray(ids)||ids.length<1||ids.length>20||new Set(ids).size!==ids.length||ids.some(id=>!/^[-0-9a-f]{36}$/i.test(id)))return reply(400,{error:'Choose between 1 and 20 different final paystubs.'});
       const stubs=check(await admin.from('contractor_paystub_history').select('*').in('id',ids));
@@ -32,14 +33,18 @@ export function createPaystubEmailHandler({createAdmin,config,buildPdf,fetchEmai
       const previews=await Promise.all(ids.map(async id=>{
         const stub=stubs.find(s=>s.id===id),job=jobs.find(j=>j.paystub_id===id),email=workers.find(w=>w.id===stub.worker_id)?.email?.trim().toLowerCase();
         const message=paystubEmail(stub,settings.portalBaseUrl);
-        const reviewKey=await sha(JSON.stringify([id,email,settings.from,PAYSTUB_REPLY_TO,message.subject,message.text,message.html]));
+        const cc=body.ccSelf===true&&email!==PAYSTUB_CC?[PAYSTUB_CC]:[];
+        // Preserve review keys for existing sends without CC.
+        const reviewFields=[id,email,settings.from,PAYSTUB_REPLY_TO,message.subject,message.text,message.html];
+        if(cc.length)reviewFields.push(cc);
+        const reviewKey=await sha(JSON.stringify(reviewFields));
         let blocked='';
         if(!stub.is_current)blocked='This final was replaced. Select its latest version.';
         else if(!validPaystubEmail(email))blocked='Correct the employee’s profile email before sending.';
         else if(job?.state==='sent')blocked='Already accepted by the email provider. A duplicate will not be sent.';
         else if(job&&job.review_key!==reviewKey)blocked='The recipient or email settings changed after an attempted send. Review the original delivery before proceeding.';
         else if(job&&now()-new Date(job.started_at).getTime()>23*3600000)blocked='Unconfirmed send is older than 23 hours. Review the provider record before any further send.';
-        return {id,stub,to:email||'',from:settings.from,replyTo:PAYSTUB_REPLY_TO,subject:message.subject,text:message.text,filename:paystubFilename(stub),reviewKey,state:job?.state||'not_sent',sentAt:job?.sent_at||null,blocked,message};
+        return {id,stub,to:email||'',cc,from:settings.from,replyTo:PAYSTUB_REPLY_TO,subject:message.subject,text:message.text,filename:paystubFilename(stub),reviewKey,state:job?.state||'not_sent',sentAt:job?.sent_at||null,blocked,message};
       }));
       if(body.action==='preview')return reply(200,{previews:previews.map(p=>({...p,message:undefined}))});
       const p=previews[0];
@@ -49,7 +54,7 @@ export function createPaystubEmailHandler({createAdmin,config,buildPdf,fetchEmai
       let job=jobs.find(j=>j.paystub_id===p.id);
       if(!job){
         const bytes=await buildPdf(p.stub);
-        const payload={from:p.from,to:[p.to],reply_to:p.replyTo,subject:p.subject,text:p.message.text,html:p.message.html,attachments:[{filename:p.filename,content:base64(bytes)}]};
+        const payload={from:p.from,to:[p.to],...(p.cc.length?{cc:p.cc}:{}),reply_to:p.replyTo,subject:p.subject,text:p.message.text,html:p.message.html,attachments:[{filename:p.filename,content:base64(bytes)}]};
         const result=await admin.from('contractor_paystub_deliveries').insert({paystub_id:p.id,email_to:p.to,email_from:p.from,subject:p.subject,request_payload:payload,review_key:p.reviewKey,sent_by:auth.user.id}).select('*').single();
         if(result.error?.code==='23505')job=check(await admin.from('contractor_paystub_deliveries').select('*').eq('paystub_id',p.id).single());
         else job=check(result);

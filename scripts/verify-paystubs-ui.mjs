@@ -40,9 +40,9 @@ async function contextFor(mode){
    const body=req.postDataJSON();
    if(body.action==='preview')return send({previews:body.ids.map(id=>{
     const stub=finals.find(s=>s.id===id),sent=deliveries.find(d=>d.paystub_id===id);
-    return {id,stub,to:worker.email,from:'Universal Talent Source <no-reply@uts.services>',replyTo:'cmolina@universaltalentsource.com',subject:'Paystub - Week Ending 11/01/2026',text:'Hello Test Contractor,\nAttached is your weekly paystub.',filename:'UTS-1099-Test-Contractor.pdf',reviewKey:`review-${id}`,blocked:sent?'Already accepted by the email provider.':'',state:sent?'sent':'not_sent'};
+    return {id,stub,to:worker.email,cc:body.ccSelf?['cmolina@universaltalentsource.com']:[],from:'Universal Talent Source <no-reply@uts.services>',replyTo:'cmolina@universaltalentsource.com',subject:'Paystub - Week Ending 11/01/2026',text:'Hello Test Contractor,\nAttached is your weekly paystub.',filename:'UTS-1099-Test-Contractor.pdf',reviewKey:`review-${id}-${!!body.ccSelf}`,blocked:sent?'Already accepted by the email provider.':'',state:sent?'sent':'not_sent'};
    })});
-   assert.equal(body.reviewed,true);emailRequests.push(body.id);
+   assert.equal(body.reviewed,true);assert.equal(body.reviewKey,`review-${body.id}-${!!body.ccSelf}`);emailRequests.push(body.id);
    if(!deliveries.some(d=>d.paystub_id===body.id))deliveries.push({paystub_id:body.id,state:'sent',email_to:worker.email,sent_at:'2026-11-04T22:00:00Z'});
    return send({sent:true});
   }
@@ -95,6 +95,13 @@ try{
  const mail=page.getByRole('dialog',{name:'Email final paystubs',exact:true});
  await mail.getByText(worker.email,{exact:true}).waitFor();
  assert.equal(emailRequests.length,0,'Review never sends automatically');
+ const cc=mail.getByRole('checkbox',{name:'CC: cmolina@universaltalentsource.com',exact:true});
+ assert.equal(await cc.isChecked(),false);
+ await mail.getByLabel('I reviewed the recipients, messages and final PDFs.',{exact:false}).check();
+ await cc.check();
+ await mail.locator('dt').filter({hasText:/^CC$/}).waitFor();
+ assert.equal(await mail.locator('dt').filter({hasText:/^CC$/}).evaluate(el=>el.nextElementSibling.textContent),'cmolina@universaltalentsource.com');
+ assert.equal(await mail.getByLabel('I reviewed the recipients, messages and final PDFs.',{exact:false}).isChecked(),false);
  assert.equal(await mail.getByRole('button',{name:'Send 1 email',exact:true}).isEnabled(),false);
  await mail.getByLabel('I reviewed the recipients, messages and final PDFs.',{exact:false}).check();
  await mail.getByRole('button',{name:'Send 1 email',exact:true}).click();

@@ -1,4 +1,5 @@
 import { paystubDate } from './paystub-document.js';
+export const PAYSTUB_CC = 'cmolina@universaltalentsource.com';
 export const PAYSTUB_REPLY_TO = 'cmolina@universaltalentsource.com';
 export const validPaystubEmail = value => typeof value === 'string' && /^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(value);
 const escape = value => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
