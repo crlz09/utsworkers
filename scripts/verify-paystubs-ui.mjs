@@ -15,7 +15,7 @@ const assignments=[
  {id:uuid(33),worker_id:uuid(13),cts_job_id:job.id,name_snapshot:'Sourced Excluded',candidate_status:'sourced',payment_type:'1099',hiring_mode:'owned',worker:{id:uuid(13),name:'Sourced Excluded'},job},
 ];
 let nextStatementNumber=0;
-const finals=[],errors=[],deliveries=[],emailRequests=[];
+const finals=[],errors=[],deliveries=[],emailRequests=[],statusRequests=[],observations=[];
 const browser=await chromium.launch({headless:true,...(process.env.UTS_CHROME_PATH?{executablePath:process.env.UTS_CHROME_PATH}:{})});
 async function contextFor(mode){
  const user=mode==='admin'?admin:employee;
@@ -35,10 +35,16 @@ async function contextFor(mode){
   if(table==='get_payroll_cts_week')return send({report:null,entries:[],lines:[{assignment_id:uuid(31),official_source:'cts_weekly',source_report_id:uuid(41),source_signature:'test',version:1,regular_hours:40,overtime_hours:22,double_time_hours:0,rate:32,per_diem_total:600}]});
   if(table==='current_worker_hours_assignment')return send([]);
   if(table==='contractor_paystub_deliveries')return send(deliveries);
+  if(table==='contractor_paystub_email_status')return send(observations);
   if(table==='paystub-email'){
    assert.equal(mode,'admin','Workers never invoke the email sender');
    const body=req.postDataJSON();
-   if(body.action==='status')return send({statuses:deliveries.filter(d=>body.ids.includes(d.paystub_id)).map(d=>({paystub_id:d.paystub_id,provider_status:'delivered',checked_at:new Date().toISOString(),check_error:''})),warning:''});
+   if(body.action==='status'){
+    statusRequests.push(body.ids);
+    const statuses=deliveries.filter(d=>body.ids.includes(d.paystub_id)).map(d=>({paystub_id:d.paystub_id,provider_status:'delivered',checked_at:new Date().toISOString(),check_error:''}));
+    for(const s of statuses){const old=observations.find(o=>o.paystub_id===s.paystub_id);if(old)Object.assign(old,s);else observations.push(s);}
+    return send({statuses,warning:''});
+   }
    if(body.action==='preview')return send({previews:body.ids.map(id=>{
     const stub=finals.find(s=>s.id===id),sent=deliveries.find(d=>d.paystub_id===id);
     return {id,stub,to:worker.email,cc:body.ccSelf?['cmolina@universaltalentsource.com']:[],from:'Universal Talent Source <no-reply@uts.services>',replyTo:'cmolina@universaltalentsource.com',subject:'Paystub - Week Ending 11/01/2026',text:'Hello Test Contractor,\nAttached is your weekly paystub.',filename:'UTS-1099-Test-Contractor.pdf',reviewKey:`review-${id}-${!!body.ccSelf}`,blocked:sent?'Already accepted by the email provider.':'',state:sent?'sent':'not_sent'};
@@ -108,12 +114,22 @@ try{
  await mail.getByRole('button',{name:'Send 1 email',exact:true}).click();
  await mail.getByText('Delivered',{exact:true}).waitFor();
  assert.equal(emailRequests.length,1);
+ assert.equal(await mail.getByRole('button',{name:'Refresh email status',exact:true}).count(),0,'Delivered stops dialog polling');
  await mail.getByRole('button',{name:'Close email review',exact:true}).click();
+ const finalStatusRequests=statusRequests.length;
  const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Download PDF',exact:true}).click();
  const download=await downloadPromise;await download.saveAs('tmp/paystub-verification/statement.pdf');
  assert.equal((await PDFDocument.load(readFileSync('tmp/paystub-verification/statement.pdf'))).getPageCount(),1);
  await page.getByRole('button',{name:'Open final history',exact:true}).click();
  await page.getByRole('cell',{name:'Delivered contractor@example.test',exact:true}).waitFor();
+ assert.equal(statusRequests.length,finalStatusRequests,'History reads delivered status from database without the status endpoint');
+ await page.getByRole('button',{name:'Refresh history',exact:true}).click();
+ await page.getByRole('cell',{name:'Delivered contractor@example.test',exact:true}).waitFor();
+ assert.equal(statusRequests.length,finalStatusRequests,'Reloading history does not recheck delivered emails');
+ await page.getByRole('button',{name:'Email',exact:true}).click();
+ await mail.getByText('Delivered',{exact:true}).waitFor();
+ assert.equal(statusRequests.length,finalStatusRequests,'Reopening email dialog reads final status without polling');
+ await mail.getByRole('button',{name:'Close email review',exact:true}).click();
  await page.getByRole('button',{name:'View',exact:true}).click();
  await page.getByRole('button',{name:'Close statement',exact:true}).click();
  await page.getByRole('button',{name:'Create paystub',exact:true}).click();

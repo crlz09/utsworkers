@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-export { paystubEmailStatus } from '../../supabase/functions/_shared/paystub-email-status.js';
+export { paystubEmailStatus, isPaystubEmailFinal } from '../../supabase/functions/_shared/paystub-email-status.js';
 export { PAYSTUB_CC } from '../../supabase/functions/_shared/paystub-email.js';
 
 export const DELIVERY_FIELDS='paystub_id,state,email_to,sent_at,started_at,last_error';

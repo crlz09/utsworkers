@@ -1,4 +1,5 @@
 export const PROVIDER_EVENTS = ['sent','delivered','delivery_delayed','bounced','complained','opened','clicked','failed','suppressed','scheduled','canceled'];
+export const isPaystubEmailFinal = observation => ['delivered','opened','clicked'].includes(observation?.provider_status);
 export function paystubEmailStatus(delivery, observation, unknown=false) {
   if (!delivery) return unknown?'Unknown':'Not sent';
   if (delivery.state!=='sent') return 'Unconfirmed';
@@ -13,6 +14,7 @@ export async function refreshPaystubEmailStatus({admin,ids,apiKey,fetchEmail,now
   let warning='',requested=false;
   for(const job of jobs){
     const old=statuses.get(job.paystub_id);
+    if(isPaystubEmailFinal(old))continue;
     if(old&&now()-new Date(old.checked_at).getTime()<60000)continue;
     let observation;
     try{
@@ -31,5 +33,5 @@ export async function refreshPaystubEmailStatus({admin,ids,apiKey,fetchEmail,now
     statuses.set(job.paystub_id,observation);
     if(warning)break;
   }
-  return {statuses:[...statuses.values()],warning:warning||[...statuses.values()].find(s=>s.check_error)?.check_error||''};
+  return {statuses:[...statuses.values()],warning:warning||[...statuses.values()].find(s=>s.check_error&&!isPaystubEmailFinal(s))?.check_error||''};
 }

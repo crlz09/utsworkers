@@ -125,17 +125,17 @@ test('Resend status lookup updates delivery observations without resending or ch
  assert.equal(state.calls.length,1);assert.equal(JSON.stringify(state.jobs[0]),original);assert.equal(state.statusCalls.length,1);
  assert.ok(!JSON.stringify(first.body).includes('PRIVATE MESSAGE'));assert.ok(!JSON.stringify(first.body).includes('private-test-key'));
  await request({action:'status',ids:[p.id]});assert.equal(state.statusCalls.length,1,'Cached for a minute');
- state.clock+=61000;state.providerStatus='bounced';
- const bounced=await request({action:'status',ids:[p.id]});assert.equal(bounced.body.statuses[0].provider_status,'bounced');
- assert.equal(paystubEmailStatus(state.jobs[0],bounced.body.statuses[0]),'Bounced');
+ state.clock+=30*24*3600000;state.providerStatus='bounced';
+ const final=await request({action:'status',ids:[p.id]});assert.equal(final.body.statuses[0].provider_status,'delivered');
+ assert.equal(state.statusCalls.length,1,'Delivered is final even after the cache TTL expires');
  assert.equal((await request({action:'send',id:p.id,reviewed:true,reviewKey:p.reviewKey})).body.alreadySent,true);assert.equal(state.calls.length,1);
 });
 test('status refresh preserves last known state on errors and restricts access to supervisors',async()=>{
  const {state,request,preview}=fixture();const p=await preview();
  await request({action:'send',id:p.id,reviewed:true,reviewKey:p.reviewKey});
- await request({action:'status',ids:[p.id]});state.clock+=61000;state.statusFail=403;
+ state.providerStatus='sent';await request({action:'status',ids:[p.id]});state.clock+=61000;state.statusFail=403;
  const result=await request({action:'status',ids:[p.id]});
- assert.match(result.body.warning,/Full access/);assert.equal(result.body.statuses[0].provider_status,'delivered');assert.match(result.body.statuses[0].check_error,/Full access/);
+ assert.match(result.body.warning,/Full access/);assert.equal(result.body.statuses[0].provider_status,'sent');assert.match(result.body.statuses[0].check_error,/Full access/);
  state.supervisor=false;assert.equal((await request({action:'status',ids:[p.id]})).status,403);
  state.user=null;assert.equal((await request({action:'status',ids:[p.id]})).status,401);
 });
@@ -148,4 +148,23 @@ test('unsent statements are never queried at Resend; unknown events never become
  for(const event of ['delivered','opened','clicked'])assert.equal(paystubEmailStatus({state:'sent'},{provider_status:event}),'Delivered');
  assert.equal(paystubEmailStatus({state:'sent'},{provider_status:'delivery_delayed'}),'Delivery delayed');
  assert.equal(paystubEmailStatus(null,null),'Not sent');assert.equal(paystubEmailStatus(null,null,true),'Unknown');
+});
+
+test('pending delivery continues polling until delivered, then no provider reads or writes occur',async()=>{
+ const {state,request,preview}=fixture();const p=await preview();
+ await request({action:'send',id:p.id,reviewed:true,reviewKey:p.reviewKey});
+ state.providerStatus='delivery_delayed';
+ await request({action:'status',ids:[p.id]});
+ assert.equal(state.statuses[0].provider_status,'delivery_delayed');
+ state.clock+=61000;state.providerStatus='delivered';
+ await request({action:'status',ids:[p.id]});assert.equal(state.statusCalls.length,2);
+ const final=JSON.stringify(state.statuses[0]);
+ for(const event of ['delivered','opened','clicked']){
+   state.statuses[0].provider_status=event;const saved=JSON.stringify(state.statuses[0]);
+   state.clock+=61000;state.statusFail=500;
+   const result=await request({action:'status',ids:[p.id]});
+   assert.equal(result.body.warning,'');assert.equal(state.statusCalls.length,2);
+   assert.equal(JSON.stringify(state.statuses[0]),saved,'Final observation is never rewritten');
+ }
+ assert.match(final,/delivered/);assert.equal(state.calls.length,1);
 });

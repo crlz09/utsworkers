@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download, Mail, RefreshCw, X } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { downloadPaystub, paystubDate } from '../lib/contractorPaystub';
-import { PAYSTUB_CC, paystubEmailRequest, paystubEmailStatus } from '../lib/paystubEmail';
+import { PAYSTUB_CC, paystubEmailRequest, paystubEmailStatus, isPaystubEmailFinal } from '../lib/paystubEmail';
 
 export default function PaystubEmailDialog({ ids, onClose, onSent }) {
   const dialog=useRef(null);
@@ -9,7 +10,7 @@ export default function PaystubEmailDialog({ ids, onClose, onSent }) {
   const [reviewed,setReviewed]=useState(false),[busy,setBusy]=useState(false),[results,setResults]=useState({}),[reload,setReload]=useState(0),[pdfBusy,setPdfBusy]=useState('');
   const [ccSelf,setCcSelf]=useState(false);
   const [observations,setObservations]=useState([]),[statusError,setStatusError]=useState(''),[statusReload,setStatusReload]=useState(0),[statusBusy,setStatusBusy]=useState(false);
-  const statusKey=state.previews.filter(p=>p.state==='sent'||results[p.id]?.sent).map(p=>p.id).join(',');
+  const statusKey=state.loading?'':state.previews.filter(p=>(p.state==='sent'||results[p.id]?.sent)&&!isPaystubEmailFinal(observations.find(s=>s.paystub_id===p.id))).map(p=>p.id).join(',');
   const key=ids.join(',');
   useEffect(()=>{
     const element=dialog.current;element.showModal();
@@ -17,8 +18,14 @@ export default function PaystubEmailDialog({ ids, onClose, onSent }) {
   },[]);
   useEffect(()=>{
     let active=true;
-    void paystubEmailRequest({action:'preview',ids:key.split(','),ccSelf}).then(data=>{
-      if(active)setState({loading:false,previews:data.previews,error:''});
+    void Promise.all([
+      paystubEmailRequest({action:'preview',ids:key.split(','),ccSelf}),
+      supabase.from('contractor_paystub_email_status').select('*').in('paystub_id',key.split(',')),
+    ]).then(([data,cached])=>{
+      if(active){
+        setObservations(cached.data||[]);setStatusError(cached.error?.message||'');
+        setState({loading:false,previews:data.previews,error:''});
+      }
     }).catch(e=>{if(active)setState({loading:false,previews:[],error:e.message});});
     return()=>{active=false;};
   },[key,reload,ccSelf]);
@@ -30,7 +37,7 @@ export default function PaystubEmailDialog({ ids, onClose, onSent }) {
       inFlight=true;setStatusBusy(true);
       try{
         const result=await paystubEmailRequest({action:'status',ids:statusKey.split(',')});
-        if(active){setObservations(result.statuses);setStatusError(result.warning||'');}
+        if(active){setObservations(old=>[...old.filter(s=>!result.statuses.some(next=>next.paystub_id===s.paystub_id)),...result.statuses]);setStatusError(result.warning||'');}
       }catch(e){if(active)setStatusError(e.message);}
       finally{inFlight=false;if(active)setStatusBusy(false);}
     };
@@ -66,7 +73,7 @@ export default function PaystubEmailDialog({ ids, onClose, onSent }) {
       </article>)}</div>
       {eligible.length>0&&<label className="paystub-check"><input type="checkbox" checked={reviewed} disabled={busy} onChange={e=>setReviewed(e.target.checked)}/>I reviewed the recipients, messages and final PDFs. Send {eligible.length} separate employee email{eligible.length===1?'':'s'}.</label>}
       {statusError&&<p className="paystub-error" role="alert">Could not update Resend status: {statusError}. The last saved status is shown.</p>}
-      <footer><span>Status updates every minute. Delivered means accepted by the recipient’s mail server; it does not confirm reading.</span>{statusKey&&<button className="pay-btn" disabled={statusBusy||busy} onClick={()=>setStatusReload(n=>n+1)}><RefreshCw size={14}/>{statusBusy?'Checking Resend…':'Refresh email status'}</button>}<button className="pay-btn" disabled={busy} onClick={onClose}>Close</button>{eligible.length>0&&<button className="pay-btn primary" disabled={busy||!reviewed||!!state.error} onClick={()=>void send()}><Mail size={15}/>{busy?'Sending…':Object.values(results).some(r=>r.error)?'Retry unconfirmed emails':`Send ${eligible.length} email${eligible.length===1?'':'s'}`}</button>}</footer>
+      <footer><span>Pending status updates every minute; Delivered is final. Delivered means accepted by the recipient’s mail server; it does not confirm reading.</span>{statusKey&&<button className="pay-btn" disabled={statusBusy||busy} onClick={()=>setStatusReload(n=>n+1)}><RefreshCw size={14}/>{statusBusy?'Checking Resend…':'Refresh email status'}</button>}<button className="pay-btn" disabled={busy} onClick={onClose}>Close</button>{eligible.length>0&&<button className="pay-btn primary" disabled={busy||!reviewed||!!state.error} onClick={()=>void send()}><Mail size={15}/>{busy?'Sending…':Object.values(results).some(r=>r.error)?'Retry unconfirmed emails':`Send ${eligible.length} email${eligible.length===1?'':'s'}`}</button>}</footer>
     </>}
   </dialog>;
 }

@@ -5,7 +5,7 @@ import { PAYSTUB_FIELDS, downloadPaystub, paystubDate, paystubUsd } from '../lib
 import ContractorPaystubView from './ContractorPaystubView';
 import './ContractorPaystubs.css';
 import PaystubEmailDialog from './PaystubEmailDialog';
-import { DELIVERY_FIELDS, paystubEmailRequest, paystubEmailStatus } from '../lib/paystubEmail';
+import { DELIVERY_FIELDS, paystubEmailRequest, paystubEmailStatus, isPaystubEmailFinal } from '../lib/paystubEmail';
 import { payrollWeek } from '../lib/payroll';
 
 const PAGE_SIZE=20;
@@ -26,28 +26,34 @@ export default function ContractorPaystubHistory({ workerId='', employeeMode=fal
       const {data,error,count}=await req;
       let deliveries=[],mailError='',statuses=[];
       if(!employeeMode&&!error&&data?.length){
-        const result=await supabase.from('contractor_paystub_deliveries').select(DELIVERY_FIELDS).in('paystub_id',data.map(s=>s.id));
-        deliveries=result.data||[];mailError=result.error?.message||'';
-        if(!result.error){
-          try{
-            const result=await paystubEmailRequest({action:'status',ids:data.map(s=>s.id)});
-            statuses=result.statuses;mailError=result.warning||'';
-          }catch(e){
-            mailError=e.message;
-            const cached=await supabase.from('contractor_paystub_email_status').select('*').in('paystub_id',data.map(s=>s.id));
-            statuses=cached.data||[];
-          }
-        }
+        const [result,cached]=await Promise.all([
+          supabase.from('contractor_paystub_deliveries').select(DELIVERY_FIELDS).in('paystub_id',data.map(s=>s.id)),
+          supabase.from('contractor_paystub_email_status').select('*').in('paystub_id',data.map(s=>s.id)),
+        ]);
+        deliveries=result.data||[];statuses=cached.data||[];
+        mailError=result.error?.message||cached.error?.message||'';
       }
       if(active)setState({loading:false,rows:data||[],count:count||0,error:error?.message||'',deliveries,mailError,statuses});
     };
     void load();return()=>{active=false;};
   },[workerId,query,page,refresh,employeeMode,period]);
+  const pendingStatusKey=employeeMode||state.loading?'':(state.deliveries||[]).filter(d=>d.state==='sent'&&!isPaystubEmailFinal(state.statuses?.find(s=>s.paystub_id===d.paystub_id))).map(d=>d.paystub_id).join(',');
   useEffect(()=>{
-    if(employeeMode)return;
-    const timer=setInterval(()=>{if(document.visibilityState==='visible')setRefresh(r=>r+1);},60000);
-    return()=>clearInterval(timer);
-  },[employeeMode]);
+    if(!pendingStatusKey)return;
+    let active=true,inFlight=false;
+    const update=async()=>{
+      if(inFlight)return;
+      inFlight=true;
+      try{
+        const result=await paystubEmailRequest({action:'status',ids:pendingStatusKey.split(',')});
+        if(active)setState(s=>({...s,mailError:result.warning||'',statuses:[...(s.statuses||[]).filter(old=>!result.statuses.some(next=>next.paystub_id===old.paystub_id)),...result.statuses]}));
+      }catch(e){if(active)setState(s=>({...s,mailError:e.message}));}
+      finally{inFlight=false;}
+    };
+    void update();
+    const timer=setInterval(()=>{if(document.visibilityState==='visible')void update();},60000);
+    return()=>{active=false;clearInterval(timer);};
+  },[pendingStatusKey]);
   useEffect(()=>{
     if(!initialStatementId)return;
     let active=true;
