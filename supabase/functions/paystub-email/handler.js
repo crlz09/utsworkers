@@ -1,3 +1,4 @@
+import { refreshPaystubEmailStatus } from '../_shared/paystub-email-status.js';
 import { paystubEmail, PAYSTUB_CC, PAYSTUB_REPLY_TO, validPaystubEmail } from '../_shared/paystub-email.js';
 import { paystubFilename } from '../_shared/paystub-document.js';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'};
@@ -5,7 +6,7 @@ const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers:{..
 const check=result=>{if(result.error)throw new Error(result.error.message||'The database request failed.');return result.data;};
 const sha=async value=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))].map(v=>v.toString(16).padStart(2,'0')).join('');
 function base64(bytes){let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(s);}
-export function createPaystubEmailHandler({createAdmin,config,buildPdf,fetchEmail=fetch,now=()=>Date.now()}) {
+export function createPaystubEmailHandler({createAdmin,config,buildPdf,fetchEmail=fetch,now=()=>Date.now(),wait=ms=>new Promise(resolve=>setTimeout(resolve,ms))}) {
   return async request=>{
     if(request.method==='OPTIONS')return reply(200,{ok:true});
     if(request.method!=='POST')return reply(405,{error:'POST required.'});
@@ -18,11 +19,12 @@ export function createPaystubEmailHandler({createAdmin,config,buildPdf,fetchEmai
       if(!permission?.can_delete_workers)return reply(403,{error:'Supervisor access is required to email paystubs.'});
       if(Number(request.headers.get('content-length')||0)>20000)return reply(413,{error:'Request too large.'});
       const body=await request.json(),settings=config();
-      if(!['preview','send'].includes(body.action))return reply(400,{error:'Invalid email action.'});
-      if(!settings.apiKey||!settings.from)return reply(503,{error:'Configure the UTS email sender and Resend before emailing paystubs.'});
+      if(!['preview','send','status'].includes(body.action))return reply(400,{error:'Invalid email action.'});
+      if(!settings.apiKey||(body.action!=='status'&&!settings.from))return reply(503,{error:'Configure the UTS email sender and Resend before emailing paystubs.'});
       if(body.ccSelf!==undefined&&typeof body.ccSelf!=='boolean')return reply(400,{error:'Invalid CC selection.'});
       const ids=body.action==='send'?[body.id]:body.ids;
       if(!Array.isArray(ids)||ids.length<1||ids.length>20||new Set(ids).size!==ids.length||ids.some(id=>!/^[-0-9a-f]{36}$/i.test(id)))return reply(400,{error:'Choose between 1 and 20 different final paystubs.'});
+      if(body.action==='status')return reply(200,await refreshPaystubEmailStatus({admin,ids,apiKey:settings.apiKey,fetchEmail,now,wait}));
       const stubs=check(await admin.from('contractor_paystub_history').select('*').in('id',ids));
       if(stubs.length!==ids.length)return reply(404,{error:'One or more final paystubs are unavailable.'});
       const [workersResult,jobsResult]=await Promise.all([

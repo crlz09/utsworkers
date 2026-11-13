@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, Mail, X } from 'lucide-react';
+import { Download, Mail, RefreshCw, X } from 'lucide-react';
 import { downloadPaystub, paystubDate } from '../lib/contractorPaystub';
-import { PAYSTUB_CC, paystubEmailRequest } from '../lib/paystubEmail';
+import { PAYSTUB_CC, paystubEmailRequest, paystubEmailStatus } from '../lib/paystubEmail';
 
 export default function PaystubEmailDialog({ ids, onClose, onSent }) {
   const dialog=useRef(null);
   const [state,setState]=useState({loading:true,previews:[],error:''});
   const [reviewed,setReviewed]=useState(false),[busy,setBusy]=useState(false),[results,setResults]=useState({}),[reload,setReload]=useState(0),[pdfBusy,setPdfBusy]=useState('');
   const [ccSelf,setCcSelf]=useState(false);
+  const [observations,setObservations]=useState([]),[statusError,setStatusError]=useState(''),[statusReload,setStatusReload]=useState(0),[statusBusy,setStatusBusy]=useState(false);
+  const statusKey=state.previews.filter(p=>p.state==='sent'||results[p.id]?.sent).map(p=>p.id).join(',');
   const key=ids.join(',');
   useEffect(()=>{
     const element=dialog.current;element.showModal();
@@ -20,6 +22,22 @@ export default function PaystubEmailDialog({ ids, onClose, onSent }) {
     }).catch(e=>{if(active)setState({loading:false,previews:[],error:e.message});});
     return()=>{active=false;};
   },[key,reload,ccSelf]);
+  useEffect(()=>{
+    if(!statusKey)return;
+    let active=true,inFlight=false;
+    const load=async()=>{
+      if(inFlight)return;
+      inFlight=true;setStatusBusy(true);
+      try{
+        const result=await paystubEmailRequest({action:'status',ids:statusKey.split(',')});
+        if(active){setObservations(result.statuses);setStatusError(result.warning||'');}
+      }catch(e){if(active)setStatusError(e.message);}
+      finally{inFlight=false;if(active)setStatusBusy(false);}
+    };
+    void load();
+    const timer=setInterval(()=>{if(document.visibilityState==='visible')void load();},60000);
+    return()=>{active=false;clearInterval(timer);};
+  },[statusKey,statusReload]);
   const eligible=state.previews.filter(p=>!p.blocked&&!results[p.id]?.sent);
   const send=async()=>{
     if(!reviewed||!eligible.length||busy||state.loading||state.error)return;
@@ -44,10 +62,11 @@ export default function PaystubEmailDialog({ ids, onClose, onSent }) {
     {state.loading?<p role="status">Preparing email review…</p>:<>
       {state.error&&<div className="paystub-error" role="alert">{state.error}<button className="pay-btn" disabled={busy} onClick={()=>{setState(s=>({...s,loading:true,error:''}));setReviewed(false);setReload(n=>n+1);}}>Reload review</button></div>}
       <div className="paystub-email-list">{state.previews.map(p=><article key={p.id} className="paystub-email-item"><h3>{p.stub.worker_name} · {paystubDate(p.stub.period_start)} – {paystubDate(p.stub.period_end)} · v{p.stub.revision}</h3><dl><dt>To</dt><dd>{p.to||'Missing profile email'}</dd>{p.cc?.length>0&&<><dt>CC</dt><dd>{p.cc.join(', ')}</dd></>}<dt>From</dt><dd>{p.from}</dd><dt>Reply to</dt><dd>{p.replyTo}</dd><dt>Subject</dt><dd>{p.subject}</dd><dt>Attachment</dt><dd>{p.filename}</dd></dl><details><summary>Review message</summary><pre>{p.text}</pre></details><button className="pay-btn" disabled={!!pdfBusy||busy} onClick={()=>void pdf(p)}><Download size={14}/>{pdfBusy===p.id?'Preparing…':'Review PDF'}</button>
-        {p.blocked&&<p className="paystub-muted">{p.blocked}</p>}{results[p.id]?.sending&&<p role="status">Sending this employee’s email…</p>}{results[p.id]?.sent&&<p className="paystub-mail-success" role="status">{results[p.id].alreadySent?'Already sent; duplicate skipped.':'Accepted by the email provider.'}</p>}{results[p.id]?.error&&<p className="paystub-error" role="alert">{results[p.id].error}</p>}
+        {p.blocked&&<p className="paystub-muted">{p.state==='sent'?'Already sent. A duplicate will not be sent.':p.blocked}</p>}{results[p.id]?.sending&&<p role="status">Sending this employee’s email…</p>}{(p.state==='sent'||results[p.id]?.sent)&&<p className="paystub-mail-success" role="status">{paystubEmailStatus({state:'sent'},observations.find(s=>s.paystub_id===p.id))}</p>}{results[p.id]?.error&&<p className="paystub-error" role="alert">{results[p.id].error}</p>}
       </article>)}</div>
       {eligible.length>0&&<label className="paystub-check"><input type="checkbox" checked={reviewed} disabled={busy} onChange={e=>setReviewed(e.target.checked)}/>I reviewed the recipients, messages and final PDFs. Send {eligible.length} separate employee email{eligible.length===1?'':'s'}.</label>}
-      <footer><span>Provider acceptance is recorded in the final history; it does not confirm inbox delivery.</span><button className="pay-btn" disabled={busy} onClick={onClose}>Close</button>{eligible.length>0&&<button className="pay-btn primary" disabled={busy||!reviewed||!!state.error} onClick={()=>void send()}><Mail size={15}/>{busy?'Sending…':Object.values(results).some(r=>r.error)?'Retry unconfirmed emails':`Send ${eligible.length} email${eligible.length===1?'':'s'}`}</button>}</footer>
+      {statusError&&<p className="paystub-error" role="alert">Could not update Resend status: {statusError}. The last saved status is shown.</p>}
+      <footer><span>Status updates every minute. Delivered means accepted by the recipient’s mail server; it does not confirm reading.</span>{statusKey&&<button className="pay-btn" disabled={statusBusy||busy} onClick={()=>setStatusReload(n=>n+1)}><RefreshCw size={14}/>{statusBusy?'Checking Resend…':'Refresh email status'}</button>}<button className="pay-btn" disabled={busy} onClick={onClose}>Close</button>{eligible.length>0&&<button className="pay-btn primary" disabled={busy||!reviewed||!!state.error} onClick={()=>void send()}><Mail size={15}/>{busy?'Sending…':Object.values(results).some(r=>r.error)?'Retry unconfirmed emails':`Send ${eligible.length} email${eligible.length===1?'':'s'}`}</button>}</footer>
     </>}
   </dialog>;
 }
