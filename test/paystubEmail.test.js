@@ -34,9 +34,10 @@ function fixture(){
 }
 test('email review reproduces the business subject, escapes HTML, and never sends or persists a draft',async()=>{
  const {state,preview}=fixture();const p=await preview();
- assert.equal(p.subject,'Paystub - Week Ending 11/01/2026');assert.equal(p.to,'worker@example.test');assert.match(p.text,/10\/26\/2026 - 11\/01\/2026/);assert.match(p.text,/worker\/paystubs\?statement=/);
+ assert.equal(p.subject,'Paystub - Week Ending 11/01/2026');assert.equal(p.to,'worker@example.test');assert.match(p.text,/10\/26\/2026 - 11\/01\/2026/);assert.equal(p.text,'Hello Test Contractor,\n\nAttached is your paystub for the week of 10/26/2026 - 11/01/2026.\n\nBest regards,\nUniversal Talent Source');
  assert.equal(state.jobs.length,0);assert.equal(state.calls.length,0);assert.ok(!JSON.stringify(p).includes('private-test-key'));
  const html=paystubEmail({...state.stubs[0],worker_name:'<script>alert(1)</script>'},'https://www.uts.services').html;
+ assert.doesNotMatch(html,/worker\/paystubs|employee portal|Sign in using|If you have any questions|View my paystub/);
  assert.ok(!html.includes('<script>'));assert.ok(html.includes('&lt;script&gt;'));
 });
 test('send requires supervisor identity, reviewed current recipient, and a current final',async()=>{

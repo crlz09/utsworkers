@@ -36,7 +36,7 @@ export function paystubDraft(assignment, row, week) {
     regular_hours: matching && row.approved ? row.regular : '',
     overtime_hours: matching && row.approved ? row.overtime : '',
     hourly_rate: matching ? row.rate ?? assignment.rate_snapshot ?? '' : assignment.rate_snapshot ?? '',
-    per_diem: matching ? row.perDiem ?? '' : '', deductions:0, extras:0, payment_method:'', notes:'', correction_reason:'', confirm_revision:false,
+    per_diem: matching ? row.perDiem ?? '' : '', deductions:0, extras:0, payment_method:'Direct Deposit', notes:'', correction_reason:'', confirm_revision:false,
   };
 }
 export async function downloadPaystub(stub) {
