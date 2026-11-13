@@ -14,6 +14,7 @@ const assignments=[
  {id:uuid(32),worker_id:uuid(12),cts_job_id:job.id,name_snapshot:'W2 Excluded',candidate_status:'placed',payment_type:'W2',hiring_mode:'owned',worker:{id:uuid(12),name:'W2 Excluded'},job},
  {id:uuid(33),worker_id:uuid(13),cts_job_id:job.id,name_snapshot:'Sourced Excluded',candidate_status:'sourced',payment_type:'1099',hiring_mode:'owned',worker:{id:uuid(13),name:'Sourced Excluded'},job},
 ];
+let nextStatementNumber=0;
 const finals=[],errors=[],deliveries=[],emailRequests=[];
 const browser=await chromium.launch({headless:true,...(process.env.UTS_CHROME_PATH?{executablePath:process.env.UTS_CHROME_PATH}:{})});
 async function contextFor(mode){
@@ -25,6 +26,7 @@ async function contextFor(mode){
   const req=route.request(),url=new URL(req.url()),table=url.pathname.split('/').at(-1);
   const send=(value,count)=>route.fulfill({status:200,contentType:'application/json',headers:count==null?{}:{'content-range':`0-${Math.max(0,count-1)}/${count}`,'access-control-expose-headers':'content-range'},body:req.method()==='HEAD'?'':JSON.stringify(value)});
   if(url.pathname.includes('/auth/v1/user'))return send(user);
+  if(table==='next_contractor_paystub_number')return send(`111226-${String(++nextStatementNumber).padStart(2,'0')}`);
   if(table==='admin_permissions')return send(mode==='admin'?{can_edit_workers:true,can_delete_workers:true}:null);
   if(table==='client_users')return send(null);
   if(table==='workers')return send(mode==='admin'?[worker]:worker);
@@ -49,7 +51,7 @@ async function contextFor(mode){
     assert.equal(mode,'admin');const input=req.postDataJSON();
     const latest=finals.filter(s=>s.worker_id===worker.id&&s.period_start===input.period_start).at(-1);
     if(latest)assert.equal(input.supersedes_id,latest.id);
-    const s={...input,id:uuid(100+finals.length),worker_id:worker.id,worker_name:worker.name,project_name:job.level_type,revision:(latest?.revision||0)+1,template_version:1,finalized_at:'2026-11-04T22:00:00Z',net_payment:Math.round((input.regular_hours*input.hourly_rate+input.overtime_hours*input.hourly_rate*1.5+input.per_diem+input.extras-input.deductions)*100)/100};
+    const s={...input,id:uuid(100+finals.length),worker_id:worker.id,worker_name:worker.name,project_name:input.project_name,revision:(latest?.revision||0)+1,template_version:1,finalized_at:'2026-11-04T22:00:00Z',net_payment:Math.round((input.regular_hours*input.hourly_rate+input.overtime_hours*input.hourly_rate*1.5+input.per_diem+input.extras-input.deductions)*100)/100};
     finals.push(s);return send(s);
    }
    let list=finals.map(s=>({...s,is_current:!finals.some(n=>n.supersedes_id===s.id)})).slice().sort((a,b)=>b.revision-a.revision);
@@ -75,6 +77,12 @@ try{
  assert.equal(await page.getByLabel('Payment date',{exact:true}).inputValue(),'2026-11-06');
  assert.equal(await page.getByLabel('Regular hours',{exact:true}).inputValue(),'40');
  assert.equal(finals.length,0,'Draft preview is never persisted');
+ assert.equal(await picker.locator('option:checked').textContent(),worker.name);
+ assert.equal(await page.getByLabel('Project',{exact:true}).inputValue(),'');
+ await page.waitForFunction(()=>!!document.querySelector('input[placeholder="MMDDYY-01"]')?.value);
+ assert.match(await page.getByLabel('Statement number',{exact:true}).inputValue(),/^111226-\d{2}$/);
+ await page.getByLabel('Project',{exact:true}).fill('UTS Order 123');
+ await page.locator('.paystub-preview').getByText('UTS Order 123',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Finalize paystub',exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Finalize paystub',exact:true}).isEnabled(),false);
  await page.screenshot({path:'tmp/paystub-verification/draft-desktop.png',fullPage:true});
@@ -82,6 +90,7 @@ try{
  await page.getByRole('button',{name:'Finalize paystub',exact:true}).click();
  await page.getByText('Final paystub saved · $2,936.00',{exact:true}).waitFor();
  assert.equal(finals.length,1);
+ assert.equal(finals[0].project_name,'UTS Order 123');
  await page.getByRole('button',{name:'Email paystub',exact:true}).click();
  const mail=page.getByRole('dialog',{name:'Email final paystubs',exact:true});
  await mail.getByText(worker.email,{exact:true}).waitFor();
@@ -100,12 +109,14 @@ try{
  await page.getByRole('button',{name:'Close statement',exact:true}).click();
  await page.getByRole('button',{name:'Create paystub',exact:true}).click();
  await page.getByText(/A final already exists: version 1/).waitFor();
+ await page.getByLabel('Project',{exact:true}).fill('UTS Order 456');
  await page.getByLabel('Overtime hours (1.5×)',{exact:true}).fill('11');
  await page.getByLabel('Create a corrected final.',{exact:false}).check();
  await page.getByLabel('Correction reason',{exact:true}).fill('Corrected overtime to 11 hours.');
  await page.getByLabel('I reviewed the dates and amounts.',{exact:false}).check();
  await page.getByRole('button',{name:'Finalize corrected paystub',exact:true}).click();
  await page.getByText('Final paystub saved · $2,408.00',{exact:true}).waitFor();
+ assert.equal(finals[1].project_name,'UTS Order 456');assert.notEqual(finals[0].statement_number,finals[1].statement_number);
  assert.equal(finals.length,2);assert.equal(finals[0].net_payment,2936);
  await page.getByRole('button',{name:'Open final history',exact:true}).click();
  await page.getByLabel('Week starting (optional)',{exact:true}).fill('2026-10-26');

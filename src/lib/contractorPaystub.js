@@ -19,11 +19,12 @@ export function paystubPayload(assignment, values, latest = null) {
     if (!/^\d+(\.\d{1,2})?$/.test(raw) || !Number.isFinite(Number(raw)) || Number(raw) > 999999.99 || (key === 'hourly_rate' && Number(raw) <= 0)) throw new Error(`Enter a valid ${key.replaceAll('_',' ')} with up to two decimals.`);
     payload[key] = Number(raw);
   }
-  for (const key of ['statement_number','payment_method','notes','correction_reason']) {
+  for (const key of ['project_name','statement_number','payment_method','notes','correction_reason']) {
     payload[key] = String(values[key] ?? '').trim();
-    if (payload[key].length > (key === 'notes' || key === 'correction_reason' ? 500 : 100)) throw new Error(`${key.replaceAll('_',' ')} is too long.`);
+    if (payload[key].length > (key === 'notes' || key === 'correction_reason' ? 500 : key === 'project_name' ? 200 : 100)) throw new Error(`${key.replaceAll('_',' ')} is too long.`);
   }
-  payload.statement_number ||= 'N/A';
+  if (!payload.project_name) throw new Error('Enter the UTS project name.');
+  if (!payload.statement_number) throw new Error('Enter a statement number.');
   if (latest && (!values.confirm_revision || !payload.correction_reason)) throw new Error('Confirm a corrected final and explain the correction. The existing final will be preserved.');
   payload.supersedes_id = latest?.id || null;
   return payload;
@@ -31,7 +32,7 @@ export function paystubPayload(assignment, values, latest = null) {
 export function paystubDraft(assignment, row, week) {
   const matching = row?.assignment?.id === assignment.id;
   return {
-    period_start: week, payment_date: shiftPayrollWeek(week,11), statement_number:'N/A',
+    period_start: week, payment_date: shiftPayrollWeek(week,11), project_name:'', statement_number:'',
     regular_hours: matching && row.approved ? row.regular : '',
     overtime_hours: matching && row.approved ? row.overtime : '',
     hourly_rate: matching ? row.rate ?? assignment.rate_snapshot ?? '' : assignment.rate_snapshot ?? '',
