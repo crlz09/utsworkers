@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, FileCheck2, History, Mail, RefreshCw } from 'lucide-react';
+import { Download, FileCheck2, History, Mail, RefreshCw, Upload } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PAYSTUB_FIELDS, downloadPaystub, eligibleForPaystub, paystubDate, paystubDraft, paystubPayload, paystubTotals, paystubUsd } from '../lib/contractorPaystub';
 import { payrollWeek, shiftPayrollWeek } from '../lib/payroll';
@@ -7,24 +7,27 @@ import ContractorPaystubView from './ContractorPaystubView';
 import ContractorPaystubHistory from './ContractorPaystubHistory';
 import './ContractorPaystubs.css';
 import PaystubEmailDialog from './PaystubEmailDialog';
+import PaystubExcelImport from './PaystubExcelImport';
 
 export default function ContractorPaystubs({ week, onWeekChange, sourceRows, sourceLoading }) {
   const [view,setView]=useState('create'),[selected,setSelected]=useState('');
+  const [importBusy,setImportBusy]=useState(false);
   const [reload,setReload]=useState(0),[roster,setRoster]=useState({loading:true,rows:[],error:''});
   useEffect(()=>{
     let active=true;
-    void supabase.from('cts_job_candidates').select('id,worker_id,cts_job_id,name_snapshot,rate_snapshot,payment_type,candidate_status,worker:workers!worker_id(id,name)').eq('payment_type','1099').eq('candidate_status','placed').not('worker_id','is',null).then(({data,error})=>{
+    void supabase.from('cts_job_candidates').select('id,worker_id,cts_job_id,name_snapshot,rate_snapshot,payment_type,candidate_status,worker:workers!worker_id(id,name),job:cts_jobs!cts_job_id(level_type)').eq('payment_type','1099').eq('candidate_status','placed').not('worker_id','is',null).then(({data,error})=>{
       if(active)setRoster({loading:false,rows:(data||[]).filter(eligibleForPaystub).sort((a,b)=>(a.worker?.name||a.name_snapshot||'').localeCompare(b.worker?.name||b.name_snapshot||'')),error:error?.message||''});
     });
     return()=>{active=false;};
   },[reload]);
   const assignment=roster.rows.find(a=>a.id===selected);
   return <section className="paystub-workspace">
-    <div className="paystub-intro"><div><h2>1099 weekly paystubs</h2><p>Prepare a statement for a placed 1099 contractor. Final statements are saved to the history and published to the employee’s portal.</p></div><div className="paystub-actions"><button className={`pay-btn ${view==='create'?'primary':''}`} onClick={()=>setView('create')}><FileCheck2 size={15}/>Create paystub</button><button className={`pay-btn ${view==='history'?'primary':''}`} onClick={()=>setView('history')}><History size={15}/>Final history</button></div></div>
-    {view==='history'?<ContractorPaystubHistory/>:<>
+    <div className="paystub-intro"><div><h2>1099 weekly paystubs</h2><p>Prepare a statement for a placed 1099 contractor. Final statements are saved to the history and published to the employee’s portal.</p></div><div className="paystub-actions"><button disabled={importBusy} className={`pay-btn ${view==='create'?'primary':''}`} onClick={()=>setView('create')}><FileCheck2 size={15}/>Create paystub</button><button disabled={importBusy} className={`pay-btn ${view==='import'?'primary':''}`} onClick={()=>setView('import')}><Upload size={15}/>Import payroll Excel</button><button disabled={importBusy} className={`pay-btn ${view==='history'?'primary':''}`} onClick={()=>setView('history')}><History size={15}/>Final history</button></div></div>
+    <div hidden={view!=='import'}><PaystubExcelImport roster={roster.rows} rosterLoading={roster.loading} rosterError={roster.error} onBusy={setImportBusy} onHistory={()=>setView('history')}/></div>
+    {view==='history'?<ContractorPaystubHistory/>:view==='create'?<>
       <section className="pay-card paystub-setup"><label>Week starting (Monday)<input type="date" value={week} onChange={e=>{if(e.target.value)onWeekChange(payrollWeek(e.target.value));}}/></label><label>1099 contractor · placed<select value={selected} onChange={e=>setSelected(e.target.value)} disabled={roster.loading||!!roster.error}><option value="">Choose a contractor…</option>{roster.rows.map(a=><option key={a.id} value={a.id}>{a.worker?.name||a.name_snapshot}</option>)}</select></label><button className="pay-btn" onClick={()=>{setRoster(r=>({...r,loading:true}));setReload(r=>r+1);}} disabled={roster.loading}><RefreshCw size={14}/>Refresh contractors</button></section>
       {roster.error?<p role="alert" className="paystub-error">{roster.error}</p>:roster.loading?<p role="status">Loading placed 1099 contractors…</p>:!roster.rows.length?<p className="pay-empty">No linked employees are currently classified as 1099 and placed.</p>:!assignment?<div className="pay-card pay-empty">Choose a contractor to prepare a weekly paystub.</div>:sourceLoading?<p role="status">Loading payroll defaults…</p>:<PaystubEditor key={`${week}:${assignment.id}`} assignment={assignment} row={sourceRows.find(r=>r.assignment.id===assignment.id)} week={week} onHistory={()=>setView('history')}/>}
-    </>}
+    </>:null}
   </section>;
 }
 
