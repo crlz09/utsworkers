@@ -13,7 +13,8 @@ export function weeklyInvoiceLines(report) {
   for (const e of report.entries) {
     if (e.regular > 0) lines.push({ line_type: 'hours', product_service_name: 'Regular hours', worker_name: e.name, project_name: e.contractor, details: `Week Period: ${weekPeriodLabel(report.weekEnding)}`, qty: e.regular, rate: e.rate, amount: moneyValue(e.regular * e.rate) });
     if (e.overtime > 0) {
-      const rate = moneyValue((e.rate - report.fee) * 1.5 + report.fee);
+      // Preserve fractional cents in hourly rates; round only the line amount.
+      const rate = (e.rate - report.fee) * 1.5 + report.fee;
       lines.push({ line_type: 'hours', product_service_name: 'Overtime hours', worker_name: e.name, project_name: e.contractor, details: `Week Period: ${weekPeriodLabel(report.weekEnding)}`, qty: e.overtime, rate, amount: moneyValue(e.overtime * rate) });
     }
     if (e.perDiemDays > 0 && e.perDiemRate > 0) lines.push({ line_type: 'hours', product_service_name: 'Per diem', worker_name: e.name, project_name: e.contractor, details: `Week Period: ${weekPeriodLabel(report.weekEnding)}`, qty: e.perDiemDays, rate: e.perDiemRate, amount: moneyValue(e.perDiemDays * e.perDiemRate) });
@@ -77,7 +78,7 @@ export function parseWeeklyReport(rows, filename = '', fee = 5) {
     if (text(r[0]) && text(r[1])) {
       const e = { name: text(r[0]), contractor: text(r[1]), regular: numeric(r[2], `C${i + 1}`, true), overtime: numeric(r[3], `D${i + 1}`, true), rate: numeric(r[5], `F${i + 1}`), perDiemDays: numeric(r[4], `E${i + 1}`, true), perDiemRate: numeric(r[7], `H${i + 1}`, true) };
       report.entries.push(e);
-      const otWage = moneyValue((e.rate - fee) * 1.5);
+      const otWage = (e.rate - fee) * 1.5;
       if (r[6] != null && Math.abs(numeric(r[6], `G${i + 1}`) - otWage) > 0.01) report.warnings.push(`${e.name}: OT RATE del Excel difiere de (RATE − fee) × 1.5. Revisa la tarifa.`);
       for (const [col, expected] of [[8, e.regular * e.rate], [9, e.overtime * otWage], [10, e.perDiemDays * e.perDiemRate], [11, e.overtime * fee]]) {
         if (r[col] != null && Math.abs(numeric(r[col], `Fila ${i + 1}`) - moneyValue(expected)) > 0.01) report.warnings.push(`${e.name}: un importe de la fila ${i + 1} no coincide con las horas y tarifas.`);

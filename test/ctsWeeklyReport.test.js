@@ -40,6 +40,30 @@ test('reports mismatched source formulas even if the total still matches', () =>
   assert.ok(r.warnings.some((w)=>w.includes('OT RATE')));
   assert.equal(weeklyReportTotals(r).total,17408.25);
 });
+test('fractional-cent OT rates reconcile with Excel without rounding the hourly rate', () => {
+  const rows = [
+    ['EMPLOYEE NAME', 'CONTRACTOR'],
+    ['UTS 11/22/2026', null, 'HOURS', 'OT HOURS', 'PER DIEM', 'RATE', 'OT RATE'],
+    ['Worker A', 'Project', 40, 32, null, 42.25, 55.875, null, 1690, 1788, 0, 160],
+    ['Worker B', 'Project', 40, 32, null, 40.25, 52.875, null, 1610, 1692, 0, 160],
+    [null, null, null, null, null, null, null, null, 'TOTAL DUE WK ENDING 11/22/2026', 7100],
+  ];
+  const report = parseWeeklyReport(rows);
+  assert.deepEqual(report.warnings, []);
+  assert.deepEqual(validateWeeklyReport(report), []);
+  assert.equal(weeklyReportTotals(report).difference, 0);
+  const overtime = weeklyInvoiceLines(report).filter((line) => line.product_service_name === 'Overtime hours');
+  assert.deepEqual(overtime.map(({ rate, amount }) => ({ rate, amount })), [
+    { rate: 60.875, amount: 1948 },
+    { rate: 57.875, amount: 1852 },
+  ]);
+  assert.ok(invoiceCsv(overtime).includes('"60.875"'));
+  // A genuine mismatch must still produce a warning.
+  rows[2][9] += 0.16;
+  assert.ok(parseWeeklyReport(rows).warnings.some((warning) => warning.includes('no coincide')));
+  report.entries[0].overtime = 1.25;
+  assert.equal(weeklyInvoiceLines(report)[1].amount, 76.09);
+});
 test('rejects wrong templates, invalid amounts and inconsistent dates', () => {
   assert.throws(()=>parseWeeklyReport([['Type','Date','Qty']]),/formato/);
   const rows=fixture(); rows[2][2]=-2;
